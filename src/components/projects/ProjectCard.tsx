@@ -8,10 +8,11 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, onClick }: ProjectCardProps) {
-  const statusVariant = {
-    "En attente": "default" as const,
-    "En cours": "info" as const,
-    "Terminé": "success" as const,
+  const statusVariant: Record<Project["status"], "default" | "info" | "success" | "error" | "warning"> = {
+    "En attente": "default",
+    "Nouveau": "default",
+    "En cours": "info",
+    "Terminé": "success",
   };
 
   return (

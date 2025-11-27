@@ -39,18 +39,20 @@ export function TaskCard({
   const { user } = useAuth();
   const [isCompleted, setIsCompleted] = useState(status === "Terminé");
 
-  const priorityColors = {
+  const priorityColors: Record<TaskCardProps["priority"], string> = {
     low: "bg-blue-100 text-blue-800",
     medium: "bg-yellow-100 text-yellow-800",
     high: "bg-orange-100 text-orange-800",
     critical: "bg-red-100 text-red-800",
+    urgent: "bg-red-100 text-red-800",
   };
 
-  const priorityLabels = {
+  const priorityLabels: Record<TaskCardProps["priority"], string> = {
     low: "Faible",
     medium: "Moyenne",
     high: "Haute",
     critical: "Critique",
+    urgent: "Urgent",
   };
 
   const handleToggle = () => {

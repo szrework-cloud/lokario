@@ -426,7 +426,7 @@ export default function TasksPage() {
     if (employeeFilter !== "all" && task.assignedTo !== employeeFilter) return false;
     if (categoryFilter !== "all" && task.type !== categoryFilter) return false;
     if (statusFilter !== "all" && task.status !== statusFilter) return false;
-    if (originFilter !== "all" && task.origin !== originFilter) return false;
+    if (originFilter !== "all" && ("origin" in task ? task.origin : "manual") !== originFilter) return false;
     if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
@@ -635,10 +635,10 @@ export default function TasksPage() {
                       <div className="flex-1">
                         <p className="text-sm font-medium text-[#0F172A]">{task.title}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          {task.dueTime && (
+                          {"dueTime" in task && task.dueTime && (
                             <span className="text-xs text-[#64748B]">🕐 {task.dueTime}</span>
                           )}
-                          {task.origin === "checklist" && (
+                          {"origin" in task && task.origin === "checklist" && (
                             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                               Routine
                             </span>
@@ -713,7 +713,7 @@ export default function TasksPage() {
                           category={task.type || "Interne"}
                           priority={(priorityTask?.priority === "urgent" ? "high" : priorityTask?.priority) || "medium"}
                           dueDate={task.dueDate}
-                          dueTime={priorityTask?.dueTime}
+                          dueTime={("dueTime" in task && typeof task.dueTime === "string" ? task.dueTime : undefined) || priorityTask?.dueTime}
                           status={(task.status === "Terminée" ? "Terminé" : task.status) as "À faire" | "En cours" | "Terminé" | "En retard"}
                           onToggleComplete={(id) => console.log("Toggle:", id)}
                           onViewDetails={(id) => console.log("View:", id)}
@@ -886,7 +886,7 @@ export default function TasksPage() {
                               <p className="text-xs text-[#64748B] mb-2">{task.description}</p>
                             )}
                             <div className="flex items-center gap-3 text-xs text-[#64748B]">
-                              <span>Deadline: {task.dueTime || task.dueDate}</span>
+                              <span>Deadline: {("dueTime" in task && task.dueTime) || task.dueDate}</span>
                               <span>•</span>
                               <span>Assigné à: {task.assignedTo}</span>
                             </div>
@@ -929,7 +929,7 @@ export default function TasksPage() {
                         category={task.type}
                         priority="high"
                         dueDate={task.dueDate}
-                        dueTime={task.dueTime}
+                        dueTime={"dueTime" in task ? task.dueTime : undefined}
                         status={task.status as any}
                         onViewDetails={(id) => console.log("View:", id)}
                         onAddComment={(id) => console.log("Comment:", id)}
@@ -964,7 +964,7 @@ export default function TasksPage() {
                         category={task.type}
                         priority="high"
                         dueDate={task.dueDate}
-                        dueTime={task.dueTime}
+                        dueTime={"dueTime" in task ? task.dueTime : undefined}
                         status={task.status as "À faire" | "En cours" | "Terminé" | "En retard"}
                         onViewDetails={(id) => console.log("View:", id)}
                       />
@@ -1115,7 +1115,7 @@ export default function TasksPage() {
                   <CardContent className="p-4">
                     <p className="text-xs text-[#64748B] mb-1">Générées par checklist</p>
                     <p className="text-xl font-bold text-[#0F172A]">
-                      {allTasks.filter((t) => t.origin === "checklist").length}
+                      {allTasks.filter((t) => "origin" in t && t.origin === "checklist").length}
                     </p>
                   </CardContent>
                 </Card>
@@ -1135,7 +1135,7 @@ export default function TasksPage() {
               <div className="space-y-3">
                 {filteredTasks.map((task) => {
                   const priorityTask = priorityTasks.find((pt) => pt.title === task.title);
-                  const isFromChecklist = task.origin === "checklist";
+                  const isFromChecklist = "origin" in task && task.origin === "checklist";
                   
                   return (
                     <div key={task.id} className="relative">
@@ -1147,7 +1147,7 @@ export default function TasksPage() {
                         category={task.type || "Interne"}
                         priority={(priorityTask?.priority === "urgent" ? "high" : priorityTask?.priority) || "medium"}
                         dueDate={task.dueDate}
-                        dueTime={task.dueTime || priorityTask?.dueTime}
+                        dueTime={("dueTime" in task ? task.dueTime : undefined) || priorityTask?.dueTime}
                         status={(task.status === "Terminée" ? "Terminé" : task.status) as "À faire" | "En cours" | "Terminé" | "En retard"}
                         isLate={task.status === "En retard"}
                         onToggleComplete={(id) => console.log("Toggle:", id)}
