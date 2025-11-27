@@ -25,55 +25,59 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Mode mock si pas de backend
-      if (!process.env.NEXT_PUBLIC_API_URL) {
-        // Utilisateurs de démonstration
-        const mockUsers: Record<string, { user: CurrentUser; token: string }> = {
-          "admin@lokario.fr": {
-            user: {
-              id: 1,
-              email: "admin@lokario.fr",
-              full_name: "Admin Lokario",
-              role: "super_admin",
-              company_id: 1,
-              is_active: true,
-              created_at: new Date().toISOString(),
-            },
-            token: "mock_token_admin",
+      // Utilisateurs de démonstration pour le mode mock
+      const mockUsers: Record<string, { user: CurrentUser; token: string }> = {
+        "admin@lokario.fr": {
+          user: {
+            id: 1,
+            email: "admin@lokario.fr",
+            full_name: "Admin Lokario",
+            role: "super_admin",
+            company_id: 1,
+            is_active: true,
+            created_at: new Date().toISOString(),
           },
-          "owner@lokario.fr": {
-            user: {
-              id: 2,
-              email: "owner@lokario.fr",
-              full_name: "Propriétaire",
-              role: "owner",
-              company_id: 1,
-              is_active: true,
-              created_at: new Date().toISOString(),
-            },
-            token: "mock_token_owner",
+          token: "mock_token_admin",
+        },
+        "owner@lokario.fr": {
+          user: {
+            id: 2,
+            email: "owner@lokario.fr",
+            full_name: "Propriétaire",
+            role: "owner",
+            company_id: 1,
+            is_active: true,
+            created_at: new Date().toISOString(),
           },
-          "user@lokario.fr": {
-            user: {
-              id: 3,
-              email: "user@lokario.fr",
-              full_name: "Employé",
-              role: "user",
-              company_id: 1,
-              is_active: true,
-              created_at: new Date().toISOString(),
-            },
-            token: "mock_token_user",
+          token: "mock_token_owner",
+        },
+        "user@lokario.fr": {
+          user: {
+            id: 3,
+            email: "user@lokario.fr",
+            full_name: "Employé",
+            role: "user",
+            company_id: 1,
+            is_active: true,
+            created_at: new Date().toISOString(),
           },
-        };
+          token: "mock_token_user",
+        },
+      };
 
+      // Vérifier si on est en mode mock (pas de NEXT_PUBLIC_API_URL ou chaîne vide)
+      const isMockMode = !process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL.trim() === "";
+
+      if (isMockMode) {
+        // Mode mock : utiliser les utilisateurs de démonstration
         const mockAuth = mockUsers[email.toLowerCase()];
         if (mockAuth && password === "demo123") {
           setAuth(mockAuth.token, mockAuth.user);
+          // Utiliser window.location pour forcer une navigation complète
           if (mockAuth.user.role === "super_admin") {
-            router.push("/admin/companies");
+            window.location.href = "/admin/companies";
           } else {
-            router.push("/app/tasks");
+            window.location.href = "/app/tasks";
           }
           return;
         } else {
@@ -89,19 +93,43 @@ export default function LoginPage() {
         password,
       });
 
+      // Vérifier si la réponse est vide (mode mock fallback)
+      if (!data || !data.access_token) {
+        // Fallback vers mode mock
+        const mockAuth = mockUsers[email.toLowerCase()];
+        if (mockAuth && password === "demo123") {
+          setAuth(mockAuth.token, mockAuth.user);
+          if (mockAuth.user.role === "super_admin") {
+            window.location.href = "/admin/companies";
+          } else {
+            window.location.href = "/app/tasks";
+          }
+          return;
+        } else {
+          setError("Email ou mot de passe incorrect");
+          setLoading(false);
+          return;
+        }
+      }
+
       const user = await apiGet<CurrentUser>("/auth/me", data.access_token);
+
+      if (!user || !user.id) {
+        setError("Erreur lors de la récupération des informations utilisateur");
+        setLoading(false);
+        return;
+      }
 
       setAuth(data.access_token, user);
 
       // Redirection selon le rôle
       if (user.role === "super_admin") {
-        router.push("/admin/companies");
+        window.location.href = "/admin/companies";
       } else {
-        router.push("/app/tasks");
+        window.location.href = "/app/tasks";
       }
     } catch (err: any) {
       setError(err.message || "Erreur de connexion");
-    } finally {
       setLoading(false);
     }
   };
