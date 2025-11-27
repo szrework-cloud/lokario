@@ -95,8 +95,16 @@ export function useSettings(autoLoad: boolean = true) {
       setError(null);
       try {
         // Utiliser PATCH au lieu de POST
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        
+        // En mode développement sans backend, simuler une réponse
+        if (!process.env.NEXT_PUBLIC_API_URL) {
+          console.log("[MOCK API] PATCH /companies/me/settings", updatedSettings);
+          return;
+        }
+
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/companies/me/settings`,
+          `${apiUrl}/companies/me/settings`,
           {
             method: "PATCH",
             headers: {

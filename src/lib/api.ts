@@ -1,7 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-if (!API_URL) {
-  console.warn("NEXT_PUBLIC_API_URL is not defined");
+if (!process.env.NEXT_PUBLIC_API_URL) {
+  console.warn("NEXT_PUBLIC_API_URL is not defined, using default: http://localhost:8000");
 }
 
 export async function apiPost<T>(
@@ -9,8 +9,10 @@ export async function apiPost<T>(
   body: unknown,
   token?: string | null
 ): Promise<T> {
-  if (!API_URL) {
-    throw new Error("API URL is not configured");
+  // En mode développement sans backend, simuler une réponse
+  if (!process.env.NEXT_PUBLIC_API_URL) {
+    console.log("[MOCK API] POST", path, body);
+    return Promise.resolve({} as T);
   }
 
   const res = await fetch(`${API_URL}${path}`, {
@@ -41,8 +43,10 @@ export async function apiPost<T>(
 }
 
 export async function apiGet<T>(path: string, token?: string | null): Promise<T> {
-  if (!API_URL) {
-    throw new Error("API URL is not configured");
+  // En mode développement sans backend, simuler une réponse
+  if (!process.env.NEXT_PUBLIC_API_URL) {
+    console.log("[MOCK API] GET", path);
+    return Promise.resolve({} as T);
   }
 
   const res = await fetch(`${API_URL}${path}`, {
@@ -76,8 +80,10 @@ export async function apiPatch<T>(
   body: unknown,
   token?: string | null
 ): Promise<T> {
-  if (!API_URL) {
-    throw new Error("API URL is not configured");
+  // En mode développement sans backend, simuler une réponse
+  if (!process.env.NEXT_PUBLIC_API_URL) {
+    console.log("[MOCK API] PATCH", path, body);
+    return Promise.resolve({} as T);
   }
 
   const res = await fetch(`${API_URL}${path}`, {
