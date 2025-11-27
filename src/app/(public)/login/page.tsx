@@ -25,6 +25,65 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Mode mock si pas de backend
+      if (!process.env.NEXT_PUBLIC_API_URL) {
+        // Utilisateurs de démonstration
+        const mockUsers: Record<string, { user: CurrentUser; token: string }> = {
+          "admin@lokario.fr": {
+            user: {
+              id: 1,
+              email: "admin@lokario.fr",
+              full_name: "Admin Lokario",
+              role: "super_admin",
+              company_id: 1,
+              is_active: true,
+              created_at: new Date().toISOString(),
+            },
+            token: "mock_token_admin",
+          },
+          "owner@lokario.fr": {
+            user: {
+              id: 2,
+              email: "owner@lokario.fr",
+              full_name: "Propriétaire",
+              role: "owner",
+              company_id: 1,
+              is_active: true,
+              created_at: new Date().toISOString(),
+            },
+            token: "mock_token_owner",
+          },
+          "user@lokario.fr": {
+            user: {
+              id: 3,
+              email: "user@lokario.fr",
+              full_name: "Employé",
+              role: "user",
+              company_id: 1,
+              is_active: true,
+              created_at: new Date().toISOString(),
+            },
+            token: "mock_token_user",
+          },
+        };
+
+        const mockAuth = mockUsers[email.toLowerCase()];
+        if (mockAuth && password === "demo123") {
+          setAuth(mockAuth.token, mockAuth.user);
+          if (mockAuth.user.role === "super_admin") {
+            router.push("/admin/companies");
+          } else {
+            router.push("/app/tasks");
+          }
+          return;
+        } else {
+          setError("Email ou mot de passe incorrect. Utilisez: admin@lokario.fr / owner@lokario.fr / user@lokario.fr avec le mot de passe: demo123");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Mode avec backend
       const data = await apiPost<LoginResponse>("/auth/login", {
         email,
         password,

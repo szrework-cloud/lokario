@@ -50,6 +50,49 @@ export function useSettings(autoLoad: boolean = true) {
     setLoading(true);
     setError(null);
     try {
+      // Mode mock si pas de backend
+      if (!process.env.NEXT_PUBLIC_API_URL) {
+        const mockSettings: GetSettingsResponse = {
+          company: {
+            id: 1,
+            name: "Ma Boutique",
+            sector: "Commerce",
+            is_active: true,
+            created_at: new Date().toISOString(),
+          },
+          settings: {
+            id: 1,
+            company_id: 1,
+            settings: {
+              modules: {
+                tasks: { enabled: true },
+                inbox: { enabled: true },
+                relances: { enabled: true },
+                projects: { enabled: true },
+                billing: { enabled: true },
+                reporting: { enabled: true },
+                chatbot_internal: { enabled: true },
+                chatbot_site: { enabled: false },
+              },
+              ia: {
+                ai_relances: true,
+                ai_summary: true,
+                ai_chatbot_internal: true,
+                ai_chatbot_site: false,
+              },
+              integrations: {
+                email_provider: null,
+                email_from: null,
+              },
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        };
+        setSettings(mockSettings);
+        return;
+      }
+
       const data = await apiGet<GetSettingsResponse>(
         "/companies/me/settings",
         token
@@ -100,6 +143,8 @@ export function useSettings(autoLoad: boolean = true) {
         // En mode développement sans backend, simuler une réponse
         if (!process.env.NEXT_PUBLIC_API_URL) {
           console.log("[MOCK API] PATCH /companies/me/settings", updatedSettings);
+          // Simuler une mise à jour locale
+          updateSettingsLocal(updatedSettings);
           return;
         }
 
