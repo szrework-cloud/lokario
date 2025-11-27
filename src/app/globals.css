@@ -1,8 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #F9FAFB;
+  --foreground: #0F172A;
+  
+  /* Brand Colors - Bold Orange Business */
+  --brand-primary: #F97316;
+  --brand-primary-dark: #EA580C;
+  --brand-primary-light: #FDBA74;
+  --brand-background: #F9FAFB;
+  --brand-surface: #FFFFFF;
+  --brand-text: #0F172A;
+  --brand-subtext: #64748B;
+  --brand-border: #E5E7EB;
+  --brand-accent: #FB923C;
+  --brand-danger: #DC2626;
+  --brand-success: #16A34A;
+  --brand-warning: #FACC15;
+  
+  /* Dark mode colors (préparés) */
+  --brand-background-dark: #0B0B0F;
+  --brand-surface-dark: #111827;
+  --brand-text-dark: #E5E7EB;
+  --brand-border-dark: #1F2933;
 }
 
 @theme inline {
@@ -10,17 +30,31 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  /* Brand colors */
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-dark: var(--brand-primary-dark);
+  --color-brand-primary-light: var(--brand-primary-light);
+  --color-brand-background: var(--brand-background);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-text: var(--brand-text);
+  --color-brand-subtext: var(--brand-subtext);
+  --color-brand-border: var(--brand-border);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-danger: var(--brand-danger);
+  --color-brand-success: var(--brand-success);
+  --color-brand-warning: var(--brand-warning);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: var(--brand-background-dark);
+    --foreground: var(--brand-text-dark);
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--brand-background);
+  color: var(--brand-text);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }

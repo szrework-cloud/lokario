@@ -1,0 +1,210 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/Card";
+import Link from "next/link";
+import { apiGet } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import { Loader } from "@/components/ui/Loader";
+
+type OwnerUser = {
+  id: number;
+  email: string;
+  full_name?: string | null;
+  role: string;
+  company_id: number | null;
+  is_active: boolean;
+  created_at: string;
+};
+
+type Company = {
+  id: number;
+  name: string;
+  sector?: string | null;
+  is_active: boolean;
+  created_at: string;
+};
+
+type OwnerWithCompany = OwnerUser & {
+  company: Company | null;
+};
+
+export default function CompaniesPage() {
+  const { token } = useAuth();
+  const [owners, setOwners] = useState<OwnerWithCompany[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const loadOwners = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Récupérer tous les users
+        const users = await apiGet<OwnerUser[]>("/users", token);
+        
+        // Filtrer les owners
+        const ownerUsers = users.filter((u) => u.role === "owner");
+        
+        // Pour chaque owner, récupérer sa company
+        const ownersWithCompanies = await Promise.all(
+          ownerUsers.map(async (owner) => {
+            let company: Company | null = null;
+            if (owner.company_id) {
+              try {
+                company = await apiGet<Company>(
+                  `/companies/${owner.company_id}`,
+                  token
+                );
+              } catch {
+                // Company not found
+              }
+            }
+            return { ...owner, company };
+          })
+        );
+
+        setOwners(ownersWithCompanies);
+      } catch (err: any) {
+        setError(err.message || "Erreur lors du chargement des owners");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadOwners();
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader text="Chargement des comptes owners..." />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 text-center text-red-600">
+        <p>{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 text-sm text-blue-600 hover:underline"
+        >
+          Réessayer
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-[#0F172A]">Comptes Owners</h1>
+          <p className="mt-2 text-sm text-[#64748B]">
+            Liste de tous les comptes propriétaires d'entreprises
+          </p>
+        </div>
+        <Link
+          href="/admin/packs"
+          className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] text-white px-4 py-2 text-sm font-medium shadow-md hover:shadow-lg hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
+        >
+          Packs
+        </Link>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-[#F9FAFB]">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
+                Nom / Email
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
+                Entreprise
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
+                Secteur
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
+                Statut
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
+                Date de création
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E5E7EB]">
+            {owners.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-8 text-center text-sm text-[#64748B]">
+                  Aucun compte owner trouvé
+                </td>
+              </tr>
+            ) : (
+              owners.map((owner) => (
+                <tr key={owner.id} className="hover:bg-[#F9FAFB]">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-[#0F172A]">
+                        {owner.full_name || "Sans nom"}
+                      </span>
+                      <span className="text-xs text-[#64748B]">{owner.email}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-[#0F172A]">
+                    {owner.company ? (
+                      <Link
+                        href={`/admin/companies/${owner.company.id}`}
+                        className="font-medium hover:text-[#F97316]"
+                      >
+                        {owner.company.name}
+                      </Link>
+                    ) : (
+                      <span className="text-[#64748B]">Aucune entreprise</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748B]">
+                    {owner.company?.sector || "—"}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                        owner.is_active
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {owner.is_active ? "Actif" : "Inactif"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748B]">
+                    {new Date(owner.created_at).toLocaleDateString("fr-FR")}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {owner.company && (
+                      <Link
+                        href={`/admin/companies/${owner.company.id}`}
+                        className="text-sm font-medium text-[#F97316] hover:text-[#EA580C]"
+                      >
+                        Voir
+                      </Link>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+

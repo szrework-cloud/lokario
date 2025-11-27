@@ -1,0 +1,636 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { PageTitle } from "@/components/layout/PageTitle";
+import { Quote, BillingLine, BillingHistoryEvent, BillingTimelineEvent } from "@/components/billing/types";
+import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { calculateSubtotal, calculateTax, calculateTotal, calculateLineTotal, formatAmount, generateQuoteNumber } from "@/components/billing/utils";
+import { DescriptionAutocomplete } from "@/components/billing/DescriptionAutocomplete";
+import { TicketUploadModal } from "@/components/billing/TicketUploadModal";
+import { useAuth } from "@/hooks/useAuth";
+
+export default function NewQuotePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const duplicateId = searchParams.get("duplicate");
+  const { user } = useAuth();
+  const [isSaving, setIsSaving] = useState(false);
+
+  // TODO: Récupérer depuis le backend
+  const mockClients = [
+    { id: 1, name: "Boulangerie Soleil" },
+    { id: 2, name: "Mme Dupont" },
+    { id: 3, name: "M. Martin" },
+    { id: 4, name: "Salon Beauté" },
+  ];
+
+  const mockProjects = [
+    { id: 1, name: "Rénovation cuisine", client_id: 3 },
+    { id: 2, name: "Installation équipement", client_id: 1 },
+    { id: 3, name: "Projet beauté", client_id: 2 },
+  ];
+
+  const [formData, setFormData] = useState<{
+    client_id: number;
+    project_id?: number;
+    lines: BillingLine[];
+    notes?: string;
+    conditions?: string;
+    status: Quote["status"];
+    attachments?: File[];
+  }>({
+    client_id: 0,
+    lines: [
+      {
+        id: Date.now(),
+        description: "",
+        quantity: 1,
+        unitPrice: 0,
+        taxRate: 20,
+      },
+    ],
+    status: "brouillon",
+    attachments: [],
+  });
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+
+  // Si on duplique un devis, charger les données
+  useEffect(() => {
+    if (duplicateId) {
+      // TODO: Charger le devis depuis le backend
+      // Pour l'instant, on simule avec des données mock
+      const mockQuoteToDuplicate = {
+        client_id: Number(searchParams.get("client")) || 1,
+        project_id: searchParams.get("project") ? Number(searchParams.get("project")) : undefined,
+        lines: [
+          {
+            id: Date.now(),
+            description: "Prestation de service - Installation",
+            quantity: 1,
+            unitPrice: 1250,
+            taxRate: 20,
+          },
+          {
+            id: Date.now() + 1,
+            description: "Matériel supplémentaire",
+            quantity: 2,
+            unitPrice: 150,
+            taxRate: 20,
+          },
+        ],
+        notes: "Installation prévue pour le 15 février 2025.",
+        conditions: "Paiement à 30 jours. Garantie 1 an.",
+      };
+
+      setFormData({
+        client_id: mockQuoteToDuplicate.client_id,
+        project_id: mockQuoteToDuplicate.project_id,
+        lines: mockQuoteToDuplicate.lines.map((line) => ({
+          ...line,
+          id: Date.now() + Math.random(), // Nouveaux IDs pour les lignes
+        })),
+        notes: mockQuoteToDuplicate.notes,
+        conditions: mockQuoteToDuplicate.conditions,
+        status: "brouillon", // Toujours en brouillon pour une duplication
+      });
+    }
+  }, [duplicateId, searchParams]);
+
+  // Fonction pour sauvegarder une nouvelle ligne dans la base de données
+  const handleSaveNewLine = async (description: string, unitPrice: number, taxRate: number) => {
+    // TODO: Appel API pour sauvegarder la nouvelle ligne
+    console.log("Sauvegarder nouvelle ligne:", { description, unitPrice, taxRate });
+    // Pour l'instant, on simule juste l'enregistrement
+    // Dans une vraie app, on ferait un appel API ici
+  };
+
+  const subtotal = calculateSubtotal(formData.lines);
+  const tax = calculateTax(formData.lines);
+  const total = calculateTotal(formData.lines);
+
+  const handleLineChange = (lineId: number, field: keyof BillingLine, value: string | number) => {
+    const updatedLines = formData.lines.map((line) =>
+      line.id === lineId ? { ...line, [field]: value } : line
+    );
+    setFormData({ ...formData, lines: updatedLines });
+  };
+
+  const handleAddLine = () => {
+    const newLine: BillingLine = {
+      id: Date.now(),
+      description: "",
+      quantity: 1,
+      unitPrice: 0,
+      taxRate: 20,
+    };
+    setFormData({
+      ...formData,
+      lines: [...formData.lines, newLine],
+    });
+  };
+
+  const handleRemoveLine = (lineId: number) => {
+    if (formData.lines.length === 1) return; // Garder au moins une ligne
+    setFormData({
+      ...formData,
+      lines: formData.lines.filter((line) => line.id !== lineId),
+    });
+  };
+
+  const handleTicketAnalyze = (extractedLines: BillingLine[], file: File) => {
+    // Remplacer les lignes existantes par celles extraites du ticket
+    setFormData({
+      ...formData,
+      lines: extractedLines,
+      attachments: [...(formData.attachments || []), file],
+    });
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    const newAttachments = [...(formData.attachments || [])];
+    newAttachments.splice(index, 1);
+    setFormData({
+      ...formData,
+      attachments: newAttachments,
+    });
+  };
+
+  const handleSave = async (saveAsDraft: boolean = false) => {
+    if (!formData.client_id) {
+      alert("Veuillez sélectionner un client");
+      return;
+    }
+
+    if (formData.lines.some((line) => !line.description || line.unitPrice === 0)) {
+      alert("Veuillez remplir toutes les lignes avec une description et un prix");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const userName = user?.full_name || user?.email || "Utilisateur";
+      const selectedClient = mockClients.find((c) => c.id === formData.client_id);
+      const selectedProject = formData.project_id
+        ? mockProjects.find((p) => p.id === formData.project_id)
+        : undefined;
+
+      // Générer le numéro (TODO: Récupérer le dernier numéro depuis le backend)
+      const quoteNumber = generateQuoteNumber(23, 2025); // Mock: dernier numéro était 23
+
+      // Créer les événements initiaux
+      const historyEvent: BillingHistoryEvent = {
+        id: Date.now(),
+        timestamp: now,
+        action: "Devis créé",
+        user: userName,
+      };
+
+      const timelineEvent: BillingTimelineEvent = {
+        id: Date.now(),
+        timestamp: now,
+        action: "Devis créé",
+        user: userName,
+      };
+
+      const newQuote: Quote = {
+        id: Date.now(), // TODO: ID depuis le backend
+        number: quoteNumber,
+        client_id: formData.client_id,
+        client_name: selectedClient?.name || "",
+        project_id: formData.project_id,
+        project_name: selectedProject?.name,
+        status: saveAsDraft ? "brouillon" : formData.status,
+        lines: formData.lines,
+        subtotal,
+        tax,
+        total,
+        notes: formData.notes,
+        conditions: formData.conditions,
+        created_at: now,
+        timeline: [timelineEvent],
+        history: [historyEvent],
+      };
+
+      // TODO: Appel API pour créer le devis
+      // TODO: Uploader les fichiers attachés (formData.attachments) vers le backend
+      console.log("Create quote:", newQuote);
+      if (formData.attachments && formData.attachments.length > 0) {
+        console.log("Attachments:", formData.attachments.map(f => f.name));
+      }
+
+      // Simuler un délai
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Rediriger vers la page de détail
+      router.push(`/app/billing/quotes/${newQuote.id}`);
+    } catch (error) {
+      console.error("Error creating quote:", error);
+      alert("Erreur lors de la création du devis");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <PageTitle title="Créer un devis" />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.push("/app/billing/quotes")}
+            className="text-sm text-[#64748B] hover:text-[#0F172A]"
+          >
+            ← Retour à la liste
+          </button>
+        </div>
+
+        {duplicateId && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-sm text-green-800">
+              📋 Duplication du devis #{duplicateId}. Les informations ont été pré-remplies.
+            </p>
+          </div>
+        )}
+
+        <Card>
+          <CardHeader>
+            <h1 className="text-2xl font-bold text-[#0F172A]">
+              Créer un nouveau devis
+            </h1>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Bloc 1 : Infos client */}
+            <div>
+              <h2 className="text-lg font-semibold text-[#0F172A] mb-4">
+                Informations client
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Client *
+                  </label>
+                  <select
+                    value={formData.client_id}
+                    onChange={(e) => {
+                      const clientId = Number(e.target.value);
+                      setFormData({
+                        ...formData,
+                        client_id: clientId,
+                        project_id: undefined, // Réinitialiser le projet si le client change
+                      });
+                    }}
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    required
+                  >
+                    <option value="0">Sélectionner un client</option>
+                    {mockClients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      // TODO: Ouvrir modal pour créer un nouveau client
+                      router.push("/app/clients?new=true");
+                    }}
+                    className="mt-2 text-xs text-[#F97316] hover:text-[#EA580C]"
+                  >
+                    + Ajouter un nouveau client
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Projet (optionnel)
+                  </label>
+                  <select
+                    value={formData.project_id || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        project_id: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                  >
+                    <option value="">Aucun projet</option>
+                    {mockProjects
+                      .filter((p) => !formData.client_id || p.client_id === formData.client_id)
+                      .map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Bloc 2 : Lignes du devis */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-[#0F172A]">
+                  Lignes du devis
+                </h2>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsTicketModalOpen(true)}
+                    className="text-sm text-[#8B5CF6] hover:text-[#6D28D9] font-medium flex items-center gap-2"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    📸 Analyser un ticket de caisse
+                  </button>
+                  <button
+                    onClick={handleAddLine}
+                    className="text-sm text-[#F97316] hover:text-[#EA580C] font-medium"
+                  >
+                    + Ajouter une ligne
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-4">
+                {formData.lines.map((line) => (
+                  <div
+                    key={line.id}
+                    className="p-4 rounded-lg border border-[#E5E7EB] bg-white"
+                  >
+                    <div className="grid grid-cols-12 gap-4">
+                      <div className="col-span-5">
+                        <label className="block text-xs font-medium text-[#64748B] mb-1">
+                          Description *
+                        </label>
+                        <DescriptionAutocomplete
+                          value={line.description}
+                          onChange={(value) =>
+                            handleLineChange(line.id, "description", value)
+                          }
+                          onSelectLine={(savedLine) => {
+                            // Pré-remplir le prix et la TVA si une ligne est sélectionnée
+                            handleLineChange(line.id, "unitPrice", savedLine.unitPrice);
+                            handleLineChange(line.id, "taxRate", savedLine.taxRate);
+                          }}
+                          onSaveNewLine={(description, unitPrice, taxRate) => {
+                            // Sauvegarder la nouvelle ligne et mettre à jour la ligne actuelle
+                            handleSaveNewLine(description, unitPrice, taxRate);
+                            handleLineChange(line.id, "description", description);
+                            if (unitPrice > 0) {
+                              handleLineChange(line.id, "unitPrice", unitPrice);
+                            }
+                            if (taxRate > 0) {
+                              handleLineChange(line.id, "taxRate", taxRate);
+                            }
+                          }}
+                          defaultUnitPrice={line.unitPrice}
+                          defaultTaxRate={line.taxRate}
+                          placeholder="Tapez pour rechercher dans les lignes enregistrées..."
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-[#64748B] mb-1">
+                          Quantité *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.quantity}
+                          onChange={(e) =>
+                            handleLineChange(
+                              line.id,
+                              "quantity",
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                          required
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-[#64748B] mb-1">
+                          Prix unitaire *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.unitPrice}
+                          onChange={(e) =>
+                            handleLineChange(
+                              line.id,
+                              "unitPrice",
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                          required
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-[#64748B] mb-1">
+                          TVA (%)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={line.taxRate}
+                          onChange={(e) =>
+                            handleLineChange(
+                              line.id,
+                              "taxRate",
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        />
+                      </div>
+                      <div className="col-span-1 flex items-end">
+                        {formData.lines.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveLine(line.id)}
+                            className="text-red-600 hover:text-red-700 text-sm font-bold"
+                            title="Supprimer cette ligne"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 text-right">
+                      <span className="text-sm font-medium text-[#0F172A]">
+                        Total: {formatAmount(calculateLineTotal(line))}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bloc 3 : Résumé */}
+            <div className="bg-[#F9FAFB] p-6 rounded-lg border border-[#E5E7EB]">
+              <h2 className="text-lg font-semibold text-[#0F172A] mb-4">
+                Résumé
+              </h2>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#64748B]">Sous-total HT</span>
+                  <span className="font-medium text-[#0F172A]">
+                    {formatAmount(subtotal)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#64748B]">TVA</span>
+                  <span className="font-medium text-[#0F172A]">
+                    {formatAmount(tax)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xl font-bold pt-3 border-t-2 border-[#E5E7EB]">
+                  <span className="text-[#0F172A]">Total TTC</span>
+                  <span className="text-[#0F172A]">
+                    {formatAmount(total)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bloc 4 : Pièces jointes */}
+            {formData.attachments && formData.attachments.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-[#0F172A] mb-4">
+                  Pièces jointes
+                </h2>
+                <div className="space-y-2">
+                  {formData.attachments.map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 rounded-lg border border-[#E5E7EB] bg-white"
+                    >
+                      <div className="flex items-center gap-3">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5 text-[#64748B]"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-medium text-[#0F172A]">
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-[#64748B]">
+                            {(file.size / 1024).toFixed(2)} KB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveAttachment(index)}
+                        className="text-red-600 hover:text-red-700 text-sm font-medium"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bloc 5 : Notes & Conditions */}
+            <div>
+              <h2 className="text-lg font-semibold text-[#0F172A] mb-4">
+                Notes & Conditions
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Notes (optionnel)
+                  </label>
+                  <textarea
+                    value={formData.notes || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, notes: e.target.value })
+                    }
+                    rows={4}
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    placeholder="Notes internes ou informations supplémentaires..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Conditions (optionnel)
+                  </label>
+                  <textarea
+                    value={formData.conditions || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, conditions: e.target.value })
+                    }
+                    rows={4}
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    placeholder="Conditions de paiement, garantie, délais..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Boutons d'action */}
+            <div className="flex justify-end gap-3 pt-6 border-t border-[#E5E7EB]">
+              <button
+                onClick={() => router.push("/app/billing/quotes")}
+                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB]"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => handleSave(true)}
+                disabled={isSaving}
+                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB] disabled:opacity-60"
+              >
+                {isSaving ? "Enregistrement..." : "Enregistrer comme brouillon"}
+              </button>
+              <button
+                onClick={() => {
+                  setFormData({ ...formData, status: "envoyé" });
+                  handleSave(false);
+                }}
+                disabled={isSaving}
+                className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60"
+              >
+                {isSaving ? "Création..." : "Créer et envoyer"}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <TicketUploadModal
+        isOpen={isTicketModalOpen}
+        onClose={() => setIsTicketModalOpen(false)}
+        onAnalyze={handleTicketAnalyze}
+      />
+    </>
+  );
+}
+
