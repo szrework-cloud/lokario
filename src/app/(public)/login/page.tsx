@@ -25,12 +25,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Debug: vérifier le mode
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      console.log("[LOGIN DEBUG] NEXT_PUBLIC_API_URL:", apiUrl);
-      console.log("[LOGIN DEBUG] Email:", email);
-      
       // Utilisateurs de démonstration pour le mode mock
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const mockUsers: Record<string, { user: CurrentUser; token: string }> = {
         "admin@lokario.fr": {
           user: {
@@ -72,17 +68,12 @@ export default function LoginPage() {
 
       // Vérifier si on est en mode mock (pas de NEXT_PUBLIC_API_URL ou chaîne vide)
       const isMockMode = !apiUrl || apiUrl.trim() === "";
-      console.log("[LOGIN DEBUG] isMockMode:", isMockMode);
 
       if (isMockMode) {
         // Mode mock : utiliser les utilisateurs de démonstration
-        console.log("[LOGIN DEBUG] Using mock mode");
         const mockAuth = mockUsers[email.toLowerCase()];
-        console.log("[LOGIN DEBUG] mockAuth found:", !!mockAuth);
-        console.log("[LOGIN DEBUG] password match:", password === "demo123");
         
         if (mockAuth && password === "demo123") {
-          console.log("[LOGIN DEBUG] Setting auth and redirecting...");
           setAuth(mockAuth.token, mockAuth.user);
           // Utiliser window.location pour forcer une navigation complète
           if (mockAuth.user.role === "super_admin") {
