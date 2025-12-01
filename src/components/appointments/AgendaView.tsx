@@ -2,9 +2,11 @@
 
 import { useState, useMemo } from "react";
 import { Appointment } from "./types";
-import { mockAppointments } from "./mockData";
+import { mockAppointments, mockAppointmentSettings } from "./mockData";
 import { AppointmentDetailModal } from "./AppointmentDetailModal";
 import { Card, CardContent } from "@/components/ui/Card";
+import { useAppointmentAutomation } from "./useAppointmentAutomation";
+import { buildNoShowMessage, shouldSendNoShowMessage, markNoShowMessageSent } from "./automation";
 
 type ViewMode = "day" | "week";
 
@@ -19,14 +21,49 @@ export function AgendaView() {
     setIsModalOpen(true);
   };
 
+  // Automatisation des rappels
+  useAppointmentAutomation({
+    appointments: mockAppointments,
+    settings: mockAppointmentSettings,
+    onSendMessage: (appointment, message, type) => {
+      console.log(`[Appointment Automation] ${type === "reminder" ? "Rappel" : "No show"} à envoyer:`, {
+        appointmentId: appointment.id,
+        clientName: appointment.clientName,
+        message,
+      });
+      // TODO: Une fois l'API Inbox prête, créer le message ici
+      // createInboxMessage({
+      //   conversationId: appointment.clientConversationId,
+      //   body: message,
+      //   metadata: { source: `appointment_${type}`, appointmentId: appointment.id }
+      // })
+    },
+  });
+
   const handleStatusChange = (appointmentId: number, newStatus: Appointment["status"]) => {
     // TODO: Appel API pour changer le statut
     console.log("Change status:", appointmentId, newStatus);
     
-    // Si no_show, déclencher l'automatisation
+    // Si no_show, déclencher l'automatisation immédiatement
     if (newStatus === "no_show") {
-      // TODO: Appeler buildNoShowMessage et créer le message dans Inbox
-      console.log("TODO: Envoyer message no_show dans Inbox");
+      const appointment = mockAppointments.find((apt) => apt.id === appointmentId);
+      if (appointment && shouldSendNoShowMessage(appointment, mockAppointmentSettings)) {
+        const message = buildNoShowMessage(appointment, mockAppointmentSettings);
+        if (message) {
+          markNoShowMessageSent(appointment.id);
+          console.log("[Appointment Automation] Message no_show généré:", {
+            appointmentId: appointment.id,
+            clientName: appointment.clientName,
+            message,
+          });
+          // TODO: Une fois l'API Inbox prête, créer le message ici
+          // createInboxMessage({
+          //   conversationId: appointment.clientConversationId,
+          //   body: message,
+          //   metadata: { source: "appointment_no_show", appointmentId: appointment.id }
+          // })
+        }
+      }
     }
   };
 
