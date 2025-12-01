@@ -111,7 +111,6 @@ export default function PublicBookingPage() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-[#0F172A] mb-2">Prendre rendez-vous</h1>
           <p className="text-[#64748B]">Réservez votre créneau en quelques clics</p>
-          <p className="text-xs text-[#64748B] mt-2">Slug: {slug}</p>
         </div>
 
         {/* Étape 1 : Sélection du type */}
