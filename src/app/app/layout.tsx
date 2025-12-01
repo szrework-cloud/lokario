@@ -8,6 +8,7 @@ import { AppFooter } from "@/components/layout/AppFooter";
 import { PageProvider, usePage } from "@/contexts/PageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
+import { FloatingChatWidget } from "@/components/chatbot/FloatingChatWidget";
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { title, subtitle, rightContent } = usePage();
@@ -61,6 +62,7 @@ export default function AppLayout({
   return (
     <PageProvider>
       <AppLayoutContent>{children}</AppLayoutContent>
+      <FloatingChatWidget />
     </PageProvider>
   );
 }
