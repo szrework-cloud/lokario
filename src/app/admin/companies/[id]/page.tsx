@@ -65,6 +65,8 @@ export default function CompanyDetailPage() {
   const tabs = [
     { id: "company", label: "Infos entreprise" },
     { id: "modules", label: "Modules activés" },
+    { id: "billing", label: "Facturation" },
+    { id: "usage", label: "Utilisation" },
     { id: "ia", label: "Intelligence artificielle" },
     { id: "team", label: "Équipe" },
     { id: "integrations", label: "Intégrations" },
@@ -77,6 +79,56 @@ export default function CompanyDetailPage() {
     { id: 2, name: "Marie Martin", email: "marie@example.com", role: "user" },
     { id: 3, name: "Pierre Durand", email: "pierre@example.com", role: "user" },
   ];
+
+  // Mock données de facturation
+  const mockBillingData = {
+    plan: "Pro",
+    monthlyPrice: 49.99,
+    nextBillingDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+    invoices: [
+      {
+        id: 1,
+        invoiceNumber: "INV-2025-001",
+        date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        amount: 49.99,
+        status: "Payé",
+        pdfUrl: "#",
+      },
+      {
+        id: 2,
+        invoiceNumber: "INV-2025-002",
+        date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+        amount: 49.99,
+        status: "Payé",
+        pdfUrl: "#",
+      },
+      {
+        id: 3,
+        invoiceNumber: "INV-2025-003",
+        date: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+        amount: 49.99,
+        status: "Payé",
+        pdfUrl: "#",
+      },
+    ],
+  };
+
+  // Mock données d'utilisation
+  const mockUsageData = {
+    timeSaved: {
+      hours: 24,
+      minutes: 30,
+      description: "Temps gagné grâce à l'automatisation",
+    },
+    stats: {
+      tasksCompleted: 156,
+      messagesSent: 342,
+      invoicesGenerated: 28,
+      appointmentsBooked: 45,
+      clientsManaged: 12,
+    },
+    lastActivity: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  };
 
   // Charger les infos de l'entreprise
   useEffect(() => {
@@ -296,6 +348,189 @@ export default function CompanyDetailPage() {
                   <p className="text-sm text-[#0F172A]">
                     {new Date(company.created_at).toLocaleDateString("fr-FR")}
                   </p>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "billing" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
+                    Plan et facturation
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-[#64748B]">Plan actuel</span>
+                          <span className="px-2 py-1 bg-[#F97316]/10 text-[#F97316] rounded-full text-xs font-medium">
+                            {mockBillingData.plan}
+                          </span>
+                        </div>
+                        <div className="mt-4">
+                          <div className="text-3xl font-bold text-[#0F172A]">
+                            {mockBillingData.monthlyPrice.toFixed(2)} €
+                          </div>
+                          <div className="text-sm text-[#64748B] mt-1">par mois</div>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-[#E5E7EB]">
+                          <div className="text-xs text-[#64748B]">
+                            Prochaine facturation
+                          </div>
+                          <div className="text-sm font-medium text-[#0F172A] mt-1">
+                            {new Date(mockBillingData.nextBillingDate).toLocaleDateString("fr-FR", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
+                    Historique des factures
+                  </h3>
+                  <div className="rounded-xl border border-[#E5E7EB] bg-white overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-[#F9FAFB]">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                            Numéro
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                            Date
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                            Montant
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                            Statut
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E5E7EB]">
+                        {mockBillingData.invoices.map((invoice) => (
+                          <tr key={invoice.id} className="hover:bg-[#F9FAFB]">
+                            <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
+                              {invoice.invoiceNumber}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-[#64748B]">
+                              {new Date(invoice.date).toLocaleDateString("fr-FR")}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
+                              {invoice.amount.toFixed(2)} €
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                {invoice.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => {
+                                  showToast("Téléchargement de la facture...", "info");
+                                }}
+                                className="text-sm text-[#F97316] hover:text-[#EA580C]"
+                              >
+                                Télécharger
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "usage" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
+                    Temps gagné
+                  </h3>
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="text-center">
+                        <div className="text-5xl font-bold text-[#F97316] mb-2">
+                          {mockUsageData.timeSaved.hours}h {mockUsageData.timeSaved.minutes}min
+                        </div>
+                        <div className="text-sm text-[#64748B]">
+                          {mockUsageData.timeSaved.description}
+                        </div>
+                        <div className="mt-4 text-xs text-[#64748B]">
+                          Calculé sur les 30 derniers jours
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
+                    Statistiques d'utilisation
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-2xl font-bold text-[#0F172A]">
+                          {mockUsageData.stats.tasksCompleted}
+                        </div>
+                        <div className="text-sm text-[#64748B] mt-1">Tâches complétées</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-2xl font-bold text-[#0F172A]">
+                          {mockUsageData.stats.messagesSent}
+                        </div>
+                        <div className="text-sm text-[#64748B] mt-1">Messages envoyés</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-2xl font-bold text-[#0F172A]">
+                          {mockUsageData.stats.invoicesGenerated}
+                        </div>
+                        <div className="text-sm text-[#64748B] mt-1">Factures générées</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-2xl font-bold text-[#0F172A]">
+                          {mockUsageData.stats.appointmentsBooked}
+                        </div>
+                        <div className="text-sm text-[#64748B] mt-1">Rendez-vous pris</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-2xl font-bold text-[#0F172A]">
+                          {mockUsageData.stats.clientsManaged}
+                        </div>
+                        <div className="text-sm text-[#64748B] mt-1">Clients gérés</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
+                    Dernière activité
+                  </h3>
+                  <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                    <div className="text-sm text-[#64748B]">
+                      Il y a {Math.floor((Date.now() - new Date(mockUsageData.lastActivity).getTime()) / (1000 * 60))} minutes
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
