@@ -22,6 +22,7 @@ const moduleKeyMapping: Record<string, string> = {
   billing: "billing",
   reporting: "reporting",
   chatbot: "chatbot_internal",
+  appointments: "appointments",
 };
 
 const navItems: NavItem[] = [
@@ -31,6 +32,7 @@ const navItems: NavItem[] = [
   { label: "Clients", href: "/app/clients", moduleKey: "clients" },
   { label: "Projets", href: "/app/projects", moduleKey: "projects" },
   { label: "Devis & Factures", href: "/app/billing/quotes", moduleKey: "billing" },
+  { label: "Rendez-vous", href: "/app/appointments", moduleKey: "appointments" },
   { label: "Reporting", href: "/app/reporting", moduleKey: "reporting" },
   { label: "Chatbot", href: "/app/chatbot", moduleKey: "chatbot" },
   { label: "Paramètres", href: "/app/settings" },

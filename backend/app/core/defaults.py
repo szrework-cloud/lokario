@@ -21,6 +21,7 @@ def get_default_settings() -> Dict[str, Any]:
             "reporting": {"enabled": True},
             "chatbot_internal": {"enabled": True},
             "chatbot_site": {"enabled": False},
+            "appointments": {"enabled": True},
         },
         "ia": {
             "ai_relances": True,

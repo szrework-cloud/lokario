@@ -64,16 +64,17 @@ export function useSettings(autoLoad: boolean = true) {
             id: 1,
             company_id: 1,
             settings: {
-              modules: {
-                tasks: { enabled: true },
-                inbox: { enabled: true },
-                relances: { enabled: true },
-                projects: { enabled: true },
-                billing: { enabled: true },
-                reporting: { enabled: true },
-                chatbot_internal: { enabled: true },
-                chatbot_site: { enabled: false },
-              },
+                  modules: {
+                    tasks: { enabled: true },
+                    inbox: { enabled: true },
+                    relances: { enabled: true },
+                    projects: { enabled: true },
+                    billing: { enabled: true },
+                    reporting: { enabled: true },
+                    chatbot_internal: { enabled: true },
+                    chatbot_site: { enabled: false },
+                    appointments: { enabled: true },
+                  },
               ia: {
                 ai_relances: true,
                 ai_summary: true,

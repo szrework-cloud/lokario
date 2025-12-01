@@ -8,7 +8,8 @@ type ModuleKey =
   | "billing"
   | "reporting"
   | "chatbot_internal"
-  | "chatbot_site";
+  | "chatbot_site"
+  | "appointments";
 
 type ModulesSettings = {
   [K in ModuleKey]: { enabled: boolean };

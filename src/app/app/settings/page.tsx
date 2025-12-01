@@ -292,6 +292,22 @@ export default function SettingsPage() {
                 disabled={user?.role !== "super_admin"}
               />
               <ModuleToggle
+                label="Rendez-vous"
+                description="Gestion des rendez-vous clients, rappels automatiques et reprogrammations."
+                enabled={settings.settings.modules.appointments?.enabled ?? true}
+                onToggle={(enabled) => {
+                  if (user?.role === "super_admin") {
+                    updateSettingsLocal({
+                      modules: {
+                        ...settings.settings.modules,
+                        appointments: { enabled },
+                      },
+                    });
+                  }
+                }}
+                disabled={user?.role !== "super_admin"}
+              />
+              <ModuleToggle
                 label="Chatbot interne"
                 description="Assistant interne pour vous guider dans l'outil."
                 enabled={settings.settings.modules.chatbot_internal.enabled}
