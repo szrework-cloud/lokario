@@ -14,6 +14,9 @@ export default function PublicBookingPage() {
   const params = useParams();
   const slug = params.slug as string;
 
+  // Debug: vérifier que la page est bien chargée
+  console.log("[PublicBookingPage] Page loaded with slug:", slug);
+
   const [step, setStep] = useState<"type" | "date" | "slot" | "form" | "confirmation">("type");
   const [selectedType, setSelectedType] = useState<AppointmentType | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -90,12 +93,25 @@ export default function PublicBookingPage() {
     return dates;
   }, []);
 
+  // Si pas de slug, afficher un message d'erreur
+  if (!slug) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-[#0F172A] mb-2">Slug manquant</h1>
+          <p className="text-[#64748B]">Veuillez fournir un slug valide dans l'URL</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10">
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-[#0F172A] mb-2">Prendre rendez-vous</h1>
           <p className="text-[#64748B]">Réservez votre créneau en quelques clics</p>
+          <p className="text-xs text-[#64748B] mt-2">Slug: {slug}</p>
         </div>
 
         {/* Étape 1 : Sélection du type */}
