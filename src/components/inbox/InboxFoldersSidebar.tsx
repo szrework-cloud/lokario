@@ -66,7 +66,7 @@ export function InboxFoldersSidebar({
 
   return (
     <>
-      <div className="w-48 border-r border-[#E5E7EB] bg-white h-full overflow-y-auto">
+      <div className="w-52 border-r border-[#E5E7EB] bg-white h-full overflow-y-auto">
         <div className="p-2 space-y-0.5">
           {/* Inbox principal */}
           <button
@@ -125,7 +125,7 @@ export function InboxFoldersSidebar({
                 return (
                   <div
                     key={folder.id}
-                    className={`group flex items-start gap-1.5 ${
+                    className={`group flex items-start gap-1 ${
                       isActive ? "bg-[#F97316]" : ""
                     }`}
                   >
@@ -176,10 +176,10 @@ export function InboxFoldersSidebar({
                     </button>
                     
                     {/* Compteur et bouton d'édition */}
-                    <div className="flex items-center gap-1 flex-shrink-0 pt-1.5">
+                    <div className="flex items-center gap-0.5 flex-shrink-0 pt-1.5 pr-1">
                       {counts[folder.id] > 0 && (
                         <span
-                          className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+                          className={`px-1 py-0.5 rounded-full text-[10px] font-semibold ${
                             isActive
                               ? "bg-white/20 text-white"
                               : "bg-[#E5E7EB] text-[#64748B]"
@@ -196,7 +196,7 @@ export function InboxFoldersSidebar({
                             e.stopPropagation();
                             setEditingFolder(folder);
                           }}
-                          className={`p-1 rounded transition-opacity duration-200 ${
+                          className={`p-0.5 rounded transition-opacity duration-200 ${
                             isActive
                               ? "text-white hover:bg-white/20 opacity-0 group-hover:opacity-100"
                               : "text-[#64748B] hover:bg-[#E5E7EB] hover:text-[#0F172A] opacity-0 group-hover:opacity-100"
