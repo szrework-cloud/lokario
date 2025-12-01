@@ -125,7 +125,7 @@ export function InboxFoldersSidebar({
                 return (
                   <div
                     key={folder.id}
-                    className={`group flex items-center gap-1 ${
+                    className={`group flex items-start gap-1.5 ${
                       isActive ? "bg-[#F97316]" : ""
                     }`}
                   >
@@ -143,41 +143,43 @@ export function InboxFoldersSidebar({
                           setEditingFolder(folder);
                         }
                       }}
-                      className={`flex-1 w-full text-left px-2 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-between ${
+                      className={`flex-1 min-w-0 text-left px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
                         isActive
                           ? "bg-[#F97316] text-white"
                           : "text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#0F172A]"
                       }`}
-                      title={canEdit ? "Double-clic ou clic droit pour modifier" : ""}
+                      title={canEdit ? "Double-clic ou clic droit pour modifier" : folder.name}
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
-                          <span
-                            className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: folder.color || "#64748B" }}
-                          />
-                          <span className="truncate">{folder.name}</span>
-                        </div>
-                        {badges.length > 0 && (
-                          <div className="flex gap-1 mt-0.5">
-                            {badges.map((badge) => (
-                              <span
-                                key={badge}
-                                className={`text-[10px] px-1 py-0.5 rounded ${
-                                  isActive
-                                    ? "bg-white/20 text-white"
-                                    : "bg-[#E5E7EB] text-[#64748B]"
-                                }`}
-                              >
-                                {badge}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span
+                          className="w-2 h-2 rounded-full flex-shrink-0 mt-0.5"
+                          style={{ backgroundColor: folder.color || "#64748B" }}
+                        />
+                        <span className="truncate leading-tight">{folder.name}</span>
                       </div>
+                      {badges.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {badges.map((badge) => (
+                            <span
+                              key={badge}
+                              className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${
+                                isActive
+                                  ? "bg-white/20 text-white"
+                                  : "bg-[#E5E7EB] text-[#64748B]"
+                              }`}
+                            >
+                              {badge}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                    
+                    {/* Compteur et bouton d'édition */}
+                    <div className="flex items-center gap-1 flex-shrink-0 pt-1.5">
                       {counts[folder.id] > 0 && (
                         <span
-                          className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ml-2 flex-shrink-0 ${
+                          className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
                             isActive
                               ? "bg-white/20 text-white"
                               : "bg-[#E5E7EB] text-[#64748B]"
@@ -186,37 +188,37 @@ export function InboxFoldersSidebar({
                           {counts[folder.id]}
                         </span>
                       )}
-                    </button>
-                    
-                    {/* Bouton d'édition visible pour owner/super_admin (au survol seulement) */}
-                    {canEdit && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingFolder(folder);
-                        }}
-                        className={`p-1 rounded transition-opacity duration-200 flex-shrink-0 ${
-                          isActive
-                            ? "text-white hover:bg-white/20 opacity-0 group-hover:opacity-100"
-                            : "text-[#64748B] hover:bg-[#E5E7EB] hover:text-[#0F172A] opacity-0 group-hover:opacity-100"
-                        }`}
-                        title="Modifier le dossier"
-                      >
-                        <svg
-                          className="w-3 h-3"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
+                      
+                      {/* Bouton d'édition visible pour owner/super_admin (au survol seulement) */}
+                      {canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingFolder(folder);
+                          }}
+                          className={`p-1 rounded transition-opacity duration-200 ${
+                            isActive
+                              ? "text-white hover:bg-white/20 opacity-0 group-hover:opacity-100"
+                              : "text-[#64748B] hover:bg-[#E5E7EB] hover:text-[#0F172A] opacity-0 group-hover:opacity-100"
+                          }`}
+                          title="Modifier le dossier"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                          />
-                        </svg>
-                      </button>
-                    )}
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
