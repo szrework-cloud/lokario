@@ -213,7 +213,7 @@ export default function CompaniesPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-[#0F172A]">
-                    {owner.company ? (
+                    {owner.company && owner.company.id ? (
                       <Link
                         href={`/admin/companies/${owner.company.id}`}
                         className="font-medium hover:text-[#F97316]"
@@ -242,13 +242,15 @@ export default function CompaniesPage() {
                     {new Date(owner.created_at).toLocaleDateString("fr-FR")}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {owner.company && (
+                    {owner.company && owner.company.id ? (
                       <Link
                         href={`/admin/companies/${owner.company.id}`}
                         className="text-sm font-medium text-[#F97316] hover:text-[#EA580C]"
                       >
                         Voir
                       </Link>
+                    ) : (
+                      <span className="text-sm text-[#64748B]">—</span>
                     )}
                   </td>
                 </tr>

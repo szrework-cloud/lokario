@@ -50,7 +50,8 @@ type CompanyInfo = {
 
 export default function CompanyDetailPage() {
   const params = useParams();
-  const companyId = Number(params.id);
+  const companyIdParam = params.id;
+  const companyId = companyIdParam ? Number(companyIdParam) : null;
   const { token } = useAuth();
   const { toast, showToast, hideToast } = useToast();
 
@@ -132,7 +133,7 @@ export default function CompanyDetailPage() {
 
   // Charger les infos de l'entreprise
   useEffect(() => {
-    if (!token || !companyId) return;
+    if (!token || !companyId || isNaN(companyId)) return;
 
     const loadCompany = async () => {
       setLoadingCompany(true);
@@ -155,7 +156,7 @@ export default function CompanyDetailPage() {
 
   // Charger les settings
   useEffect(() => {
-    if (!token || !companyId) return;
+    if (!token || !companyId || isNaN(companyId)) return;
 
     const loadSettings = async () => {
       setLoadingSettings(true);
@@ -211,7 +212,7 @@ export default function CompanyDetailPage() {
   };
 
   const handleSave = async () => {
-    if (!token || !settings) return;
+    if (!token || !settings || !companyId || isNaN(companyId)) return;
     setSaving(true);
     setError(null);
     try {
@@ -229,6 +230,20 @@ export default function CompanyDetailPage() {
       setSaving(false);
     }
   };
+
+  if (!companyId || isNaN(companyId)) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-red-600">ID d'entreprise invalide</p>
+        <Link
+          href="/admin/companies"
+          className="text-sm text-[#64748B] hover:text-[#0F172A] mt-2 inline-block"
+        >
+          ← Retour à la liste
+        </Link>
+      </div>
+    );
+  }
 
   if (loadingCompany) {
     return (
