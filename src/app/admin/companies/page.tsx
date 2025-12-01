@@ -43,7 +43,17 @@ export default function CompaniesPage() {
       setError(null);
       try {
         // Récupérer tous les users
-        const users = await apiGet<OwnerUser[]>("/users", token);
+        const usersResponse = await apiGet<OwnerUser[] | { users?: OwnerUser[] }>("/users", token);
+        
+        // Gérer différents formats de réponse
+        const users = Array.isArray(usersResponse) 
+          ? usersResponse 
+          : (usersResponse?.users || []);
+        
+        // S'assurer que users est un tableau
+        if (!Array.isArray(users)) {
+          throw new Error("Format de réponse invalide : users n'est pas un tableau");
+        }
         
         // Filtrer les owners
         const ownerUsers = users.filter((u) => u.role === "owner");
