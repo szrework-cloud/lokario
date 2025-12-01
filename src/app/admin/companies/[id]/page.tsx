@@ -386,6 +386,144 @@ export default function CompanyDetailPage() {
               </div>
             )}
 
+            {activeTab === "pack" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
+                    Pack actuel
+                  </h3>
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <div className="flex items-center gap-3 mb-2">
+                            <h4 className="text-xl font-bold text-[#0F172A]">
+                              {mockPackData.name}
+                            </h4>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              mockPackData.status === "actif"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}>
+                              {mockPackData.status === "actif" ? "Actif" : "Inactif"}
+                            </span>
+                          </div>
+                          <p className="text-sm text-[#64748B]">
+                            {mockPackData.description}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-[#0F172A]">
+                            {mockPackData.price.toFixed(2)} €
+                          </div>
+                          <div className="text-xs text-[#64748B]">
+                            / {mockPackData.billingCycle}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 pt-6 border-t border-[#E5E7EB]">
+                        <h5 className="text-sm font-semibold text-[#0F172A] mb-3">
+                          Fonctionnalités incluses
+                        </h5>
+                        <ul className="space-y-2">
+                          {mockPackData.features.map((feature, index) => (
+                            <li key={index} className="flex items-center gap-2 text-sm text-[#64748B]">
+                              <svg
+                                className="w-4 h-4 text-green-600 flex-shrink-0"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="mt-6 pt-6 border-t border-[#E5E7EB] grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-xs text-[#64748B] mb-1">
+                            Date de début
+                          </div>
+                          <div className="text-sm font-medium text-[#0F172A]">
+                            {new Date(mockPackData.startDate).toLocaleDateString("fr-FR", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-[#64748B] mb-1">
+                            Prochain renouvellement
+                          </div>
+                          <div className="text-sm font-medium text-[#0F172A]">
+                            {new Date(mockPackData.renewalDate).toLocaleDateString("fr-FR", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
+                    Historique des packs
+                  </h3>
+                  <div className="rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-[#F9FAFB]">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                            Pack
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                            Période
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                            Prix
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                            Statut
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E5E7EB]">
+                        <tr className="hover:bg-[#F9FAFB]">
+                          <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
+                            {mockPackData.name}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-[#64748B]">
+                            {new Date(mockPackData.startDate).toLocaleDateString("fr-FR")} - Actuel
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
+                            {mockPackData.price.toFixed(2)} € / {mockPackData.billingCycle}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                              Actif
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === "billing" && (
               <div className="space-y-6">
                 <div>
