@@ -294,7 +294,9 @@ export default function PublicBookingPage() {
                           </label>
                         )}
                         <select
-                          value={selectedSlot?.start.getTime() === slots.find(s => s.start.getTime() === selectedSlot?.start.getTime())?.start.getTime() ? selectedSlot.start.getTime().toString() : ""}
+                          value={selectedSlot && slots.some(s => s.start.getTime() === selectedSlot.start.getTime()) 
+                            ? selectedSlot.start.getTime().toString() 
+                            : ""}
                           onChange={(e) => {
                             const selectedTime = parseInt(e.target.value);
                             const slot = slots.find(s => s.start.getTime() === selectedTime);
