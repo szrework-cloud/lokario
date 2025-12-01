@@ -33,6 +33,9 @@ export function calculateAvailableSlots(
     return []; // Aucun employé disponible
   }
 
+  // Date/heure actuelle pour filtrer les créneaux passés
+  const now = new Date();
+
   // Créer des créneaux pour chaque employé
   availableEmployees.forEach((employee) => {
     const startOfDay = new Date(date);
@@ -41,11 +44,39 @@ export function calculateAvailableSlots(
     const endOfDay = new Date(date);
     endOfDay.setHours(workHours.end, 0, 0, 0);
 
+    // Si c'est aujourd'hui, commencer à partir de l'heure actuelle + 1 heure minimum
     let currentTime = new Date(startOfDay);
+    if (date.toDateString() === now.toDateString()) {
+      // Pour aujourd'hui, commencer au moins 1 heure après maintenant
+      const minStartTime = new Date(now.getTime() + 60 * 60 * 1000); // +1h
+      minStartTime.setSeconds(0, 0); // Arrondir à la minute
+      
+      // Si l'heure minimale est après le début de la journée, l'utiliser
+      if (minStartTime > startOfDay) {
+        // Arrondir à la prochaine tranche de 15 minutes
+        const minutes = minStartTime.getMinutes();
+        const roundedMinutes = Math.ceil(minutes / 15) * 15;
+        currentTime = new Date(minStartTime);
+        currentTime.setMinutes(roundedMinutes, 0, 0);
+        
+        // Si on dépasse l'heure, passer à l'heure suivante
+        if (roundedMinutes >= 60) {
+          currentTime.setHours(currentTime.getHours() + 1);
+          currentTime.setMinutes(0, 0, 0);
+        }
+      }
+    }
 
     while (currentTime.getTime() + totalDuration * 60 * 1000 <= endOfDay.getTime()) {
       const slotStart = new Date(currentTime);
       const slotEnd = new Date(currentTime.getTime() + totalDuration * 60 * 1000);
+
+      // Vérifier que le créneau n'est pas dans le passé
+      if (slotStart < now) {
+        // Passer au créneau suivant
+        currentTime = new Date(currentTime.getTime() + 15 * 60 * 1000);
+        continue;
+      }
 
       // Vérifier si le créneau est disponible (pas de conflit avec un RDV existant)
       const hasConflict = existingAppointments.some((apt) => {
