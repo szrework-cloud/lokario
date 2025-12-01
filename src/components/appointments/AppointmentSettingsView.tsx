@@ -5,14 +5,21 @@ import { AppointmentSettings } from "./types";
 import { mockAppointmentSettings } from "./mockData";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettings } from "@/hooks/useSettings";
 
 export function AppointmentSettingsView() {
   const { user } = useAuth();
+  const { company } = useSettings(false);
   const [settings, setSettings] = useState<AppointmentSettings>(mockAppointmentSettings);
   const [isSaving, setIsSaving] = useState(false);
 
   // Vérifier les permissions (owner/super_admin seulement)
   const canEdit = user?.role === "owner" || user?.role === "super_admin";
+
+  // Générer le slug depuis le nom de l'entreprise (mock pour l'instant)
+  const companySlug = company?.name
+    ? company.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+    : "mon-entreprise";
 
   useEffect(() => {
     // TODO: Charger les settings depuis l'API
@@ -137,6 +144,33 @@ export function AppointmentSettingsView() {
                 </p>
               </div>
             </label>
+          </div>
+
+          {/* URL publique de réservation */}
+          <div className="pt-4 border-t border-[#E5E7EB]">
+            <label className="block text-sm font-medium text-[#0F172A] mb-2">
+              URL publique de réservation
+            </label>
+            <div className="p-4 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
+              <div className="flex items-center gap-2 mb-2">
+                <code className="flex-1 px-3 py-2 bg-white rounded border border-[#E5E7EB] text-sm text-[#0F172A]">
+                  {typeof window !== "undefined" ? window.location.origin : "https://lokario.fr"}/r/{companySlug}
+                </code>
+                <button
+                  onClick={() => {
+                    const url = `${typeof window !== "undefined" ? window.location.origin : "https://lokario.fr"}/r/${companySlug}`;
+                    navigator.clipboard.writeText(url);
+                    alert("URL copiée dans le presse-papiers !");
+                  }}
+                  className="px-4 py-2 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#0F172A] hover:bg-white"
+                >
+                  Copier
+                </button>
+              </div>
+              <p className="text-xs text-[#64748B]">
+                Partagez cette URL avec vos clients ou intégrez-la sur votre site web pour qu'ils puissent prendre rendez-vous en ligne.
+              </p>
+            </div>
           </div>
 
           {/* URL de reprogrammation */}
