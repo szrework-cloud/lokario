@@ -56,7 +56,31 @@ export default function CompaniesPage() {
         }
         
         // Filtrer les owners
-        const ownerUsers = users.filter((u) => u.role === "owner");
+        let ownerUsers = users.filter((u) => u.role === "owner");
+        
+        // Si aucun owner trouvé, utiliser des données mockées pour le développement
+        if (ownerUsers.length === 0 && !process.env.NEXT_PUBLIC_API_URL) {
+          ownerUsers = [
+            {
+              id: 1,
+              email: "jean.dupont@boulangerie-soleil.fr",
+              full_name: "Jean Dupont",
+              role: "owner",
+              company_id: 1,
+              is_active: true,
+              created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            {
+              id: 2,
+              email: "marie.martin@coiffure-martin.fr",
+              full_name: "Marie Martin",
+              role: "owner",
+              company_id: 2,
+              is_active: true,
+              created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+          ];
+        }
         
         // Pour chaque owner, récupérer sa company
         const ownersWithCompanies = await Promise.all(
@@ -69,7 +93,26 @@ export default function CompaniesPage() {
                   token
                 );
               } catch {
-                // Company not found
+                // Si l'API échoue, utiliser des données mockées
+                if (!process.env.NEXT_PUBLIC_API_URL) {
+                  const mockCompanies: Record<number, Company> = {
+                    1: {
+                      id: 1,
+                      name: "Boulangerie Soleil",
+                      sector: "Commerce",
+                      is_active: true,
+                      created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+                    },
+                    2: {
+                      id: 2,
+                      name: "Coiffure Martin",
+                      sector: "Beauté / Coiffure",
+                      is_active: true,
+                      created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+                    },
+                  };
+                  company = mockCompanies[owner.company_id] || null;
+                }
               }
             }
             return { ...owner, company };
