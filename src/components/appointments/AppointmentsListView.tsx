@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Appointment, AppointmentStatus } from "./types";
 import { mockAppointments, mockAppointmentSettings } from "./mockData";
 import { AppointmentDetailModal } from "./AppointmentDetailModal";
+import { CreateAppointmentModal } from "./CreateAppointmentModal";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { useAppointmentAutomation } from "./useAppointmentAutomation";
 import { buildNoShowMessage, shouldSendNoShowMessage, markNoShowMessageSent } from "./automation";
@@ -17,6 +18,8 @@ export function AppointmentsListView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
 
   const handleAppointmentClick = (appointment: Appointment) => {
     setSelectedAppointment(appointment);
@@ -25,7 +28,7 @@ export function AppointmentsListView() {
 
   // Automatisation des rappels
   useAppointmentAutomation({
-    appointments: mockAppointments,
+    appointments: appointments,
     settings: mockAppointmentSettings,
     onSendMessage: (appointment, message, type) => {
       console.log(`[Appointment Automation] ${type === "reminder" ? "Rappel" : "No show"} à envoyer:`, {
@@ -42,13 +45,33 @@ export function AppointmentsListView() {
     },
   });
 
+  const handleCreateAppointment = (newAppointment: Omit<Appointment, "id" | "createdAt" | "updatedAt">) => {
+    const appointment: Appointment = {
+      ...newAppointment,
+      id: Math.max(...appointments.map((a) => a.id), 0) + 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setAppointments((prev) => [...prev, appointment]);
+    setIsCreateModalOpen(false);
+    // TODO: Appel API pour créer le RDV
+    console.log("Create appointment:", appointment);
+  };
+
   const handleStatusChange = (appointmentId: number, newStatus: AppointmentStatus) => {
+    // Mettre à jour le statut localement
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.id === appointmentId ? { ...apt, status: newStatus, updatedAt: new Date().toISOString() } : apt
+      )
+    );
+    
     // TODO: Appel API pour changer le statut
     console.log("Change status:", appointmentId, newStatus);
     
     // Si no_show, déclencher l'automatisation immédiatement
     if (newStatus === "no_show") {
-      const appointment = mockAppointments.find((apt) => apt.id === appointmentId);
+      const appointment = appointments.find((apt) => apt.id === appointmentId);
       if (appointment && shouldSendNoShowMessage(appointment, mockAppointmentSettings)) {
         const message = buildNoShowMessage(appointment, mockAppointmentSettings);
         if (message) {
@@ -79,7 +102,7 @@ export function AppointmentsListView() {
 
   // Filtrer les rendez-vous
   const filteredAppointments = useMemo(() => {
-    let filtered = [...mockAppointments];
+    let filtered = [...appointments];
 
     // Filtre temporel
     const now = new Date();
@@ -122,7 +145,7 @@ export function AppointmentsListView() {
 
     // Trier par date (plus récent en premier)
     return filtered.sort((a, b) => new Date(b.startDateTime).getTime() - new Date(a.startDateTime).getTime());
-  }, [timeFilter, statusFilter, searchQuery]);
+  }, [timeFilter, statusFilter, searchQuery, appointments]);
 
   const getStatusBadge = (status: AppointmentStatus) => {
     const variants: Record<AppointmentStatus, { label: string; className: string }> = {
@@ -154,6 +177,19 @@ export function AppointmentsListView() {
   return (
     <>
       <div className="space-y-4">
+        {/* Header avec bouton créer */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-[#0F172A]">Liste des rendez-vous</h2>
+          </div>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110"
+          >
+            + Nouveau rendez-vous
+          </button>
+        </div>
+
         {/* Filtres */}
         <Card>
           <CardContent className="p-4">
@@ -310,6 +346,13 @@ export function AppointmentsListView() {
         }}
         appointment={selectedAppointment}
         onStatusChange={handleStatusChange}
+      />
+
+      <CreateAppointmentModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSave={handleCreateAppointment}
+        existingAppointments={appointments}
       />
     </>
   );
