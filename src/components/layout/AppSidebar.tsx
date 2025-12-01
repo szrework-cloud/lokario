@@ -57,7 +57,18 @@ export function AppSidebar() {
     
     // Vérifier si le module est activé
     const moduleConfig = activeModules[settingsKey as keyof typeof activeModules];
-    return moduleConfig?.enabled ?? true; // Par défaut activé si pas défini
+    const isEnabled = moduleConfig?.enabled ?? true; // Par défaut activé si pas défini
+    
+    // Debug pour appointments
+    if (settingsKey === "appointments") {
+      console.log("[AppSidebar] Appointments module:", {
+        moduleConfig,
+        isEnabled,
+        activeModules,
+      });
+    }
+    
+    return isEnabled;
   });
 
   return (
