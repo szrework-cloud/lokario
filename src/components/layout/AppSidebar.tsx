@@ -112,21 +112,48 @@ export function AppSidebar() {
 function UserInfo() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleLogout = () => {
     logout();
     router.push("/login");
   };
 
+  // Vérifier si on est en mode admin ou user
+  const isAdminView = pathname.startsWith("/admin");
+  const isUserView = pathname.startsWith("/app");
+  const isSuperAdmin = user?.role === "super_admin";
+
+  const handleToggleView = () => {
+    if (isAdminView) {
+      // Passer à la vue user
+      router.push("/app/tasks");
+    } else if (isUserView) {
+      // Passer à la vue admin
+      router.push("/admin/companies");
+    }
+  };
+
   return (
-    <div className="border-t border-[#1F2933] px-6 py-4">
+    <div className="border-t border-[#1F2933] px-6 py-4 space-y-3">
       <p className="text-xs text-slate-400">Connecté en tant que</p>
       <p className="text-sm font-medium text-slate-200">
         {user?.full_name || user?.email || "Utilisateur"}
       </p>
+      
+      {/* Bouton de bascule Admin/User pour super_admin */}
+      {isSuperAdmin && (
+        <button
+          onClick={handleToggleView}
+          className="w-full mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700"
+        >
+          {isAdminView ? "Vue Owner/User" : "Vue Admin"}
+        </button>
+      )}
+      
       <button
         onClick={handleLogout}
-        className="mt-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+        className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
       >
         Se déconnecter
       </button>

@@ -79,14 +79,31 @@ export default function AdminLayout({
             })}
           </nav>
 
-          {/* Back to app */}
-          <div className="border-t border-[#E5E7EB] px-6 py-4">
+          {/* User info and toggle */}
+          <div className="border-t border-[#E5E7EB] px-6 py-4 space-y-3">
+            <p className="text-xs text-[#64748B]">Connecté en tant que</p>
+            <p className="text-sm font-medium text-[#0F172A]">
+              {user?.full_name || user?.email || "Admin"}
+            </p>
+            
+            {/* Bouton pour basculer vers la vue user */}
             <Link
-              href="/app"
-              className="text-sm text-[#64748B] hover:text-[#0F172A]"
+              href="/app/tasks"
+              className="block w-full mt-3 px-3 py-2 rounded-lg text-xs font-medium text-center transition-colors bg-slate-100 text-[#0F172A] hover:bg-slate-200 border border-[#E5E7EB]"
             >
-              ← Retour à l'app
+              Vue Owner/User
             </Link>
+            
+            <button
+              onClick={() => {
+                // Logout
+                localStorage.removeItem("token");
+                router.push("/login");
+              }}
+              className="text-xs text-[#64748B] hover:text-[#0F172A] transition-colors"
+            >
+              Se déconnecter
+            </button>
           </div>
         </div>
       </aside>

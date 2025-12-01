@@ -44,9 +44,15 @@ export default function AppLayout({
     if (!isLoading) {
       if (!token) {
         router.replace("/login");
+      } else if (user?.role === "super_admin") {
+        // Rediriger les super_admin vers la page admin par défaut
+        const currentPath = window.location.pathname;
+        if (currentPath === "/app" || currentPath === "/app/") {
+          router.replace("/admin/companies");
+        }
       }
     }
-  }, [isLoading, token, router]);
+  }, [isLoading, token, router, user]);
 
   if (isLoading || !token) {
     return (
