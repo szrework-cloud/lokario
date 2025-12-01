@@ -52,7 +52,7 @@ export default function InboxPage() {
   }, []);
 
   // Mock dossiers
-  const mockFolders: InboxFolder[] = [
+  const [mockFolders, setMockFolders] = useState<InboxFolder[]>([
     {
       id: 1,
       name: "Archivé",
@@ -69,7 +69,48 @@ export default function InboxPage() {
       conversationIds: [],
       createdAt: new Date().toISOString(),
     },
-  ];
+    // Dossiers personnalisés (avec bouton d'édition)
+    {
+      id: 3,
+      name: "Demande d'info/question",
+      type: "info",
+      color: "#3B82F6",
+      isSystem: false,
+      aiRules: {
+        autoClassify: true,
+        context: "Messages concernant des questions ou demandes d'information",
+      },
+      autoReply: {
+        enabled: true,
+        mode: "approval",
+        template: "Bonjour, merci pour votre message. Nous vous répondrons dans les plus brefs délais.",
+        aiGenerate: true,
+        useCompanyKnowledge: true,
+      },
+      conversationIds: [],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 4,
+      name: "Prise de RDV",
+      type: "rdv",
+      color: "#10B981",
+      isSystem: false,
+      aiRules: {
+        autoClassify: true,
+        context: "Messages pour planifier un rendez-vous",
+      },
+      autoReply: {
+        enabled: true,
+        mode: "auto",
+        template: "Bonjour, nous avons bien reçu votre demande de rendez-vous. Nous vous contacterons sous peu pour confirmer.",
+        aiGenerate: true,
+        delay: 5,
+      },
+      conversationIds: [],
+      createdAt: new Date().toISOString(),
+    },
+  ]);
 
   // Mock data avec toutes les nouvelles fonctionnalités
   const mockConversations: InboxItem[] = [
@@ -426,11 +467,19 @@ export default function InboxPage() {
           activeFolderId={activeFolderId}
           onFolderChange={setActiveFolderId}
           onFolderSave={(folder) => {
-            // TODO: Appel API pour sauvegarder le dossier
+            // Mettre à jour le dossier dans mockFolders
+            setMockFolders((prev) =>
+              prev.map((f) => (f.id === folder.id ? folder : f))
+            );
             console.log("Save folder:", folder);
           }}
           onFolderDelete={(folderId) => {
-            // TODO: Appel API pour supprimer le dossier
+            // Supprimer le dossier de mockFolders
+            setMockFolders((prev) => prev.filter((f) => f.id !== folderId));
+            // Si le dossier supprimé était actif, revenir à "all"
+            if (activeFolderId === folderId) {
+              setActiveFolderId("all");
+            }
             console.log("Delete folder:", folderId);
           }}
           counts={folderCounts}

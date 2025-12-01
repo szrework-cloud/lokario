@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { InboxFolder } from "./types";
 import { useAuth } from "@/hooks/useAuth";
 import { CreateFolderModal } from "./CreateFolderModal";
@@ -29,6 +29,13 @@ export function InboxFoldersSidebar({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<InboxFolder | null>(null);
   const canEdit = user?.role === "owner" || user?.role === "super_admin";
+  
+  // Debug: vérifier les permissions
+  useEffect(() => {
+    if (user) {
+      console.log("[InboxFoldersSidebar] User role:", user.role, "canEdit:", canEdit);
+    }
+  }, [user, canEdit]);
 
   const systemFolders = folders.filter((f) => f.isSystem);
   const customFolders = folders.filter((f) => !f.isSystem);
@@ -108,58 +115,101 @@ export function InboxFoldersSidebar({
                 const badges = getFolderBadges(folder);
                 const isActive = activeFolderId === folder.id;
                 return (
-                  <button
+                  <div
                     key={folder.id}
-                    onClick={() => onFolderChange(folder.id)}
-                    onContextMenu={(e) => {
-                      if (canEdit) {
-                        e.preventDefault();
-                        setEditingFolder(folder);
-                      }
-                    }}
-                    className={`w-full text-left px-2 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-between group ${
-                      isActive
-                        ? "bg-[#F97316] text-white"
-                        : "text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#0F172A]"
+                    className={`group flex items-center gap-1 ${
+                      isActive ? "bg-[#F97316]" : ""
                     }`}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1">
-                        <span
-                          className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: folder.color || "#64748B" }}
-                        />
-                        <span className="truncate">{folder.name}</span>
-                      </div>
-                      {badges.length > 0 && (
-                        <div className="flex gap-1 mt-0.5">
-                          {badges.map((badge) => (
-                            <span
-                              key={badge}
-                              className={`text-[10px] px-1 py-0.5 rounded ${
-                                isActive
-                                  ? "bg-white/20 text-white"
-                                  : "bg-[#E5E7EB] text-[#64748B]"
-                              }`}
-                            >
-                              {badge}
-                            </span>
-                          ))}
+                    <button
+                      onClick={() => onFolderChange(folder.id)}
+                      onContextMenu={(e) => {
+                        if (canEdit) {
+                          e.preventDefault();
+                          setEditingFolder(folder);
+                        }
+                      }}
+                      onDoubleClick={(e) => {
+                        if (canEdit) {
+                          e.preventDefault();
+                          setEditingFolder(folder);
+                        }
+                      }}
+                      className={`flex-1 w-full text-left px-2 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-between ${
+                        isActive
+                          ? "bg-[#F97316] text-white"
+                          : "text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#0F172A]"
+                      }`}
+                      title={canEdit ? "Double-clic ou clic droit pour modifier" : ""}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: folder.color || "#64748B" }}
+                          />
+                          <span className="truncate">{folder.name}</span>
                         </div>
+                        {badges.length > 0 && (
+                          <div className="flex gap-1 mt-0.5">
+                            {badges.map((badge) => (
+                              <span
+                                key={badge}
+                                className={`text-[10px] px-1 py-0.5 rounded ${
+                                  isActive
+                                    ? "bg-white/20 text-white"
+                                    : "bg-[#E5E7EB] text-[#64748B]"
+                                }`}
+                              >
+                                {badge}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {counts[folder.id] > 0 && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ml-2 flex-shrink-0 ${
+                            isActive
+                              ? "bg-white/20 text-white"
+                              : "bg-[#E5E7EB] text-[#64748B]"
+                          }`}
+                        >
+                          {counts[folder.id]}
+                        </span>
                       )}
-                    </div>
-                    {counts[folder.id] > 0 && (
-                      <span
-                        className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ml-2 flex-shrink-0 ${
+                    </button>
+                    
+                    {/* Bouton d'édition visible pour owner/super_admin */}
+                    {canEdit && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingFolder(folder);
+                        }}
+                        className={`p-1.5 rounded transition-colors flex-shrink-0 ${
                           isActive
-                            ? "bg-white/20 text-white"
-                            : "bg-[#E5E7EB] text-[#64748B]"
+                            ? "text-white hover:bg-white/20"
+                            : "text-[#64748B] hover:bg-[#E5E7EB] hover:text-[#0F172A]"
                         }`}
+                        title="Modifier le dossier"
                       >
-                        {counts[folder.id]}
-                      </span>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                          />
+                        </svg>
+                      </button>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>

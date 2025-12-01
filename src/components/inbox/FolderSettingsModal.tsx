@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { InboxFolder, FolderType } from "./types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { useAuth } from "@/hooks/useAuth";
 
 interface FolderSettingsModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export function FolderSettingsModal({
   onSave,
   onDelete,
 }: FolderSettingsModalProps) {
+  const { user } = useAuth();
   const [name, setName] = useState("");
   const [type, setType] = useState<FolderType>("general");
   const [color, setColor] = useState(colorOptions[0]);
@@ -42,6 +44,13 @@ export function FolderSettingsModal({
   const [autoReplyTemplate, setAutoReplyTemplate] = useState("");
   const [autoReplyDelay, setAutoReplyDelay] = useState<number | undefined>(undefined);
   const [useCompanyKnowledge, setUseCompanyKnowledge] = useState(false);
+
+  // Guard de permission
+  useEffect(() => {
+    if (isOpen && user?.role !== "owner" && user?.role !== "super_admin") {
+      onClose();
+    }
+  }, [isOpen, user?.role, onClose]);
 
   useEffect(() => {
     if (folder) {
@@ -59,6 +68,11 @@ export function FolderSettingsModal({
   }, [folder]);
 
   if (!isOpen || !folder) return null;
+
+  // Double vérification du guard
+  if (user?.role !== "owner" && user?.role !== "super_admin") {
+    return null;
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

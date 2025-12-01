@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { InboxFolder, FolderType } from "./types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { useAuth } from "@/hooks/useAuth";
 
 interface CreateFolderModalProps {
   isOpen: boolean;
@@ -24,13 +25,26 @@ const colorOptions = [
 ];
 
 export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModalProps) {
+  const { user } = useAuth();
   const [name, setName] = useState("");
   const [type, setType] = useState<FolderType>("general");
   const [color, setColor] = useState(colorOptions[0]);
   const [autoClassify, setAutoClassify] = useState(false);
   const [context, setContext] = useState("");
 
+  // Guard de permission
+  useEffect(() => {
+    if (isOpen && user?.role !== "owner" && user?.role !== "super_admin") {
+      onClose();
+    }
+  }, [isOpen, user?.role, onClose]);
+
   if (!isOpen) return null;
+
+  // Double vérification du guard
+  if (user?.role !== "owner" && user?.role !== "super_admin") {
+    return null;
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
