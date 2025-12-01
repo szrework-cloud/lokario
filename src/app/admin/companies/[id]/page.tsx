@@ -66,6 +66,7 @@ export default function CompanyDetailPage() {
   const tabs = [
     { id: "company", label: "Infos entreprise" },
     { id: "modules", label: "Modules activés" },
+    { id: "pack", label: "Pack" },
     { id: "billing", label: "Facturation" },
     { id: "usage", label: "Utilisation" },
     { id: "ia", label: "Intelligence artificielle" },
@@ -112,6 +113,24 @@ export default function CompanyDetailPage() {
         pdfUrl: "#",
       },
     ],
+  };
+
+  // Mock données de pack
+  const mockPackData = {
+    name: "Pack Pro",
+    description: "Accès complet à tous les modules avec support prioritaire",
+    price: 49.99,
+    billingCycle: "mensuel",
+    features: [
+      "Tous les modules activés",
+      "IA pour relances et résumés",
+      "Support prioritaire",
+      "Jusqu'à 10 utilisateurs",
+      "Stockage illimité",
+    ],
+    startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    renewalDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "actif",
   };
 
   // Mock données d'utilisation

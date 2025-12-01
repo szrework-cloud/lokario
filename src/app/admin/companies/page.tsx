@@ -154,19 +154,11 @@ export default function CompaniesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-[#0F172A]">Comptes Owners</h1>
-          <p className="mt-2 text-sm text-[#64748B]">
-            Liste de tous les comptes propriétaires d'entreprises
-          </p>
-        </div>
-        <Link
-          href="/admin/packs"
-          className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] text-white px-4 py-2 text-sm font-medium shadow-md hover:shadow-lg hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
-        >
-          Packs
-        </Link>
+      <div>
+        <h1 className="text-3xl font-bold text-[#0F172A]">Comptes Owners</h1>
+        <p className="mt-2 text-sm text-[#64748B]">
+          Liste de tous les comptes propriétaires d'entreprises
+        </p>
       </div>
 
       {/* Table */}
