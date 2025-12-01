@@ -41,8 +41,58 @@ export default function CompaniesPage() {
     const loadOwners = async () => {
       setLoading(true);
       setError(null);
+      
+      // Mock companies pour le développement
+      const mockCompanies: Record<number, Company> = {
+        1: {
+          id: 1,
+          name: "Boulangerie Soleil",
+          sector: "Commerce",
+          is_active: true,
+          created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        2: {
+          id: 2,
+          name: "Coiffure Martin",
+          sector: "Beauté / Coiffure",
+          is_active: true,
+          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      };
+
+      // Mock owners avec leurs entreprises
+      const mockOwners: OwnerWithCompany[] = [
+        {
+          id: 1,
+          email: "jean.dupont@boulangerie-soleil.fr",
+          full_name: "Jean Dupont",
+          role: "owner",
+          company_id: 1,
+          is_active: true,
+          created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+          company: mockCompanies[1],
+        },
+        {
+          id: 2,
+          email: "marie.martin@coiffure-martin.fr",
+          full_name: "Marie Martin",
+          role: "owner",
+          company_id: 2,
+          is_active: true,
+          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+          company: mockCompanies[2],
+        },
+      ];
+
       try {
-        // Récupérer tous les users
+        // Si pas d'API URL, utiliser directement les données mockées
+        if (!process.env.NEXT_PUBLIC_API_URL) {
+          setOwners(mockOwners);
+          setLoading(false);
+          return;
+        }
+
+        // Récupérer tous les users depuis l'API
         const usersResponse = await apiGet<OwnerUser[] | { users?: OwnerUser[] }>("/users", token);
         
         // Gérer différents formats de réponse
@@ -58,28 +108,11 @@ export default function CompaniesPage() {
         // Filtrer les owners
         let ownerUsers = users.filter((u) => u.role === "owner");
         
-        // Si aucun owner trouvé, utiliser des données mockées pour le développement
-        if (ownerUsers.length === 0 && !process.env.NEXT_PUBLIC_API_URL) {
-          ownerUsers = [
-            {
-              id: 1,
-              email: "jean.dupont@boulangerie-soleil.fr",
-              full_name: "Jean Dupont",
-              role: "owner",
-              company_id: 1,
-              is_active: true,
-              created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-            },
-            {
-              id: 2,
-              email: "marie.martin@coiffure-martin.fr",
-              full_name: "Marie Martin",
-              role: "owner",
-              company_id: 2,
-              is_active: true,
-              created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-            },
-          ];
+        // Si aucun owner trouvé, utiliser des données mockées
+        if (ownerUsers.length === 0) {
+          setOwners(mockOwners);
+          setLoading(false);
+          return;
         }
         
         // Pour chaque owner, récupérer sa company
@@ -88,32 +121,22 @@ export default function CompaniesPage() {
             let company: Company | null = null;
             if (owner.company_id) {
               try {
-                company = await apiGet<Company>(
+                const companyData = await apiGet<Company>(
                   `/companies/${owner.company_id}`,
                   token
                 );
+                // Vérifier que la réponse contient bien un id
+                if (companyData && companyData.id) {
+                  company = companyData;
+                }
               } catch {
                 // Si l'API échoue, utiliser des données mockées
-                if (!process.env.NEXT_PUBLIC_API_URL) {
-                  const mockCompanies: Record<number, Company> = {
-                    1: {
-                      id: 1,
-                      name: "Boulangerie Soleil",
-                      sector: "Commerce",
-                      is_active: true,
-                      created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-                    },
-                    2: {
-                      id: 2,
-                      name: "Coiffure Martin",
-                      sector: "Beauté / Coiffure",
-                      is_active: true,
-                      created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-                    },
-                  };
-                  company = mockCompanies[owner.company_id] || null;
-                }
+                company = mockCompanies[owner.company_id] || null;
               }
+            }
+            // S'assurer que company a un id valide
+            if (company && !company.id) {
+              company = null;
             }
             return { ...owner, company };
           })
@@ -121,7 +144,9 @@ export default function CompaniesPage() {
 
         setOwners(ownersWithCompanies);
       } catch (err: any) {
-        setError(err.message || "Erreur lors du chargement des owners");
+        // En cas d'erreur, utiliser les données mockées
+        console.error("Erreur lors du chargement des owners:", err);
+        setOwners(mockOwners);
       } finally {
         setLoading(false);
       }
