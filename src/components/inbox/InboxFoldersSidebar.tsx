@@ -39,6 +39,14 @@ export function InboxFoldersSidebar({
 
   const systemFolders = folders.filter((f) => f.isSystem);
   const customFolders = folders.filter((f) => !f.isSystem);
+  
+  // Debug: vérifier les dossiers
+  useEffect(() => {
+    console.log("[InboxFoldersSidebar] Total folders:", folders.length);
+    console.log("[InboxFoldersSidebar] System folders:", systemFolders.length);
+    console.log("[InboxFoldersSidebar] Custom folders:", customFolders.length);
+    console.log("[InboxFoldersSidebar] Custom folders list:", customFolders.map(f => ({ id: f.id, name: f.name, isSystem: f.isSystem })));
+  }, [folders, systemFolders, customFolders]);
 
   const getFolderBadges = (folder: InboxFolder) => {
     const badges = [];
