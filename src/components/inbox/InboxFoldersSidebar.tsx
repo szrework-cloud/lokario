@@ -188,14 +188,14 @@ export function InboxFoldersSidebar({
                       )}
                     </button>
                     
-                    {/* Bouton d'édition visible pour owner/super_admin */}
+                    {/* Bouton d'édition visible pour owner/super_admin (au survol seulement) */}
                     {canEdit && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditingFolder(folder);
                         }}
-                        className={`p-1.5 rounded transition-colors flex-shrink-0 ${
+                        className={`p-1 rounded transition-all flex-shrink-0 opacity-0 group-hover:opacity-100 ${
                           isActive
                             ? "text-white hover:bg-white/20"
                             : "text-[#64748B] hover:bg-[#E5E7EB] hover:text-[#0F172A]"
@@ -203,7 +203,7 @@ export function InboxFoldersSidebar({
                         title="Modifier le dossier"
                       >
                         <svg
-                          className="w-4 h-4"
+                          className="w-3 h-3"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
