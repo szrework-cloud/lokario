@@ -156,31 +156,85 @@ export default function PublicBookingPage() {
                   ← Retour
                 </button>
               </div>
-              <div className="text-sm text-[#64748B] mb-4">
+              <div className="text-sm text-[#64748B] mb-6">
                 Type sélectionné : <span className="font-medium text-[#0F172A]">{selectedType.name}</span>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                {availableDates.map((date, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleDateSelect(date)}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      date.toDateString() === selectedDate.toDateString()
-                        ? "border-[#F97316] bg-[#F97316]/5"
-                        : "border-[#E5E7EB] hover:border-[#F97316]/50"
-                    }`}
-                  >
-                    <div className="text-xs text-[#64748B]">
-                      {date.toLocaleDateString("fr-FR", { weekday: "short" })}
+              
+              {/* Calendrier structuré */}
+              <div className="border border-[#E5E7EB] rounded-lg p-4 bg-white">
+                <div className="grid grid-cols-7 gap-2 mb-4">
+                  {/* En-têtes des jours */}
+                  {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((day) => (
+                    <div key={day} className="text-center text-xs font-semibold text-[#64748B] py-2">
+                      {day}
                     </div>
-                    <div className="font-semibold text-[#0F172A] mt-1">
-                      {date.getDate()}
-                    </div>
-                    <div className="text-xs text-[#64748B]">
-                      {date.toLocaleDateString("fr-FR", { month: "short" })}
-                    </div>
-                  </button>
-                ))}
+                  ))}
+                  
+                  {/* Jours du calendrier */}
+                  {(() => {
+                    const today = new Date();
+                    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                    const startDate = new Date(firstDayOfMonth);
+                    startDate.setDate(startDate.getDate() - startDate.getDay() + (startDate.getDay() === 0 ? -6 : 1)); // Premier lundi
+                    
+                    const calendarDays: Date[] = [];
+                    const currentDate = new Date(startDate);
+                    
+                    // Générer 42 jours (6 semaines)
+                    for (let i = 0; i < 42; i++) {
+                      calendarDays.push(new Date(currentDate));
+                      currentDate.setDate(currentDate.getDate() + 1);
+                    }
+                    
+                    return calendarDays.map((date, index) => {
+                      const isToday = date.toDateString() === today.toDateString();
+                      const isSelected = date.toDateString() === selectedDate.toDateString();
+                      const isPast = date < today && !isToday;
+                      const isCurrentMonth = date.getMonth() === today.getMonth();
+                      const isAvailable = availableDates.some(d => d.toDateString() === date.toDateString());
+                      
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            if (!isPast && isAvailable) {
+                              handleDateSelect(date);
+                            }
+                          }}
+                          disabled={isPast || !isAvailable}
+                          className={`
+                            p-2 rounded-lg text-sm transition-all
+                            ${isSelected 
+                              ? "bg-[#F97316] text-white font-semibold" 
+                              : isToday
+                              ? "bg-[#F97316]/10 text-[#F97316] font-semibold border-2 border-[#F97316]"
+                              : isPast || !isAvailable
+                              ? "text-[#D1D5DB] cursor-not-allowed"
+                              : isCurrentMonth
+                              ? "text-[#0F172A] hover:bg-[#F97316]/10 hover:border hover:border-[#F97316]/50"
+                              : "text-[#9CA3AF] hover:bg-[#F9FAFB]"
+                            }
+                          `}
+                        >
+                          {date.getDate()}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+                
+                {/* Légende */}
+                <div className="flex items-center justify-center gap-4 text-xs text-[#64748B] mt-4 pt-4 border-t border-[#E5E7EB]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-[#F97316]"></div>
+                    <span>Date sélectionnée</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-[#F97316]/10 border-2 border-[#F97316]"></div>
+                    <span>Aujourd'hui</span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -201,7 +255,7 @@ export default function PublicBookingPage() {
                   ← Retour
                 </button>
               </div>
-              <div className="text-sm text-[#64748B] mb-4">
+              <div className="text-sm text-[#64748B] mb-6">
                 {selectedType.name} - {formatDateForDisplay(selectedDate)}
               </div>
               {availableSlots.length === 0 ? (
@@ -217,27 +271,49 @@ export default function PublicBookingPage() {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {availableSlots.map((slot, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleSlotSelect(slot)}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        selectedSlot?.start.getTime() === slot.start.getTime()
-                          ? "border-[#F97316] bg-[#F97316]/5"
-                          : "border-[#E5E7EB] hover:border-[#F97316]/50"
-                      }`}
-                    >
-                      <div className="font-semibold text-[#0F172A]">
-                        {formatTimeForDisplay(slot.start)}
+                <div className="space-y-4">
+                  {/* Grouper les créneaux par employé */}
+                  {(() => {
+                    const slotsByEmployee = availableSlots.reduce((acc, slot) => {
+                      const employeeKey = slot.employeeId || "default";
+                      if (!acc[employeeKey]) {
+                        acc[employeeKey] = {
+                          employeeName: slot.employeeName || "Disponible",
+                          slots: [],
+                        };
+                      }
+                      acc[employeeKey].slots.push(slot);
+                      return acc;
+                    }, {} as Record<string | number, { employeeName: string; slots: typeof availableSlots }>);
+
+                    return Object.entries(slotsByEmployee).map(([employeeKey, { employeeName, slots }]) => (
+                      <div key={employeeKey} className="space-y-2">
+                        {Object.keys(slotsByEmployee).length > 1 && (
+                          <label className="block text-sm font-medium text-[#0F172A] mb-2">
+                            {employeeName}
+                          </label>
+                        )}
+                        <select
+                          value={selectedSlot?.start.getTime() === slots.find(s => s.start.getTime() === selectedSlot?.start.getTime())?.start.getTime() ? selectedSlot.start.getTime().toString() : ""}
+                          onChange={(e) => {
+                            const selectedTime = parseInt(e.target.value);
+                            const slot = slots.find(s => s.start.getTime() === selectedTime);
+                            if (slot) {
+                              handleSlotSelect(slot);
+                            }
+                          }}
+                          className="w-full rounded-lg border border-[#E5E7EB] px-4 py-3 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1 bg-white"
+                        >
+                          <option value="">Sélectionnez une heure</option>
+                          {slots.map((slot, index) => (
+                            <option key={index} value={slot.start.getTime()}>
+                              {formatTimeForDisplay(slot.start)} - {formatTimeForDisplay(slot.end)}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      {slot.employeeName && (
-                        <div className="text-xs text-[#64748B] mt-1">
-                          {slot.employeeName}
-                        </div>
-                      )}
-                    </button>
-                  ))}
+                    ));
+                  })()}
                 </div>
               )}
             </CardContent>
