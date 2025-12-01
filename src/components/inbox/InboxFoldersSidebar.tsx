@@ -195,10 +195,10 @@ export function InboxFoldersSidebar({
                           e.stopPropagation();
                           setEditingFolder(folder);
                         }}
-                        className={`p-1 rounded transition-all flex-shrink-0 opacity-0 group-hover:opacity-100 ${
+                        className={`p-1 rounded transition-opacity duration-200 flex-shrink-0 ${
                           isActive
-                            ? "text-white hover:bg-white/20"
-                            : "text-[#64748B] hover:bg-[#E5E7EB] hover:text-[#0F172A]"
+                            ? "text-white hover:bg-white/20 opacity-0 group-hover:opacity-100"
+                            : "text-[#64748B] hover:bg-[#E5E7EB] hover:text-[#0F172A] opacity-0 group-hover:opacity-100"
                         }`}
                         title="Modifier le dossier"
                       >
