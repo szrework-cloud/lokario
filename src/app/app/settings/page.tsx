@@ -510,10 +510,97 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "notifications" && (
-          <div className="space-y-4">
-            <p className="text-sm text-[#64748B]">
-              Configuration des notifications à venir.
-            </p>
+          <div className="space-y-6">
+            {/* Section Inbox / IA */}
+            {(user?.role === "owner" || user?.role === "super_admin") && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-[#0F172A]">
+                  Inbox / Intelligence Artificielle
+                </h3>
+
+                <div className="space-y-4">
+                  <label className="flex items-center justify-between p-4 rounded-lg border border-[#E5E7EB] bg-white">
+                    <div>
+                      <p className="text-sm font-medium text-[#0F172A]">
+                        Activer la classification automatique des messages
+                      </p>
+                      <p className="text-xs text-[#64748B] mt-1">
+                        Les messages seront automatiquement classés dans les dossiers IA configurés
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      // TODO: Lier à settings.inbox?.aiClassificationEnabled
+                      className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-4 rounded-lg border border-[#E5E7EB] bg-white">
+                    <div>
+                      <p className="text-sm font-medium text-[#0F172A]">
+                        Activer les réponses automatiques
+                      </p>
+                      <p className="text-xs text-[#64748B] mt-1">
+                        Permet l'envoi automatique de réponses selon la configuration des dossiers
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      // TODO: Lier à settings.inbox?.autoReplyEnabled
+                      className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-4 rounded-lg border border-[#E5E7EB] bg-white">
+                    <div>
+                      <p className="text-sm font-medium text-[#0F172A]">
+                        Notification pour réponses en attente
+                      </p>
+                      <p className="text-xs text-[#64748B] mt-1">
+                        Recevoir une notification quand une réponse automatique nécessite votre validation
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      // TODO: Lier à settings.inbox?.notifyPendingReplies
+                      className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+                    />
+                  </label>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                      Délai par défaut avant envoi auto (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      // TODO: Lier à settings.inbox?.defaultAutoReplyDelay
+                      className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      placeholder="0"
+                    />
+                    <p className="text-xs text-[#64748B] mt-1">
+                      Délai appliqué si non spécifié dans la configuration du dossier
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-[#E5E7EB]">
+                  <p className="text-xs text-[#64748B]">
+                    ⚠️ Ces paramètres s'appliquent globalement et peuvent être surchargés par la configuration de chaque dossier.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Section notifications générales (pour tous) */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-[#0F172A]">
+                Notifications générales
+              </h3>
+              <p className="text-sm text-[#64748B]">
+                Configuration des notifications à venir.
+              </p>
+            </div>
           </div>
         )}
 

@@ -3,11 +3,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { PageTitle } from "@/components/layout/PageTitle";
 import { InboxList } from "@/components/inbox/InboxList";
-import { InboxItem, InboxStatus, MessageSource, ClientInfo, InternalNote, Attachment } from "@/components/inbox/types";
+import { InboxItem, InboxStatus, MessageSource, ClientInfo, InternalNote, Attachment, InboxFolder } from "@/components/inbox/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Loader } from "@/components/ui/Loader";
-import { InboxSidebar } from "@/components/inbox/InboxSidebar";
+import { InboxFoldersSidebar } from "@/components/inbox/InboxFoldersSidebar";
+import { ClassificationStatusBadge } from "@/components/inbox/ClassificationStatusBadge";
+import { AutoReplyPreviewModal } from "@/components/inbox/AutoReplyPreviewModal";
 import { InboxHeader } from "@/components/inbox/InboxHeader";
 import { InboxSearchAndFilters } from "@/components/inbox/InboxSearchAndFilters";
 import { ChatMessage } from "@/components/inbox/ChatMessage";
@@ -23,7 +25,7 @@ export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<number | undefined>(undefined);
   const [replyText, setReplyText] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<InboxStatus | "all">("all");
+  const [activeFolderId, setActiveFolderId] = useState<number | "all" | "pending">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState<MessageSource | "all">("all");
@@ -35,6 +37,8 @@ export default function InboxPage() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isConversationMinimized, setIsConversationMinimized] = useState(false);
   const [isReplyMinimized, setIsReplyMinimized] = useState(false);
+  const [pendingReplyConversation, setPendingReplyConversation] = useState<InboxItem | null>(null);
+  const [pendingReplyText, setPendingReplyText] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -46,6 +50,26 @@ export default function InboxPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, []);
+
+  // Mock dossiers
+  const mockFolders: InboxFolder[] = [
+    {
+      id: 1,
+      name: "Archivé",
+      type: "general",
+      isSystem: true,
+      conversationIds: [],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 2,
+      name: "Spam",
+      type: "general",
+      isSystem: true,
+      conversationIds: [],
+      createdAt: new Date().toISOString(),
+    },
+  ];
 
   // Mock data avec toutes les nouvelles fonctionnalités
   const mockConversations: InboxItem[] = [
@@ -241,27 +265,36 @@ export default function InboxPage() {
     };
   }, []);
 
-  // Calculer les counts pour la sidebar
-  const filterCounts = useMemo(() => {
-    return {
+  // Calculer les counts pour la sidebar (par dossier)
+  const folderCounts = useMemo(() => {
+    const result: Record<number | "all" | "pending", number> = {
       all: mockConversations.length,
-      "À répondre": mockConversations.filter((c) => c.status === "À répondre").length,
-      "En attente": mockConversations.filter((c) => c.status === "En attente").length,
-      "Répondu": mockConversations.filter((c) => c.status === "Répondu").length,
-      "Résolu": mockConversations.filter((c) => c.status === "Résolu").length,
-      "Urgent": mockConversations.filter((c) => c.status === "Urgent" || c.isUrgent).length,
-      "Archivé": mockConversations.filter((c) => c.status === "Archivé").length,
-      "Spam": mockConversations.filter((c) => c.status === "Spam").length,
+      pending: mockConversations.filter(
+        (c) => c.autoReplyPending && c.autoReplyMode === "approval"
+      ).length,
     };
-  }, []);
+
+    // Counts par dossier
+    mockFolders.forEach((folder) => {
+      result[folder.id] = mockConversations.filter(
+        (c) => c.folderId === folder.id
+      ).length;
+    });
+
+    return result;
+  }, [mockConversations, mockFolders]);
 
   // Filtrer les conversations
   const filteredConversations = useMemo(() => {
     let filtered = [...mockConversations];
 
-    // Filtre sidebar
-    if (activeFilter !== "all") {
-      filtered = filtered.filter((c) => c.status === activeFilter);
+    // Filtre par dossier
+    if (activeFolderId === "pending") {
+      filtered = filtered.filter(
+        (c) => c.autoReplyPending && c.autoReplyMode === "approval"
+      );
+    } else if (activeFolderId !== "all") {
+      filtered = filtered.filter((c) => c.folderId === activeFolderId);
     }
 
     // Recherche
@@ -293,7 +326,7 @@ export default function InboxPage() {
     }
 
     return filtered;
-  }, [activeFilter, searchQuery, statusFilter, sourceFilter, employeeFilter]);
+  }, [activeFolderId, searchQuery, statusFilter, sourceFilter, employeeFilter]);
 
   const selectedConversation = useMemo(() => {
     return mockConversations.find((c) => c.id === selectedId);
@@ -387,11 +420,20 @@ export default function InboxPage() {
     <>
       <PageTitle title="Boîte de réception" />
       <div className="flex h-[calc(100vh-6rem)] bg-[#F9FAFB]">
-        {/* Sidebar de filtres */}
-        <InboxSidebar
-          activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
-          counts={filterCounts}
+        {/* Sidebar de dossiers */}
+        <InboxFoldersSidebar
+          folders={mockFolders}
+          activeFolderId={activeFolderId}
+          onFolderChange={setActiveFolderId}
+          onFolderSave={(folder) => {
+            // TODO: Appel API pour sauvegarder le dossier
+            console.log("Save folder:", folder);
+          }}
+          onFolderDelete={(folderId) => {
+            // TODO: Appel API pour supprimer le dossier
+            console.log("Delete folder:", folderId);
+          }}
+          counts={folderCounts}
         />
 
         {/* Contenu principal */}
@@ -738,6 +780,38 @@ export default function InboxPage() {
         }}
         defaultClient={selectedConversation?.client}
       />
+
+      {/* Modal de réponse en attente */}
+      {pendingReplyConversation && (
+        <AutoReplyPreviewModal
+          isOpen={!!pendingReplyConversation}
+          onClose={() => {
+            setPendingReplyConversation(null);
+            setPendingReplyText("");
+          }}
+          conversation={pendingReplyConversation}
+          folder={mockFolders.find((f) => f.id === pendingReplyConversation.folderId) || mockFolders[0]}
+          generatedReply={pendingReplyText}
+          onApprove={() => {
+            // TODO: Appel API pour envoyer la réponse
+            console.log("Approve and send reply:", pendingReplyText);
+            setPendingReplyConversation(null);
+            setPendingReplyText("");
+          }}
+          onEdit={(editedText) => {
+            // TODO: Appel API pour envoyer la réponse modifiée
+            console.log("Send edited reply:", editedText);
+            setPendingReplyConversation(null);
+            setPendingReplyText("");
+          }}
+          onReject={() => {
+            // TODO: Appel API pour rejeter la réponse
+            console.log("Reject reply");
+            setPendingReplyConversation(null);
+            setPendingReplyText("");
+          }}
+        />
+      )}
     </>
   );
 }

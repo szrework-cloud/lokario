@@ -1,5 +1,6 @@
 import { InboxConversation } from "./InboxConversation";
 import { InboxItem } from "./types";
+import { ClassificationStatusBadge } from "./ClassificationStatusBadge";
 
 interface InboxListProps {
   conversations: InboxItem[];
@@ -25,12 +26,16 @@ export function InboxList({
       ) : (
         <>
           {conversations.map((conversation) => (
-            <InboxConversation
-              key={conversation.id}
-              conversation={conversation}
-              isSelected={selectedId === conversation.id}
-              onClick={() => onSelect(conversation.id)}
-            />
+            <div key={conversation.id}>
+              <InboxConversation
+                conversation={conversation}
+                isSelected={selectedId === conversation.id}
+                onClick={() => onSelect(conversation.id)}
+              />
+              <div className="px-2 pb-1">
+                <ClassificationStatusBadge item={conversation} />
+              </div>
+            </div>
           ))}
           {hasMore && onLoadMore && (
             <button
