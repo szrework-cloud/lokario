@@ -61,12 +61,8 @@ export default function ReportingPage() {
           </p>
         </div>
 
-        {isLoading ? (
-          <Loader text="Chargement des statistiques..." />
-        ) : (
-          <>
-            {/* Temps gagné - Section principale */}
-            <Card className="bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 border-2 border-[#F97316]/20">
+        {/* Temps gagné - Section principale */}
+        <Card className="bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 border-2 border-[#F97316]/20">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -132,6 +128,10 @@ export default function ReportingPage() {
               </CardContent>
             </Card>
 
+        {isLoading ? (
+          <Loader text="Chargement des statistiques..." />
+        ) : (
+          <>
             {/* KPIs */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <KpiCard
