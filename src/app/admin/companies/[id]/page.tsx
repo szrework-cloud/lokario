@@ -24,6 +24,7 @@ type AdminCompanySettings = {
       reporting: { enabled: boolean };
       chatbot_internal: { enabled: boolean };
       chatbot_site: { enabled: boolean };
+      appointments?: { enabled: boolean };
     };
     ia: {
       ai_relances: boolean;
@@ -185,9 +186,92 @@ export default function CompanyDetailPage() {
           `/companies/${companyId}/settings`,
           token
         );
-        setSettings(data);
+        
+        // Si l'API retourne un objet vide (mode mock), initialiser avec des valeurs par défaut
+        if (!data || !data.settings || !data.settings.modules) {
+          const defaultSettings: AdminCompanySettings = {
+            id: 0,
+            company_id: companyId,
+            settings: {
+              modules: {
+                tasks: { enabled: true },
+                inbox: { enabled: true },
+                relances: { enabled: true },
+                projects: { enabled: true },
+                billing: { enabled: true },
+                reporting: { enabled: true },
+                chatbot_internal: { enabled: true },
+                chatbot_site: { enabled: false },
+                appointments: { enabled: true },
+              },
+              ia: {
+                ai_relances: true,
+                ai_summary: true,
+                ai_chatbot_internal: true,
+                ai_chatbot_site: false,
+              },
+              integrations: {
+                email_provider: null,
+                email_from: null,
+              },
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          setSettings(defaultSettings);
+        } else {
+          // S'assurer que tous les modules sont présents
+          const settingsWithDefaults: AdminCompanySettings = {
+            ...data,
+            settings: {
+              ...data.settings,
+              modules: {
+                tasks: data.settings.modules.tasks || { enabled: true },
+                inbox: data.settings.modules.inbox || { enabled: true },
+                relances: data.settings.modules.relances || { enabled: true },
+                projects: data.settings.modules.projects || { enabled: true },
+                billing: data.settings.modules.billing || { enabled: true },
+                reporting: data.settings.modules.reporting || { enabled: true },
+                chatbot_internal: data.settings.modules.chatbot_internal || { enabled: true },
+                chatbot_site: data.settings.modules.chatbot_site || { enabled: false },
+                appointments: data.settings.modules.appointments || { enabled: true },
+              },
+            },
+          };
+          setSettings(settingsWithDefaults);
+        }
       } catch (err: any) {
-        setError(err.message || "Erreur lors du chargement des paramètres");
+        // En cas d'erreur, initialiser avec des valeurs par défaut
+        const defaultSettings: AdminCompanySettings = {
+          id: 0,
+          company_id: companyId,
+          settings: {
+            modules: {
+              tasks: { enabled: true },
+              inbox: { enabled: true },
+              relances: { enabled: true },
+              projects: { enabled: true },
+              billing: { enabled: true },
+              reporting: { enabled: true },
+              chatbot_internal: { enabled: true },
+              chatbot_site: { enabled: false },
+              appointments: { enabled: true },
+            },
+            ia: {
+              ai_relances: true,
+              ai_summary: true,
+              ai_chatbot_internal: true,
+              ai_chatbot_site: false,
+            },
+            integrations: {
+              email_provider: null,
+              email_from: null,
+            },
+          },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        setSettings(defaultSettings);
       } finally {
         setLoadingSettings(false);
       }

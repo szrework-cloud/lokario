@@ -28,6 +28,28 @@ export default function ReportingPage() {
     { label: "Juin", value: 22000 },
   ];
 
+  // Mock données temps gagné (sera remplacé par l'API backend)
+  const timeSavedData = {
+    total: {
+      hours: 24,
+      minutes: 30,
+    },
+    thisWeek: {
+      hours: 6,
+      minutes: 15,
+    },
+    thisMonth: {
+      hours: 24,
+      minutes: 30,
+    },
+    breakdown: {
+      automation: { hours: 12, minutes: 0, label: "Automatisations" },
+      ai: { hours: 8, minutes: 30, label: "Intelligence artificielle" },
+      templates: { hours: 4, minutes: 0, label: "Modèles et templates" },
+    },
+    description: "Temps gagné grâce à l'automatisation et l'IA sur les 30 derniers jours",
+  };
+
   return (
     <>
       <PageTitle title="Reporting" />
@@ -43,6 +65,73 @@ export default function ReportingPage() {
           <Loader text="Chargement des statistiques..." />
         ) : (
           <>
+            {/* Temps gagné - Section principale */}
+            <Card className="bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 border-2 border-[#F97316]/20">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-[#0F172A] mb-1">
+                      Temps gagné
+                    </h2>
+                    <p className="text-sm text-[#64748B]">
+                      {timeSavedData.description}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-5xl font-bold text-[#F97316] mb-1">
+                      {timeSavedData.total.hours}h {timeSavedData.total.minutes}min
+                    </div>
+                    <div className="text-xs text-[#64748B]">Total (30 jours)</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#E5E7EB]">
+                  <div>
+                    <div className="text-sm text-[#64748B] mb-1">Cette semaine</div>
+                    <div className="text-2xl font-bold text-[#0F172A]">
+                      {timeSavedData.thisWeek.hours}h {timeSavedData.thisWeek.minutes}min
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-[#64748B] mb-1">Ce mois</div>
+                    <div className="text-2xl font-bold text-[#0F172A]">
+                      {timeSavedData.thisMonth.hours}h {timeSavedData.thisMonth.minutes}min
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-[#64748B] mb-1">Moyenne par jour</div>
+                    <div className="text-2xl font-bold text-[#0F172A]">
+                      {Math.floor((timeSavedData.total.hours * 60 + timeSavedData.total.minutes) / 30)}min
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-[#E5E7EB]">
+                  <h3 className="text-sm font-semibold text-[#0F172A] mb-4">
+                    Répartition par source
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {Object.values(timeSavedData.breakdown).map((item, index) => (
+                      <div key={index} className="bg-white rounded-lg p-4 border border-[#E5E7EB]">
+                        <div className="text-xs text-[#64748B] mb-1">{item.label}</div>
+                        <div className="text-xl font-bold text-[#0F172A]">
+                          {item.hours}h {item.minutes}min
+                        </div>
+                        <div className="mt-2 w-full bg-[#E5E7EB] rounded-full h-2">
+                          <div
+                            className="bg-[#F97316] h-2 rounded-full"
+                            style={{
+                              width: `${((item.hours * 60 + item.minutes) / (timeSavedData.total.hours * 60 + timeSavedData.total.minutes)) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* KPIs */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <KpiCard
