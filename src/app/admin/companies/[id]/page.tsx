@@ -10,36 +10,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { Toast } from "@/components/ui/Toast";
 import { Loader } from "@/components/ui/Loader";
+import { CompanySettings } from "@/store/settings-store";
 
-type AdminCompanySettings = {
-  id: number;
-  company_id: number;
-  settings: {
-    modules: {
-      tasks: { enabled: boolean };
-      inbox: { enabled: boolean };
-      relances: { enabled: boolean };
-      projects: { enabled: boolean };
-      billing?: { enabled: boolean };
-      reporting: { enabled: boolean };
-      chatbot_internal: { enabled: boolean };
-      chatbot_site: { enabled: boolean };
-      appointments?: { enabled: boolean };
-    };
-    ia: {
-      ai_relances: boolean;
-      ai_summary: boolean;
-      ai_chatbot_internal: boolean;
-      ai_chatbot_site: boolean;
-    };
-    integrations: {
-      email_provider: string | null;
-      email_from: string | null;
-    };
-  };
-  created_at: string | Date;
-  updated_at: string | Date;
-};
+// AdminCompanySettings peut avoir des champs supplémentaires pour l'admin
+// Mais utilise la même structure de modules que CompanySettings pour cohérence
+type AdminCompanySettings = CompanySettings;
 
 type CompanyInfo = {
   id: number;
@@ -801,25 +776,25 @@ export default function CompanyDetailPage() {
                   <ModuleToggle
                     label="Tâches"
                     description="Gestion des tâches, checklists et planning interne."
-                    enabled={settings.settings.modules.tasks.enabled}
+                    enabled={settings.settings.modules.tasks?.enabled ?? true}
                     onToggle={(enabled) => handleModuleToggle("tasks", enabled)}
                   />
                   <ModuleToggle
                     label="Inbox"
                     description="Centralisation des échanges clients."
-                    enabled={settings.settings.modules.inbox.enabled}
+                    enabled={settings.settings.modules.inbox?.enabled ?? true}
                     onToggle={(enabled) => handleModuleToggle("inbox", enabled)}
                   />
                   <ModuleToggle
                     label="Relances"
                     description="Suivi et automatisation des relances clients."
-                    enabled={settings.settings.modules.relances.enabled}
+                    enabled={settings.settings.modules.relances?.enabled ?? true}
                     onToggle={(enabled) => handleModuleToggle("relances", enabled)}
                   />
                   <ModuleToggle
                     label="Projets / Dossiers"
                     description="Suivi des dossiers et projets clients."
-                    enabled={settings.settings.modules.projects.enabled}
+                    enabled={settings.settings.modules.projects?.enabled ?? true}
                     onToggle={(enabled) => handleModuleToggle("projects", enabled)}
                   />
                   <ModuleToggle
@@ -831,13 +806,13 @@ export default function CompanyDetailPage() {
                   <ModuleToggle
                     label="Reporting"
                     description="Tableaux de bord et statistiques."
-                    enabled={settings.settings.modules.reporting.enabled}
+                    enabled={settings.settings.modules.reporting?.enabled ?? true}
                     onToggle={(enabled) => handleModuleToggle("reporting", enabled)}
                   />
                   <ModuleToggle
                     label="Chatbot interne"
                     description="Assistant interne pour vous guider dans l'outil."
-                    enabled={settings.settings.modules.chatbot_internal.enabled}
+                    enabled={settings.settings.modules.chatbot_internal?.enabled ?? true}
                     onToggle={(enabled) =>
                       handleModuleToggle("chatbot_internal", enabled)
                     }
@@ -845,10 +820,16 @@ export default function CompanyDetailPage() {
                   <ModuleToggle
                     label="Chatbot site web"
                     description="Widget de chat pour votre site web."
-                    enabled={settings.settings.modules.chatbot_site.enabled}
+                    enabled={settings.settings.modules.chatbot_site?.enabled ?? false}
                     onToggle={(enabled) =>
                       handleModuleToggle("chatbot_site", enabled)
                     }
+                  />
+                  <ModuleToggle
+                    label="Rendez-vous"
+                    description="Gestion des rendez-vous clients, rappels automatiques et reprogrammations."
+                    enabled={settings.settings.modules.appointments?.enabled ?? true}
+                    onToggle={(enabled) => handleModuleToggle("appointments" as any, enabled)}
                   />
                 </div>
               </div>
@@ -864,19 +845,19 @@ export default function CompanyDetailPage() {
                   <ModuleToggle
                     label="IA pour les relances"
                     description="Génération automatique de messages de relance."
-                    enabled={settings.settings.ia.ai_relances}
+                    enabled={settings.settings.ia?.ai_relances ?? false}
                     onToggle={(enabled) => handleIaToggle("ai_relances", enabled)}
                   />
                   <ModuleToggle
                     label="Résumé IA de la journée"
                     description="Synthèse automatique de vos priorités."
-                    enabled={settings.settings.ia.ai_summary}
+                    enabled={settings.settings.ia?.ai_summary ?? false}
                     onToggle={(enabled) => handleIaToggle("ai_summary", enabled)}
                   />
                   <ModuleToggle
                     label="Chatbot interne (aide dans l'app)"
                     description="Assistant interne pour vous guider dans l'outil."
-                    enabled={settings.settings.ia.ai_chatbot_internal}
+                    enabled={settings.settings.ia?.ai_chatbot_internal ?? false}
                     onToggle={(enabled) =>
                       handleIaToggle("ai_chatbot_internal", enabled)
                     }
@@ -884,7 +865,7 @@ export default function CompanyDetailPage() {
                   <ModuleToggle
                     label="Chatbot site web"
                     description="IA pour répondre aux questions de vos clients sur votre site."
-                    enabled={settings.settings.ia.ai_chatbot_site}
+                    enabled={settings.settings.ia?.ai_chatbot_site ?? false}
                     onToggle={(enabled) =>
                       handleIaToggle("ai_chatbot_site", enabled)
                     }

@@ -12,7 +12,7 @@ type ModuleKey =
   | "appointments";
 
 type ModulesSettings = {
-  [K in ModuleKey]: { enabled: boolean };
+  [K in ModuleKey]?: { enabled: boolean }; // Tous les modules sont optionnels pour compatibilité backend
 };
 
 type IaSettings = {

@@ -198,7 +198,7 @@ export default function SettingsPage() {
               <ModuleToggle
                 label="Tâches"
                 description="Gestion des tâches, checklists et planning interne."
-                enabled={settings.settings.modules.tasks.enabled}
+                enabled={settings.settings.modules.tasks?.enabled ?? true}
                 onToggle={(enabled) => {
                   if (user?.role === "super_admin") {
                     updateSettingsLocal({
@@ -214,7 +214,7 @@ export default function SettingsPage() {
               <ModuleToggle
                 label="Inbox"
                 description="Centralisation des échanges clients."
-                enabled={settings.settings.modules.inbox.enabled}
+                enabled={settings.settings.modules.inbox?.enabled ?? true}
                 onToggle={(enabled) => {
                   if (user?.role === "super_admin") {
                     updateSettingsLocal({
@@ -230,7 +230,7 @@ export default function SettingsPage() {
               <ModuleToggle
                 label="Relances"
                 description="Suivi et automatisation des relances clients."
-                enabled={settings.settings.modules.relances.enabled}
+                enabled={settings.settings.modules.relances?.enabled ?? true}
                 onToggle={(enabled) => {
                   if (user?.role === "super_admin") {
                     updateSettingsLocal({
@@ -246,7 +246,7 @@ export default function SettingsPage() {
               <ModuleToggle
                 label="Projets / Dossiers"
                 description="Suivi des dossiers et projets clients."
-                enabled={settings.settings.modules.projects.enabled}
+                enabled={settings.settings.modules.projects?.enabled ?? true}
                 onToggle={(enabled) => {
                   if (user?.role === "super_admin") {
                     updateSettingsLocal({
@@ -278,7 +278,7 @@ export default function SettingsPage() {
               <ModuleToggle
                 label="Reporting"
                 description="Tableaux de bord et statistiques."
-                enabled={settings.settings.modules.reporting.enabled}
+                enabled={settings.settings.modules.reporting?.enabled ?? true}
                 onToggle={(enabled) => {
                   if (user?.role === "super_admin") {
                     updateSettingsLocal({
@@ -310,7 +310,7 @@ export default function SettingsPage() {
               <ModuleToggle
                 label="Chatbot interne"
                 description="Assistant interne pour vous guider dans l'outil."
-                enabled={settings.settings.modules.chatbot_internal.enabled}
+                enabled={settings.settings.modules.chatbot_internal?.enabled ?? true}
                 onToggle={(enabled) => {
                   if (user?.role === "super_admin") {
                     updateSettingsLocal({
@@ -326,7 +326,7 @@ export default function SettingsPage() {
               <ModuleToggle
                 label="Chatbot site web"
                 description="Widget de chat pour votre site web."
-                enabled={settings.settings.modules.chatbot_site.enabled}
+                enabled={settings.settings.modules.chatbot_site?.enabled ?? false}
                 onToggle={(enabled) => {
                   if (user?.role === "super_admin") {
                     updateSettingsLocal({
