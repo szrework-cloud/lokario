@@ -42,11 +42,6 @@ export default function ReportingPage() {
       hours: 24,
       minutes: 30,
     },
-    breakdown: {
-      automation: { hours: 12, minutes: 0, label: "Automatisations" },
-      ai: { hours: 8, minutes: 30, label: "Intelligence artificielle" },
-      templates: { hours: 4, minutes: 0, label: "Modèles et templates" },
-    },
     description: "Temps gagné grâce à l'automatisation et l'IA sur les 30 derniers jours",
   };
 
@@ -102,29 +97,6 @@ export default function ReportingPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 pt-6 border-t border-[#E5E7EB]">
-                  <h3 className="text-sm font-semibold text-[#0F172A] mb-4">
-                    Répartition par source
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {Object.values(timeSavedData.breakdown).map((item, index) => (
-                      <div key={index} className="bg-white rounded-lg p-4 border border-[#E5E7EB]">
-                        <div className="text-xs text-[#64748B] mb-1">{item.label}</div>
-                        <div className="text-xl font-bold text-[#0F172A]">
-                          {item.hours}h {item.minutes}min
-                        </div>
-                        <div className="mt-2 w-full bg-[#E5E7EB] rounded-full h-2">
-                          <div
-                            className="bg-[#F97316] h-2 rounded-full"
-                            style={{
-                              width: `${((item.hours * 60 + item.minutes) / (timeSavedData.total.hours * 60 + timeSavedData.total.minutes)) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
