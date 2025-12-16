@@ -34,8 +34,8 @@
     "node_modules",
     "src/components/landing/src",
     "src/components/landing modifier",
-    "src/components/landing/vite.config.ts",
-    "src/components/landing/tailwind.config.ts",
-    "src/components/landing/**/*.config.ts"
+    "src/components/landing/**/*.config.*",
+    "src/components/landing/**/vite.config.*",
+    "src/components/landing/**/tailwind.config.*"
   ]
 }
