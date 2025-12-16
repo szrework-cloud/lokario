@@ -53,6 +53,7 @@ export default function EditInvoicePage() {
         const adaptedInvoice: Invoice = {
           ...data,
           client_name: data.client_name || "",
+          due_date: data.due_date || new Date().toISOString().split('T')[0],
           lines: adaptedLines,
           amount_paid: 0,
           amount_remaining: data.total_ttc || data.total || data.amount || 0,
