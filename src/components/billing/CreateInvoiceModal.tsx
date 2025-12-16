@@ -87,7 +87,7 @@ export function CreateInvoiceModal({ isOpen, onClose, onSubmit }: CreateInvoiceM
   // Si auto-entrepreneur, forcer à [0] uniquement
   const VALID_TVA_RATES = isAutoEntrepreneur 
     ? [0] 
-    : (settings?.settings?.billing?.tax_rates || DEFAULT_TVA_RATES);
+    : DEFAULT_TVA_RATES;
 
   // Initialiser avec TVA à 0% si auto-entrepreneur
   const getInitialTaxRate = () => isAutoEntrepreneur ? 0 : 20;
