@@ -52,6 +52,7 @@ export default function EditInvoicePage() {
         
         const adaptedInvoice: Invoice = {
           ...data,
+          client_name: data.client_name || "",
           lines: adaptedLines,
           amount_paid: 0,
           amount_remaining: data.total_ttc || data.total || data.amount || 0,

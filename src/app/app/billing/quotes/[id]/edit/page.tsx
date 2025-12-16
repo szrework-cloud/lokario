@@ -21,8 +21,8 @@ export default function EditQuotePage() {
   const { settings } = useSettings(false); // Ne pas auto-load, déjà chargé dans AppLayout
   const [error, setError] = useState<string | null>(null);
 
-  // Récupérer les taux de TVA depuis les settings
-  const taxRates = settings?.settings?.billing?.tax_rates || [0, 2.1, 5.5, 10, 20];
+  // Taux de TVA par défaut (les settings n'ont pas encore de section billing)
+  const taxRates = [0, 2.1, 5.5, 10, 20];
 
   // TODO: Récupérer depuis le backend
   const [quote, setQuote] = useState<Quote | null>(null);
