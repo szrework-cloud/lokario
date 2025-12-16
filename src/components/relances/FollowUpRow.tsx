@@ -96,7 +96,7 @@ export function FollowUpRow({
               
               // Afficher le statut professionnel avec les informations de relances
               const statusText = item.nextRelanceNumber 
-                ? `Relance ${item.nextRelanceNumber}${item.remainingRelances !== null ? `/${item.totalSent + (item.remainingRelances || 0)}` : ''}`
+                ? `Relance ${item.nextRelanceNumber}${(item as any).remainingRelances !== null ? `/${(item.totalSent || 0) + ((item as any).remainingRelances || 0)}` : ''}`
                 : item.hasBeenSent 
                   ? `${item.totalSent || 0} relance${(item.totalSent || 0) > 1 ? 's' : ''} envoyée${(item.totalSent || 0) > 1 ? 's' : ''}`
                   : 'Relance initiale';
@@ -131,7 +131,7 @@ export function FollowUpRow({
                 )}
                 {item.hasBeenSent && (
                   <span className="text-xs text-slate-400">
-                    ({item.totalSent} envoyée{item.totalSent > 1 ? 's' : ''})
+                    ({item.totalSent || 0} envoyée{(item.totalSent || 0) > 1 ? 's' : ''})
                   </span>
                 )}
               </>
