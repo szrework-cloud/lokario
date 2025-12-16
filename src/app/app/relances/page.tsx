@@ -36,14 +36,6 @@ type FilterType = "all" | "devis" | "factures" | "infos" | "rdv";
 type StatusFilterType = "all" | "pending" | "done";
 type AutomationFilterType = "all" | "auto" | "manual";
 
-interface FollowUpHistoryItem {
-  id: number;
-  date: string;
-  message: string;
-  status: "envoyé" | "lu" | "répondu";
-  sentBy?: string;
-}
-
 export default function RelancesPage() {
   const { token } = useAuth();
   const searchParams = useSearchParams();
