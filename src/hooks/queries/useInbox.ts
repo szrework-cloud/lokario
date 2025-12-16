@@ -7,10 +7,10 @@ import {
   updateConversation,
   deleteConversation,
   getFolders,
-  InboxItem,
   InboxFolder,
   MessageSource,
 } from "@/services/inboxService";
+import type { InboxItem } from "@/components/inbox/types";
 
 interface ConversationFilters {
   folderId?: number | "all" | "pending";
