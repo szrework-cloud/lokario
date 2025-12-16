@@ -89,6 +89,7 @@ export default function BillingPage() {
         
         const adaptedQuotes: Quote[] = data.map((q) => ({
           ...q,
+          client_name: q.client_name || "",
           lines: (q.lines || []).map((line) => ({
             id: line.id || 0,
             description: line.description,
@@ -140,15 +141,29 @@ export default function BillingPage() {
             taxRate: Number(line.tax_rate) || 0,
             total: Number(line.total_ttc) || 0,
           }));
-          
+
+          // Valider operation_category pour s'assurer qu'il correspond au type attendu
+          const validOperationCategory = inv.operation_category && 
+            (inv.operation_category === "vente" || 
+             inv.operation_category === "prestation" || 
+             inv.operation_category === "les deux")
+            ? inv.operation_category as "vente" | "prestation" | "les deux"
+            : undefined;
+
           return {
             ...inv,
+            client_name: inv.client_name || "",
+            due_date: inv.due_date || new Date().toISOString().split('T')[0],
+            operation_category: validOperationCategory,
+            vat_on_debit: inv.vat_on_debit ?? false,
+            vat_applicable: inv.vat_applicable ?? true,
+            amount: inv.amount || inv.total_ttc || 0,
             lines: adaptedLines,
             amount_paid: 0,
-            amount_remaining: Number(inv.total_ttc) || Number(inv.total) || Number(inv.amount) || 0,
+            amount_remaining: Number(inv.total_ttc) || Number(inv.amount) || 0,
             subtotal: Number(inv.subtotal_ht) || 0,
             tax: Number(inv.total_tax) || 0,
-            total: Number(inv.total_ttc) || Number(inv.total) || Number(inv.amount) || 0,
+            total: Number(inv.total_ttc) || Number(inv.amount) || 0,
             timeline: [],
             history: [],
             payments: [],
@@ -225,7 +240,7 @@ export default function BillingPage() {
     
     if (invoiceStatusFilter !== "all") {
       filtered = filtered.filter((inv) => {
-        if (invoiceStatusFilter === "en_retard") {
+        if (invoiceStatusFilter === "en retard") {
           return isInvoiceOverdue(inv) && inv.status !== "payée";
         }
         return inv.status === invoiceStatusFilter;
@@ -436,7 +451,7 @@ export default function BillingPage() {
     envoyée: "Envoyée",
     payée: "Payée",
     impayée: "Impayée",
-    en_retard: "En retard",
+    "en retard": "En retard",
     annulée: "Annulée",
   };
 
@@ -1109,7 +1124,7 @@ export default function BillingPage() {
                                 >
                                   {invoiceStatusLabels[invoice.status]}
                                 </span>
-                                {invoice.invoice_type !== "avoir" && isInvoiceOverdue(invoice) && (
+                                {invoice.invoice_type && invoice.invoice_type !== "avoir" && isInvoiceOverdue(invoice) && (
                                   <span className="ml-2 text-xs text-red-600">
                                     ({Math.floor((new Date().getTime() - new Date(invoice.due_date).getTime()) / (1000 * 60 * 60 * 24))} jours)
                                   </span>

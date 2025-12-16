@@ -49,8 +49,22 @@ export default function InvoiceDetailPage() {
         const data = await getInvoice(token, invoiceId);
         
         // Adapter les données du backend au format frontend
+        // Valider operation_category pour s'assurer qu'il correspond au type attendu
+        const validOperationCategory = data.operation_category && 
+          (data.operation_category === "vente" || 
+           data.operation_category === "prestation" || 
+           data.operation_category === "les deux")
+          ? data.operation_category as "vente" | "prestation" | "les deux"
+          : undefined;
+
         const adaptedInvoice: Invoice = {
           ...data,
+          client_name: data.client_name || "",
+          due_date: data.due_date || new Date().toISOString().split('T')[0],
+          operation_category: validOperationCategory,
+          vat_on_debit: data.vat_on_debit ?? false,
+          vat_applicable: data.vat_applicable ?? true,
+          amount: data.amount || data.total_ttc || data.total || 0,
           // Adapter les lignes (unit_price_ht -> unitPrice, tax_rate -> taxRate)
           lines: (data.lines || []).map((line) => ({
             id: line.id || 0,
@@ -205,9 +219,23 @@ export default function InvoiceDetailPage() {
       // Recharger la facture pour avoir les données à jour
       const reloadedInvoice = await getInvoice(token, invoice.id);
       
+      // Valider operation_category
+      const validOperationCategory = reloadedInvoice.operation_category && 
+        (reloadedInvoice.operation_category === "vente" || 
+         reloadedInvoice.operation_category === "prestation" || 
+         reloadedInvoice.operation_category === "les deux")
+        ? reloadedInvoice.operation_category as "vente" | "prestation" | "les deux"
+        : undefined;
+
       // Adapter les données
       const adaptedInvoice: Invoice = {
         ...reloadedInvoice,
+        client_name: reloadedInvoice.client_name || "",
+        due_date: reloadedInvoice.due_date || new Date().toISOString().split('T')[0],
+        operation_category: validOperationCategory,
+        vat_on_debit: reloadedInvoice.vat_on_debit ?? false,
+        vat_applicable: reloadedInvoice.vat_applicable ?? true,
+        amount: reloadedInvoice.amount || reloadedInvoice.total_ttc || reloadedInvoice.total || 0,
         lines: (reloadedInvoice.lines || []).map((line) => ({
           id: line.id || 0,
           description: line.description,
@@ -881,8 +909,21 @@ export default function InvoiceDetailPage() {
                     setCreditNoteAmount("");
                     // Recharger la facture
                     const data = await getInvoice(token, invoiceId);
+                    // Valider operation_category
+                    const validOpCategory = data.operation_category && 
+                      (data.operation_category === "vente" || 
+                       data.operation_category === "prestation" || 
+                       data.operation_category === "les deux")
+                      ? data.operation_category as "vente" | "prestation" | "les deux"
+                      : undefined;
                     const adaptedInvoice: Invoice = {
                       ...data,
+                      client_name: data.client_name || "",
+                      due_date: data.due_date || new Date().toISOString().split('T')[0],
+                      operation_category: validOpCategory,
+                      vat_on_debit: data.vat_on_debit ?? false,
+                      vat_applicable: data.vat_applicable ?? true,
+                      amount: data.amount || data.total_ttc || 0,
                       lines: (data.lines || []).map((line) => ({
                         id: line.id || 0,
                         description: line.description,
@@ -892,10 +933,10 @@ export default function InvoiceDetailPage() {
                         total: line.total_ttc,
                       })),
                       amount_paid: data.amount_paid || 0,
-                      amount_remaining: data.amount_remaining ?? (data.total_ttc || data.total || data.amount || 0),
+                      amount_remaining: data.amount_remaining ?? (data.total_ttc || data.amount || 0),
                       subtotal: data.subtotal_ht || 0,
                       tax: data.total_tax || 0,
-                      total: data.total_ttc || data.total || data.amount || 0,
+                      total: data.total_ttc || data.amount || 0,
                       timeline: [],
                       history: [],
                       payments: [],

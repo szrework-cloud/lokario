@@ -50,10 +50,22 @@ export default function EditInvoicePage() {
           total: line.total_ttc,
         }));
         
+        // Valider operation_category pour s'assurer qu'il correspond au type attendu
+        const validOperationCategory = data.operation_category && 
+          (data.operation_category === "vente" || 
+           data.operation_category === "prestation" || 
+           data.operation_category === "les deux")
+          ? data.operation_category as "vente" | "prestation" | "les deux"
+          : undefined;
+
         const adaptedInvoice: Invoice = {
           ...data,
           client_name: data.client_name || "",
           due_date: data.due_date || new Date().toISOString().split('T')[0],
+          operation_category: validOperationCategory,
+          vat_on_debit: data.vat_on_debit ?? false,
+          vat_applicable: data.vat_applicable ?? true,
+          amount: data.amount || data.total_ttc || data.total || 0,
           lines: adaptedLines,
           amount_paid: 0,
           amount_remaining: data.total_ttc || data.total || data.amount || 0,
