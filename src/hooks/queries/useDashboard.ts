@@ -11,7 +11,7 @@ export function useDashboardStats() {
 
   return useQuery<DashboardStats>({
     queryKey: ["dashboard", "stats"],
-    queryFn: () => getDashboardStats(token),
+    queryFn: () => getDashboardStats(token || ""),
     enabled: !!token,
     staleTime: 1000 * 60 * 2, // 2 minutes - les stats changent souvent
   });
