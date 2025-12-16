@@ -1627,7 +1627,7 @@ export default function SettingsPage() {
                               quotes_enabled: e.target.checked,
                             },
                           },
-                        });
+                        } as any);
                       }}
                       className="mt-1 rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
                       disabled={user?.role === "user"}
@@ -1655,7 +1655,7 @@ export default function SettingsPage() {
                               invoices_enabled: e.target.checked,
                             },
                           },
-                        });
+                        } as any);
                       }}
                       className="mt-1 rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
                       disabled={user?.role === "user"}
