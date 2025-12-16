@@ -52,8 +52,6 @@ export interface Quote {
   
   // Relations
   lines: QuoteLine[];
-  client_name?: string;
-  project_name?: string;
 }
 
 export interface QuoteCreate {
