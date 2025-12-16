@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -8,51 +8,90 @@ interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: TaskFormData) => void;
+  employees?: Array<{ id: number; name: string; email: string; avatar?: string }>;
 }
 
 export interface TaskFormData {
   title: string;
   description?: string;
-  assigned_to_id: number;
-  category: string;
-  priority: "low" | "medium" | "high" | "critical";
-  due_date: string;
+  assigned_to_id?: number;
+  priority: "normal" | "high" | "critical";  // MVP V1: 3 priorités uniquement
+  due_date?: string;
   due_time?: string;
   recurrence: "none" | "daily" | "weekly" | "monthly";
+  recurrence_days?: number[]; // Pour hebdomadaire (0-6, dimanche = 0)
   is_mandatory?: boolean;
 }
 
-export function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalProps) {
+export function CreateTaskModal({ isOpen, onClose, onSubmit, employees = [] }: CreateTaskModalProps) {
   const { user } = useAuth();
   const [formData, setFormData] = useState<Partial<TaskFormData>>({
-    priority: "medium",
+    priority: "normal",  // MVP V1: priorité par défaut "normal"
     recurrence: "none",
+    recurrence_days: [],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // TODO: Récupérer depuis le backend
-  const mockEmployees = [
-    { id: 1, name: "Jean Dupont", avatar: "JD" },
-    { id: 2, name: "Marie Martin", avatar: "MM" },
-    { id: 3, name: "Sophie Durand", avatar: "SD" },
-    { id: 4, name: "Pierre Bernard", avatar: "PB" },
+  // Réinitialiser le formulaire quand le modal se ferme
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData({ 
+        title: "",
+        description: "",
+        priority: "normal", 
+        recurrence: "none", 
+        recurrence_days: [],
+        assigned_to_id: undefined,
+        due_date: undefined,
+        due_time: undefined,
+        is_mandatory: false,
+      });
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
+
+  const weekDays = [
+    { value: 0, label: "Dimanche" },
+    { value: 1, label: "Lundi" },
+    { value: 2, label: "Mardi" },
+    { value: 3, label: "Mercredi" },
+    { value: 4, label: "Jeudi" },
+    { value: 5, label: "Vendredi" },
+    { value: 6, label: "Samedi" },
   ];
 
-  const categories = ["Interne", "Client", "Fournisseur", "Administratif"];
+  // Jours du mois (1-31) pour la récurrence mensuelle
+  const monthDays = Array.from({ length: 31 }, (_, i) => ({
+    value: i + 1,
+    label: String(i + 1),
+  }));
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.assigned_to_id || !formData.category || !formData.due_date) {
+    if (!formData.title || !formData.title.trim()) {
       return;
     }
 
     setIsSubmitting(true);
     try {
       await onSubmit(formData as TaskFormData);
-      setFormData({ priority: "medium", recurrence: "none" });
-      onClose();
+      // Réinitialiser le formulaire seulement si la soumission réussit
+      setFormData({ 
+        title: "",
+        description: "",
+        priority: "normal", 
+        recurrence: "none", 
+        recurrence_days: [],
+        assigned_to_id: undefined,
+        due_date: undefined,
+        due_time: undefined,
+        is_mandatory: false,
+      });  // MVP V1: reset complet du formulaire
+      // Le parent gère la fermeture du modal après succès
     } catch (error) {
       console.error("Error creating task:", error);
+      // Propager l'erreur pour que le parent puisse l'afficher
+      throw error;
     } finally {
       setIsSubmitting(false);
     }
@@ -120,51 +159,27 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalPr
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                  Assignée à *
-                </label>
-                <select
-                  required
-                  value={formData.assigned_to_id || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      assigned_to_id: Number(e.target.value),
-                    })
-                  }
-                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                >
-                  <option value="">Sélectionner un employé</option>
-                  {mockEmployees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                  Catégorie *
-                </label>
-                <select
-                  required
-                  value={formData.category || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                >
-                  <option value="">Sélectionner une catégorie</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                Assignée à (optionnel)
+              </label>
+              <select
+                value={formData.assigned_to_id || ""}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    assigned_to_id: e.target.value ? Number(e.target.value) : undefined,
+                  })
+                }
+                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              >
+                <option value="">Tous les employés</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name || emp.email}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -174,7 +189,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalPr
                 </label>
                 <select
                   required
-                  value={formData.priority || "medium"}
+                  value={formData.priority || "normal"}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
@@ -183,8 +198,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalPr
                   }
                   className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                 >
-                  <option value="low">Faible</option>
-                  <option value="medium">Moyenne</option>
+                  <option value="normal">Normale</option>
                   <option value="high">Haute</option>
                   <option value="critical">Critique</option>
                 </select>
@@ -196,12 +210,22 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalPr
                 </label>
                 <select
                   value={formData.recurrence || "none"}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const newRecurrence = e.target.value as TaskFormData["recurrence"];
+                    // Si on passe à "weekly" ou "monthly", préserver les jours déjà sélectionnés ou initialiser avec un tableau vide
+                    let recurrenceDays: number[] | undefined;
+                    if (newRecurrence === "weekly" || newRecurrence === "monthly") {
+                      recurrenceDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                    } else {
+                      recurrenceDays = undefined;
+                    }
+                    
                     setFormData({
                       ...formData,
-                      recurrence: e.target.value as TaskFormData["recurrence"],
-                    })
-                  }
+                      recurrence: newRecurrence,
+                      recurrence_days: recurrenceDays,
+                    });
+                  }}
                   className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                 >
                   <option value="none">Aucun</option>
@@ -212,35 +236,102 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalPr
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {formData.recurrence === "weekly" && (
               <div>
                 <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                  Date *
+                  Jours de la semaine
                 </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.due_date || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, due_date: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                />
+                <div className="flex flex-wrap gap-2">
+                  {weekDays.map((day) => {
+                    const recurrenceDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                    const isChecked = recurrenceDays.includes(day.value);
+                    
+                    return (
+                      <label
+                        key={day.value}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const currentDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                recurrence_days: [...currentDays, day.value],
+                              });
+                            } else {
+                              setFormData({
+                                ...formData,
+                                recurrence_days: currentDays.filter((d) => d !== day.value),
+                              });
+                            }
+                          }}
+                          className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+                        />
+                        <span className="text-sm text-[#0F172A]">{day.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
+            )}
 
+            {formData.recurrence === "monthly" && (
               <div>
                 <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                  Heure
+                  Jours du mois
                 </label>
-                <input
-                  type="time"
-                  value={formData.due_time || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, due_time: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                />
+                <div className="flex flex-wrap gap-2">
+                  {monthDays.map((day) => {
+                    const recurrenceDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                    const isChecked = recurrenceDays.includes(day.value);
+                    
+                    return (
+                      <label
+                        key={day.value}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const currentDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                recurrence_days: [...currentDays, day.value],
+                              });
+                            } else {
+                              setFormData({
+                                ...formData,
+                                recurrence_days: currentDays.filter((d) => d !== day.value),
+                              });
+                            }
+                          }}
+                          className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+                        />
+                        <span className="text-sm text-[#0F172A]">{day.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                Heure
+              </label>
+              <input
+                type="time"
+                value={formData.due_time || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, due_time: e.target.value })
+                }
+                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              />
             </div>
 
             {(user?.role === "super_admin" || user?.role === "owner") && (

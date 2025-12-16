@@ -56,8 +56,16 @@ export function calculateTotal(lines: BillingLine[]): number {
 /**
  * Formate un montant en euros
  */
-export function formatAmount(amount: number): string {
-  return `${amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+export function formatAmount(amount: number | string | null | undefined): string {
+  // Convertir en nombre si c'est une chaîne
+  const numAmount = typeof amount === "string" ? parseFloat(amount) : (amount || 0);
+  
+  // Vérifier que c'est un nombre valide
+  if (isNaN(numAmount)) {
+    return "0,00 €";
+  }
+  
+  return `${numAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
 /**
@@ -81,9 +89,11 @@ export function getInvoiceStatusColor(status: Invoice["status"]): string {
     brouillon: "bg-slate-100 text-slate-800",
     envoyée: "bg-blue-100 text-blue-800",
     payée: "bg-green-100 text-green-800",
+    impayée: "bg-orange-100 text-orange-800",
     en_retard: "bg-red-100 text-red-800",
+    annulée: "bg-gray-100 text-gray-800",
   };
-  return colors[status] || colors.brouillon;
+  return colors[status] || colors.impayée;
 }
 
 /**

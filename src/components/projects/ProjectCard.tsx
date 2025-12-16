@@ -27,15 +27,20 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
         </div>
         <p className="text-sm text-slate-600 mb-4">{project.client}</p>
         <div className="space-y-2 text-xs text-slate-500">
-          <p>
-            <span className="font-medium">Début:</span>{" "}
-            {new Date(project.startDate).toLocaleDateString("fr-FR")}
-          </p>
+          {project.startDate && (
+            <p>
+              <span className="font-medium">Début:</span>{" "}
+              {new Date(project.startDate).toLocaleDateString("fr-FR")}
+            </p>
+          )}
           {project.endDate && (
             <p>
               <span className="font-medium">Fin:</span>{" "}
               {new Date(project.endDate).toLocaleDateString("fr-FR")}
             </p>
+          )}
+          {!project.startDate && !project.endDate && (
+            <p className="text-slate-400">Aucune date définie</p>
           )}
         </div>
       </CardContent>

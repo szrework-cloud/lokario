@@ -5,7 +5,6 @@ import { Tag } from "@/components/ui/Tag";
 import { PageTitle } from "@/components/layout/PageTitle";
 import { KpiCard } from "@/components/reporting/KpiCard";
 import { AiModal } from "@/components/ai/AiModal";
-import { Toast } from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
 import Link from "next/link";
 
@@ -23,7 +22,7 @@ export default function PaymentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentItem | null>(null);
   const [messageText, setMessageText] = useState("");
-  const { toast, showToast, hideToast } = useToast();
+  const { showToast } = useToast();
 
   // TODO: Récupérer les paiements depuis le backend
   const mockPayments: PaymentItem[] = [
@@ -252,12 +251,6 @@ export default function PaymentsPage() {
           label="Message de relance"
         />
 
-        <Toast
-          message={toast.message}
-          isVisible={toast.isVisible}
-          onClose={hideToast}
-          type={toast.type}
-        />
       </div>
     </>
   );

@@ -1,7 +1,6 @@
 "use client";
 
-import { PublicHeader } from "@/components/layout/PublicHeader";
-import { PublicFooter } from "@/components/layout/PublicFooter";
+import { CookieBanner } from "@/components/legal/CookieBanner";
 
 export default function PublicLayout({
   children,
@@ -10,9 +9,8 @@ export default function PublicLayout({
 }) {
   return (
     <div className="flex min-h-screen flex-col">
-      <PublicHeader />
       <main className="flex-1">{children}</main>
-      <PublicFooter />
+      <CookieBanner />
     </div>
   );
 }

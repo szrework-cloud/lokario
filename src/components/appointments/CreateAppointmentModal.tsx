@@ -2,9 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Appointment, AppointmentType } from "./types";
-import { mockAppointmentTypes, mockEmployees } from "./mockData";
 import { calculateAvailableSlots, formatDateForDisplay, formatTimeForDisplay } from "./utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { useAuth } from "@/hooks/useAuth";
+import { getAppointmentTypes } from "@/services/appointmentsService";
+import { getCompanyUsers } from "@/services/usersService";
+import { getClients } from "@/services/clientsService";
 
 interface CreateAppointmentModalProps {
   isOpen: boolean;
@@ -15,14 +18,6 @@ interface CreateAppointmentModalProps {
   existingAppointments?: Appointment[]; // Pour calculer les créneaux disponibles
 }
 
-// Mock clients (à remplacer par l'API)
-const mockClients = [
-  { id: 1, name: "Boulangerie Soleil" },
-  { id: 2, name: "Mme Dupont" },
-  { id: 3, name: "M. Martin" },
-  { id: 4, name: "Nouveau Client" },
-];
-
 export function CreateAppointmentModal({
   isOpen,
   onClose,
@@ -31,11 +26,40 @@ export function CreateAppointmentModal({
   initialDate,
   existingAppointments = [],
 }: CreateAppointmentModalProps) {
+  const { token } = useAuth();
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<number>(initialClientId || 0);
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate || new Date());
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date; employeeId?: number; employeeName?: string } | null>(null);
   const [notes, setNotes] = useState("");
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
+  const [employees, setEmployees] = useState<Array<{ id: number; name: string }>>([]);
+  const [clients, setClients] = useState<Array<{ id: number; name: string }>>([]);
+
+  // Charger les données
+  useEffect(() => {
+    const loadData = async () => {
+      if (!token) return;
+      
+      try {
+        const [typesData, usersData, clientsData] = await Promise.all([
+          getAppointmentTypes(token, true), // Seulement les types actifs
+          getCompanyUsers(token),
+          getClients(token),
+        ]);
+        
+        setAppointmentTypes(typesData);
+        setEmployees(usersData.map((u) => ({ id: u.id, name: u.fullName })));
+        setClients(clientsData.map((c) => ({ id: c.id, name: c.name })));
+      } catch (err) {
+        console.error("Erreur lors du chargement des données:", err);
+      }
+    };
+
+    if (isOpen) {
+      loadData();
+    }
+  }, [token, isOpen]);
 
   // Réinitialiser quand le modal s'ouvre
   useEffect(() => {
@@ -50,9 +74,9 @@ export function CreateAppointmentModal({
 
   const selectedType = useMemo(() => {
     return selectedTypeId
-      ? mockAppointmentTypes.find((t) => t.id === selectedTypeId && t.isActive)
+      ? appointmentTypes.find((t) => t.id === selectedTypeId && t.isActive)
       : null;
-  }, [selectedTypeId]);
+  }, [selectedTypeId, appointmentTypes]);
 
   // Calculer les créneaux disponibles
   const availableSlots = useMemo(() => {
@@ -61,18 +85,18 @@ export function CreateAppointmentModal({
     return calculateAvailableSlots(
       selectedType,
       existingAppointments,
-      mockEmployees,
+      employees,
       selectedDate
     );
-  }, [selectedType, selectedDate, existingAppointments]);
+  }, [selectedType, selectedDate, existingAppointments, employees]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedType || !selectedClientId || !selectedSlot) return;
 
-    const client = mockClients.find((c) => c.id === selectedClientId);
+    const client = clients.find((c) => c.id === selectedClientId);
     const employee = selectedSlot.employeeId
-      ? mockEmployees.find((e) => e.id === selectedSlot.employeeId)
+      ? employees.find((e) => e.id === selectedSlot.employeeId)
       : undefined;
 
     onSave({
@@ -127,7 +151,7 @@ export function CreateAppointmentModal({
                 Type de rendez-vous *
               </label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {mockAppointmentTypes
+                {appointmentTypes
                   .filter((type) => type.isActive)
                   .map((type) => (
                     <button
@@ -167,7 +191,7 @@ export function CreateAppointmentModal({
                 required
               >
                 <option value={0}>Sélectionner un client</option>
-                {mockClients.map((client) => (
+                {clients.map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.name}
                   </option>

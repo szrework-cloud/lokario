@@ -5,25 +5,21 @@ import { PageTitle } from "@/components/layout/PageTitle";
 import { AgendaView } from "@/components/appointments/AgendaView";
 import { AppointmentsListView } from "@/components/appointments/AppointmentsListView";
 import { AppointmentTypesView } from "@/components/appointments/AppointmentTypesView";
-import { AppointmentSettingsView } from "@/components/appointments/AppointmentSettingsView";
 import { useAuth } from "@/hooks/useAuth";
+import { PageTransition } from "@/components/ui/PageTransition";
 
 export default function AppointmentsPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"agenda" | "list" | "types" | "settings">("agenda");
-  
-  // Permissions : onglet Paramètres uniquement pour owner/super_admin
-  const canAccessSettings = user?.role === "owner" || user?.role === "super_admin";
+  const [activeTab, setActiveTab] = useState<"agenda" | "list" | "types">("agenda");
 
   const tabs = [
     { id: "agenda" as const, label: "Agenda" },
     { id: "list" as const, label: "Liste des RDV" },
     { id: "types" as const, label: "Types de RDV" },
-    ...(canAccessSettings ? [{ id: "settings" as const, label: "Paramètres" }] : []),
   ];
 
   return (
-    <>
+    <PageTransition>
       <PageTitle
         title="Prise de rendez-vous"
       />
@@ -56,10 +52,9 @@ export default function AppointmentsPage() {
           {activeTab === "agenda" && <AgendaView />}
           {activeTab === "list" && <AppointmentsListView />}
           {activeTab === "types" && <AppointmentTypesView />}
-          {activeTab === "settings" && <AppointmentSettingsView />}
         </div>
       </div>
-    </>
+    </PageTransition>
   );
 }
 

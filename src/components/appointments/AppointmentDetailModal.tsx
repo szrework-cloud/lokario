@@ -70,7 +70,8 @@ export function AppointmentDetailModal({
 
   const handleOpenConversation = () => {
     if (appointment.clientConversationId) {
-      // TODO: router.push(`/app/inbox?conversationId=${appointment.clientConversationId}`);
+      router.push(`/app/inbox?conversationId=${appointment.clientConversationId}`);
+    } else {
       router.push(`/app/inbox`);
     }
   };

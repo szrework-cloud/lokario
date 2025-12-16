@@ -1,9 +1,11 @@
 import { create } from "zustand";
 
 type ModuleKey =
+  | "dashboard"
   | "tasks"
   | "inbox"
   | "relances"
+  | "clients"
   | "projects"
   | "billing"
   | "reporting"
@@ -20,6 +22,10 @@ type IaSettings = {
   ai_summary: boolean;
   ai_chatbot_internal: boolean;
   ai_chatbot_site: boolean;
+  inbox?: {
+    reply_prompt?: string;
+    summary_prompt?: string;
+  };
 };
 
 type IntegrationsSettings = {
@@ -43,7 +49,11 @@ export type CompanyInfo = {
   id: number;
   name: string;
   sector?: string | null;
+  slug?: string | null;
   is_active: boolean;
+  is_auto_entrepreneur?: boolean;
+  vat_exempt?: boolean;
+  vat_exemption_reference?: string | null;
   created_at: string;
 };
 
@@ -74,13 +84,33 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateSettingsLocal: (partial) => {
     const current = get().settings;
     if (!current) return;
+    
+    // Fonction pour fusionner profondément deux objets
+    const deepMerge = (target: any, source: any): any => {
+      const output = { ...target };
+      if (isObject(target) && isObject(source)) {
+        Object.keys(source).forEach(key => {
+          if (isObject(source[key])) {
+            if (!(key in target))
+              Object.assign(output, { [key]: source[key] });
+            else
+              output[key] = deepMerge(target[key], source[key]);
+          } else {
+            Object.assign(output, { [key]: source[key] });
+          }
+        });
+      }
+      return output;
+    };
+    
+    const isObject = (item: any): boolean => {
+      return item && typeof item === 'object' && !Array.isArray(item);
+    };
+    
     set({
       settings: {
         ...current,
-        settings: {
-          ...current.settings,
-          ...partial,
-        },
+        settings: deepMerge(current.settings, partial),
       },
     });
   },

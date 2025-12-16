@@ -6,6 +6,7 @@ import { SectionCard } from "@/components/dashboard/SectionCard";
 import { TaskRow } from "@/components/dashboard/TaskRow";
 import { AiSummaryCard } from "@/components/ai/AiSummaryCard";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 type ModuleConfig = {
   tasks: { enabled: boolean };
@@ -100,9 +101,18 @@ export function PreviewModal({ settings, onClose }: PreviewModalProps) {
             <div className="flex h-full flex-col">
               {/* Logo */}
               <div className="border-b border-[#1F2933] px-6 py-5">
+                <div className="flex items-center gap-2">
+                  <Image 
+                    src="/lokario-logo.png" 
+                    alt="Lokario" 
+                    width={32} 
+                    height={32}
+                    className="h-8 w-auto" 
+                  />
                 <h1 className="text-xl font-semibold text-slate-200">
-                  Local Assistant
+                    LOKARIO
                 </h1>
+                </div>
               </div>
 
               {/* Navigation */}

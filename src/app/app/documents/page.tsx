@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useAuth } from "@/hooks/useAuth";
 import { UploadDocumentModal, UploadFormData } from "@/components/documents/UploadDocumentModal";
 import { DocumentPreviewModal } from "@/components/documents/DocumentPreviewModal";
+import { logger } from "@/lib/logger";
 
 export default function DocumentsPage() {
   const { user } = useAuth();
@@ -215,7 +216,7 @@ export default function DocumentsPage() {
           onClose={() => setIsUploadModalOpen(false)}
           onSubmit={async (data: UploadFormData) => {
             // TODO: Appel API pour uploader le document
-            console.log("Upload document:", data);
+            logger.log("Upload document:", data);
             // Après upload réussi, recharger la liste
           }}
         />

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { AppointmentType } from "./types";
-import { mockEmployees } from "./mockData";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { useAuth } from "@/hooks/useAuth";
+import { getCompanyUsers } from "@/services/usersService";
 
 interface AppointmentTypeModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export function AppointmentTypeModal({
   type,
   onSave,
 }: AppointmentTypeModalProps) {
+  const { token } = useAuth();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(30);
@@ -25,6 +27,25 @@ export function AppointmentTypeModal({
   const [bufferAfterMinutes, setBufferAfterMinutes] = useState(0);
   const [employeesAllowedIds, setEmployeesAllowedIds] = useState<number[]>([]);
   const [isActive, setIsActive] = useState(true);
+  const [employees, setEmployees] = useState<Array<{ id: number; name: string }>>([]);
+
+  // Charger les employés
+  useEffect(() => {
+    const loadEmployees = async () => {
+      if (!token) return;
+      
+      try {
+        const users = await getCompanyUsers(token);
+        setEmployees(users.map((u) => ({ id: u.id, name: u.fullName })));
+      } catch (err) {
+        console.error("Erreur lors du chargement des employés:", err);
+      }
+    };
+
+    if (isOpen) {
+      loadEmployees();
+    }
+  }, [token, isOpen]);
 
   useEffect(() => {
     if (type) {
@@ -182,7 +203,7 @@ export function AppointmentTypeModal({
                 Employés autorisés (optionnel)
               </label>
               <div className="space-y-2">
-                {mockEmployees.map((employee) => (
+                {employees.map((employee) => (
                   <label
                     key={employee.id}
                     className="flex items-center gap-2 cursor-pointer"

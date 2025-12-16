@@ -1,5 +1,7 @@
 "use client";
 
+import { NotificationsDropdown } from "@/components/notifications/NotificationsDropdown";
+
 interface AppTopBarProps {
   subtitle?: string;
   title?: string;
@@ -18,7 +20,10 @@ export function AppTopBar({
           <p className="text-sm text-[#64748B]">{subtitle}</p>
           <h2 className="text-2xl font-semibold text-[#0F172A]">{title}</h2>
         </div>
-        {rightContent && <div>{rightContent}</div>}
+        <div className="flex items-center gap-4">
+          <NotificationsDropdown />
+          {rightContent && <div>{rightContent}</div>}
+        </div>
       </div>
     </header>
   );

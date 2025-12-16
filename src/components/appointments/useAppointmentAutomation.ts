@@ -14,48 +14,50 @@ import {
 interface UseAppointmentAutomationProps {
   appointments: Appointment[];
   settings: AppointmentSettings;
+  companySlug?: string;
   onSendMessage?: (appointment: Appointment, message: string, type: "reminder" | "no_show") => void;
 }
 
 export function useAppointmentAutomation({
   appointments,
   settings,
+  companySlug,
   onSendMessage,
 }: UseAppointmentAutomationProps) {
   const checkAndSendReminders = useCallback(() => {
     const now = new Date();
     
     appointments.forEach((appointment) => {
-      // Vérifier les rappels
-      if (shouldTriggerReminder(appointment, settings, now)) {
-        const message = buildReminderMessage(appointment, settings);
+      // Vérifier les rappels (retourne maintenant { shouldTrigger, relanceNumber, template })
+      const reminderCheck = shouldTriggerReminder(appointment, settings, now);
+      if (reminderCheck.shouldTrigger && reminderCheck.relanceNumber && reminderCheck.template) {
+        const message = buildReminderMessage(
+          appointment,
+          settings,
+          companySlug,
+          reminderCheck.template
+        );
         
-        // Marquer comme envoyé
-        markReminderSent(appointment.id);
+        // Marquer cette relance spécifique comme envoyée
+        markReminderSent(appointment.id, reminderCheck.relanceNumber);
         
         // Appeler le callback pour envoyer le message
         if (onSendMessage) {
           onSendMessage(appointment, message, "reminder");
         } else {
-          // Fallback : log dans la console
-          console.log("[Appointment Automation] Rappel à envoyer:", {
+          // Fallback : log dans la console (normalement onSendMessage devrait toujours être fourni)
+          console.warn("[Appointment Automation] Rappel à envoyer mais onSendMessage non fourni:", {
             appointmentId: appointment.id,
             clientName: appointment.clientName,
+            relanceNumber: reminderCheck.relanceNumber,
             message,
           });
-          
-          // TODO: Une fois l'API Inbox prête, appeler ici :
-          // createInboxMessage({
-          //   conversationId: appointment.clientConversationId,
-          //   body: message,
-          //   metadata: { source: "appointment_reminder", appointmentId: appointment.id }
-          // })
         }
       }
       
       // Vérifier les messages no_show
       if (shouldSendNoShowMessage(appointment, settings)) {
-        const message = buildNoShowMessage(appointment, settings);
+        const message = buildNoShowMessage(appointment, settings, companySlug);
         
         if (message) {
           // Marquer comme envoyé
@@ -65,24 +67,17 @@ export function useAppointmentAutomation({
           if (onSendMessage) {
             onSendMessage(appointment, message, "no_show");
           } else {
-            // Fallback : log dans la console
-            console.log("[Appointment Automation] Message no_show à envoyer:", {
+            // Fallback : log dans la console (normalement onSendMessage devrait toujours être fourni)
+            console.warn("[Appointment Automation] Message no_show à envoyer mais onSendMessage non fourni:", {
               appointmentId: appointment.id,
               clientName: appointment.clientName,
               message,
             });
-            
-            // TODO: Une fois l'API Inbox prête, appeler ici :
-            // createInboxMessage({
-            //   conversationId: appointment.clientConversationId,
-            //   body: message,
-            //   metadata: { source: "appointment_no_show", appointmentId: appointment.id }
-            // })
           }
         }
       }
     });
-  }, [appointments, settings, onSendMessage]);
+  }, [appointments, settings, companySlug, onSendMessage]);
 
   // Vérifier toutes les minutes
   useEffect(() => {

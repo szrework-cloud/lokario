@@ -1,14 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 export function PublicHeader() {
   return (
     <header className="border-b border-[#E5E7EB] bg-white sticky top-0 z-50">
       <div className="container mx-auto px-4 md:px-8">
         <div className="flex h-16 items-center justify-between">
-          <Link href="/" className="text-xl font-semibold text-[#0F172A]">
-            Local Assistant
+          <Link href="/" className="flex items-center gap-2">
+            <Image 
+              src="/lokario-logo.png" 
+              alt="Lokario" 
+              width={32} 
+              height={32}
+              className="h-8 w-auto" 
+            />
+            <span className="text-xl font-semibold text-[#0F172A]">
+              LOKARIO
+            </span>
           </Link>
           <nav className="hidden md:flex items-center gap-6">
             <Link

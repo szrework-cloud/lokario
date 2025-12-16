@@ -34,10 +34,19 @@ export interface Appointment {
   notesInternal?: string;
 }
 
+export interface AppointmentReminderTemplate {
+  id: number;
+  relance_number: number; // 1, 2, ou 3
+  hours_before: number; // Nombre d'heures avant le rendez-vous
+  content: string; // Template du message
+}
+
 export interface AppointmentSettings {
   autoReminderEnabled: boolean; // Activer le rappel 4h avant
-  autoReminderOffsetHours: number; // ex : 4
+  autoReminderOffsetHours: number; // ex : 4 (pour compatibilité, sera remplacé par reminderRelances)
   includeRescheduleLinkInReminder: boolean;
   autoNoShowMessageEnabled: boolean; // Message auto après no_show
   rescheduleBaseUrl?: string; // ex: "https://mon-saas.com/r/{slugEntreprise}"
+  maxReminderRelances?: number; // Nombre max de relances (1 à 3)
+  reminderRelances?: AppointmentReminderTemplate[]; // Templates pour chaque relance
 }

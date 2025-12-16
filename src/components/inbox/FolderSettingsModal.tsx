@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { InboxFolder, FolderType } from "./types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useAuth } from "@/hooks/useAuth";
+import { FolderFiltersConfig } from "./FolderFiltersConfig";
 
 interface FolderSettingsModalProps {
   isOpen: boolean;
@@ -38,10 +40,18 @@ export function FolderSettingsModal({
   const [type, setType] = useState<FolderType>("general");
   const [color, setColor] = useState(colorOptions[0]);
   const [autoClassify, setAutoClassify] = useState(false);
-  const [context, setContext] = useState("");
+  const [priority, setPriority] = useState<number>(10);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [filters, setFilters] = useState({
+    keywords: undefined as string[] | undefined,
+    keywords_location: "any" as "subject" | "content" | "any",
+    sender_email: undefined as string[] | undefined,
+    sender_domain: undefined as string[] | undefined,
+    sender_phone: undefined as string[] | undefined,
+    match_type: "any" as "all" | "any",
+  });
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [autoReplyMode, setAutoReplyMode] = useState<"none" | "approval" | "auto">("none");
-  const [autoReplyTemplate, setAutoReplyTemplate] = useState("");
   const [autoReplyDelay, setAutoReplyDelay] = useState<number | undefined>(undefined);
   const [useCompanyKnowledge, setUseCompanyKnowledge] = useState(false);
 
@@ -52,20 +62,49 @@ export function FolderSettingsModal({
     }
   }, [isOpen, user?.role, onClose]);
 
+  // Charger les valeurs du dossier dans le formulaire quand le modal s'ouvre
   useEffect(() => {
-    if (folder) {
-      setName(folder.name);
-      setType(folder.type);
+    if (folder && isOpen) {
+      // Charger toutes les valeurs du dossier dans le formulaire
+      setName(folder.name || "");
+      setType(folder.type || "general");
       setColor(folder.color || colorOptions[0]);
       setAutoClassify(folder.aiRules?.autoClassify || false);
-      setContext(folder.aiRules?.context || "");
+      setPriority(folder.aiRules?.priority || 10);
+      const existingFilters = folder.aiRules?.filters || {};
+      setFilters({
+        keywords: existingFilters.keywords || undefined,
+        keywords_location: existingFilters.keywords_location || "any",
+        sender_email: existingFilters.sender_email || undefined,
+        sender_domain: existingFilters.sender_domain || undefined,
+        sender_phone: existingFilters.sender_phone || undefined,
+        match_type: existingFilters.match_type || "any",
+      });
       setAutoReplyEnabled(folder.autoReply?.enabled || false);
       setAutoReplyMode(folder.autoReply?.mode || "none");
-      setAutoReplyTemplate(folder.autoReply?.template || "");
-      setAutoReplyDelay(folder.autoReply?.delay);
+      setAutoReplyDelay(folder.autoReply?.delay || undefined);
       setUseCompanyKnowledge(folder.autoReply?.useCompanyKnowledge || false);
+    } else if (!isOpen) {
+      // Réinitialiser toutes les valeurs quand le modal se ferme
+      setName("");
+      setType("general");
+      setColor(colorOptions[0]);
+      setAutoClassify(false);
+      setPriority(10);
+      setFilters({
+        keywords: undefined,
+        keywords_location: "any",
+        sender_email: undefined,
+        sender_domain: undefined,
+        sender_phone: undefined,
+        match_type: "any",
+      });
+      setAutoReplyEnabled(false);
+      setAutoReplyMode("none");
+      setAutoReplyDelay(undefined);
+      setUseCompanyKnowledge(false);
     }
-  }, [folder]);
+  }, [folder, isOpen]);
 
   if (!isOpen || !folder) return null;
 
@@ -85,13 +124,35 @@ export function FolderSettingsModal({
       color,
       aiRules: {
         autoClassify,
-        context: context.trim() || undefined,
+        priority: autoClassify ? priority : undefined,
+        filters: autoClassify && (
+          (filters.keywords && filters.keywords.length > 0) ||
+          (filters.sender_email && filters.sender_email.length > 0) ||
+          (filters.sender_domain && filters.sender_domain.length > 0) ||
+          (filters.sender_phone && filters.sender_phone.length > 0)
+        )
+          ? {
+              ...(filters.keywords && filters.keywords.length > 0 && {
+                keywords: filters.keywords,
+                keywords_location: filters.keywords_location,
+              }),
+              ...(filters.sender_email && filters.sender_email.length > 0 && {
+                sender_email: filters.sender_email,
+              }),
+              ...(filters.sender_domain && filters.sender_domain.length > 0 && {
+                sender_domain: filters.sender_domain,
+              }),
+              ...(filters.sender_phone && filters.sender_phone.length > 0 && {
+                sender_phone: filters.sender_phone,
+              }),
+              match_type: filters.match_type,
+            }
+          : undefined,
       },
       autoReply: autoReplyEnabled
         ? {
             enabled: true,
             mode: autoReplyMode,
-            template: autoReplyTemplate.trim() || undefined,
             aiGenerate: true,
             delay: autoReplyDelay,
             useCompanyKnowledge,
@@ -104,10 +165,12 @@ export function FolderSettingsModal({
 
   const handleDelete = () => {
     if (folder.isSystem) return;
-    if (confirm(`Êtes-vous sûr de vouloir supprimer le dossier "${folder.name}" ?`)) {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
       onDelete?.(folder.id);
       onClose();
-    }
   };
 
   return (
@@ -127,7 +190,7 @@ export function FolderSettingsModal({
           </div>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form key={folder?.id || 'new'} onSubmit={handleSubmit} className="space-y-6">
             {/* Infos générales */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-[#0F172A]">
@@ -186,10 +249,10 @@ export function FolderSettingsModal({
               </div>
             </div>
 
-            {/* Classification IA */}
+            {/* Classification automatique avec filtres */}
             <div className="space-y-4 pt-4 border-t border-[#E5E7EB]">
               <h3 className="text-sm font-semibold text-[#0F172A]">
-                Classification IA
+                Classification automatique
               </h3>
 
               <label className="flex items-center gap-2">
@@ -200,21 +263,40 @@ export function FolderSettingsModal({
                   className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
                 />
                 <span className="text-sm font-medium text-[#0F172A]">
-                  Classer automatiquement les messages dans ce dossier
+                  Classer automatiquement les messages dans ce dossier avec des filtres
                 </span>
               </label>
 
               {autoClassify && (
-                <div>
-                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                    Contexte (optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    value={context}
-                    onChange={(e) => setContext(e.target.value)}
-                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                    placeholder="Ex: Messages concernant des questions ou demandes d'information"
+                <div className="space-y-4 pl-6 border-l-2 border-[#E5E7EB]">
+                  <div>
+                    <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                      Priorité
+                    </label>
+                    <input
+                      type="number"
+                      value={priority}
+                      onChange={(e) => setPriority(parseInt(e.target.value) || 10)}
+                      min="1"
+                      className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    />
+                    <p className="text-xs text-[#64748B] mt-1">
+                      Priorité du dossier (plus petit = plus prioritaire). Si un message correspond à plusieurs dossiers, il sera classé dans celui avec la plus haute priorité.
+                    </p>
+                  </div>
+
+                  <FolderFiltersConfig
+                    filters={filters}
+                    onChange={(newFilters) => {
+                      setFilters({
+                        keywords: newFilters.keywords,
+                        keywords_location: newFilters.keywords_location || "any",
+                        sender_email: newFilters.sender_email,
+                        sender_domain: newFilters.sender_domain,
+                        sender_phone: newFilters.sender_phone,
+                        match_type: newFilters.match_type || "any",
+                      });
+                    }}
                   />
                 </div>
               )}
@@ -303,19 +385,6 @@ export function FolderSettingsModal({
 
                       <div>
                         <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                          Message de base (optionnel)
-                        </label>
-                        <textarea
-                          value={autoReplyTemplate}
-                          onChange={(e) => setAutoReplyTemplate(e.target.value)}
-                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                          rows={4}
-                          placeholder="L'IA adaptera ce message selon le contexte..."
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-[#0F172A] mb-1">
                           Délai avant envoi (minutes, optionnel)
                         </label>
                         <input
@@ -366,6 +435,18 @@ export function FolderSettingsModal({
           </form>
         </CardContent>
       </Card>
+
+      {/* Modal de confirmation de suppression */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={confirmDelete}
+        title="Supprimer le dossier"
+        message={`Êtes-vous sûr de vouloir supprimer le dossier "${folder?.name}" ? Cette action est irréversible.`}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
     </div>
   );
 }

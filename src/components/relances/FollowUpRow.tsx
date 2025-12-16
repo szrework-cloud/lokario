@@ -84,15 +84,77 @@ export function FollowUpRow({
         )}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-        <div className="flex items-center gap-2">
-          <span>{item.dueDate}</span>
-          {dateBadge && (
-            <Tag variant={dateBadge.variant}>{dateBadge.label}</Tag>
-          )}
-        </div>
+        {!(item.autoEnabled && item.status === "Fait") ? (
+          <div className="flex items-center gap-2">
+            {item.autoEnabled && item.status !== "Fait" ? (() => {
+              // Pour les relances automatiques, dueDate contient déjà la date ISO complète
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const dueDate = new Date(item.dueDate);
+              dueDate.setHours(0, 0, 0, 0);
+              const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+              
+              // Afficher le statut professionnel avec les informations de relances
+              const statusText = item.nextRelanceNumber 
+                ? `Relance ${item.nextRelanceNumber}${item.remainingRelances !== null ? `/${item.totalSent + (item.remainingRelances || 0)}` : ''}`
+                : item.hasBeenSent 
+                  ? `${item.totalSent} relance${item.totalSent > 1 ? 's' : ''} envoyée${item.totalSent > 1 ? 's' : ''}`
+                  : 'Relance initiale';
+              
+              if (diffDays > 0) {
+                return (
+                  <>
+                    <span>Dans {diffDays} jour{diffDays > 1 ? "s" : ""}</span>
+                    <Tag variant="warning">{statusText}</Tag>
+                  </>
+                );
+              } else if (diffDays === 0) {
+                return (
+                  <>
+                    <span>Aujourd'hui</span>
+                    <Tag variant="error">{statusText}</Tag>
+                  </>
+                );
+              } else {
+                return (
+                  <>
+                    <span>En retard de {Math.abs(diffDays)} jour{Math.abs(diffDays) > 1 ? "s" : ""}</span>
+                    <Tag variant="error">{statusText}</Tag>
+                  </>
+                );
+              }
+            })() : (
+              <>
+                <span>{item.dueDate}</span>
+                {dateBadge && (
+                  <Tag variant={dateBadge.variant}>{dateBadge.label}</Tag>
+                )}
+                {item.hasBeenSent && (
+                  <span className="text-xs text-slate-400">
+                    ({item.totalSent} envoyée{item.totalSent > 1 ? 's' : ''})
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <span className="text-slate-400">
+            {item.autoEnabled && item.totalSent ? `${item.totalSent} relance${item.totalSent > 1 ? 's' : ''} envoyée${item.totalSent > 1 ? 's' : ''}` : '—'}
+          </span>
+        )}
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
-        <Tag variant={statusVariant[item.status]}>{item.status}</Tag>
+        {item.autoEnabled ? (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <span>🤖</span>
+            <span>Automatique</span>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <span>✋</span>
+            <span>Manuelle</span>
+          </span>
+        )}
       </td>
     </tr>
   );

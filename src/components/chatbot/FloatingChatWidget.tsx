@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { sendMessage } from "@/services/chatbotService";
 
 interface Message {
   id: number;
@@ -9,37 +11,89 @@ interface Message {
 }
 
 export function FloatingChatWidget() {
+  const { token } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      text: "Bonjour, je suis votre assistant. Comment puis-je vous aider ?",
+      text: "Bonjour, je suis votre assistant intelligent. Comment puis-je vous aider ?",
       isBot: true,
     },
   ]);
   const [inputText, setInputText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState<number | undefined>();
 
-  const handleSend = () => {
-    if (!inputText.trim()) return;
+  const handleSend = async () => {
+    if (!inputText.trim() || isLoading) return;
 
+    const userMessageText = inputText.trim();
+    setInputText("");
+    setIsLoading(true);
+
+    // Ajouter le message de l'utilisateur immédiatement
     const userMessage: Message = {
-      id: messages.length + 1,
-      text: inputText,
+      id: Date.now(),
+      text: userMessageText,
       isBot: false,
     };
+    setMessages((prev) => [...prev, userMessage]);
 
-    setMessages([...messages, userMessage]);
-    setInputText("");
+    // Ajouter un message de chargement
+    const loadingMessage: Message = {
+      id: Date.now() + 1,
+      text: "Je réfléchis...",
+      isBot: true,
+    };
+    setMessages((prev) => [...prev, loadingMessage]);
 
-    // TODO: Appel backend IA pour générer une réponse
-    setTimeout(() => {
-      const botResponse: Message = {
-        id: messages.length + 2,
-        text: "Je traite votre demande...",
-        isBot: true,
-      };
-      setMessages((prev) => [...prev, botResponse]);
-    }, 500);
+    try {
+      // Envoyer le message au backend
+      const response = await sendMessage(
+        {
+          message: userMessageText,
+          conversation_id: currentConversationId,
+        },
+        token
+      );
+
+      // Mettre à jour l'ID de conversation si c'était une nouvelle conversation
+      if (!currentConversationId && response.conversation_id) {
+        setCurrentConversationId(response.conversation_id);
+      }
+
+      // Remplacer le message de chargement par la vraie réponse
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        const loadingIndex = newMessages.findIndex((m) => m.id === loadingMessage.id);
+        if (loadingIndex !== -1) {
+          newMessages[loadingIndex] = {
+            id: response.response.id,
+            text: response.response.content,
+            isBot: true,
+          };
+        }
+        return newMessages;
+      });
+    } catch (error: any) {
+      console.error("Erreur lors de l'envoi du message:", error);
+      
+      // Remplacer le message de chargement par un message d'erreur
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        const loadingIndex = newMessages.findIndex((m) => m.id === loadingMessage.id);
+        if (loadingIndex !== -1) {
+          newMessages[loadingIndex] = {
+            id: loadingMessage.id,
+            text: error.message || "Une erreur est survenue. Veuillez réessayer.",
+            isBot: true,
+          };
+        }
+        return newMessages;
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -117,7 +171,7 @@ export function FloatingChatWidget() {
                       : "bg-gradient-to-r from-[#F97316] to-[#EA580C] text-white"
                   }`}
                 >
-                  <p className="text-sm">{message.text}</p>
+                  <div className="text-sm whitespace-pre-wrap">{message.text}</div>
                 </div>
               </div>
             ))}
@@ -136,7 +190,8 @@ export function FloatingChatWidget() {
               />
               <button
                 onClick={handleSend}
-                className="rounded-lg bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 transition-all"
+                disabled={isLoading}
+                className="rounded-lg bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

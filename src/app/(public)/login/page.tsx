@@ -1,9 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { apiPost, apiGet } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { logger } from "@/lib/logger";
 import type { CurrentUser } from "@/store/auth-store";
 
 type LoginResponse = {
@@ -13,11 +15,20 @@ type LoginResponse = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Afficher un message de succès si l'utilisateur vient de vérifier son email
+    if (searchParams.get("verified") === "true") {
+      setSuccessMessage("Email vérifié avec succès ! Vous pouvez maintenant vous connecter.");
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -79,7 +90,7 @@ export default function LoginPage() {
           if (mockAuth.user.role === "super_admin") {
             window.location.href = "/admin/companies";
           } else {
-            window.location.href = "/app/tasks";
+            window.location.href = "/app/dashboard";
           }
           return;
         } else {
@@ -104,7 +115,7 @@ export default function LoginPage() {
           if (mockAuth.user.role === "super_admin") {
             window.location.href = "/admin/companies";
           } else {
-            window.location.href = "/app/tasks";
+            window.location.href = "/app/dashboard";
           }
           return;
         } else {
@@ -122,16 +133,54 @@ export default function LoginPage() {
         return;
       }
 
+      // Sauvegarder l'authentification
+      logger.log("🔐 Sauvegarde de l'authentification:", { 
+        token: data.access_token?.substring(0, 20) + "...", 
+        user: user.email,
+        role: user.role 
+      });
+      
       setAuth(data.access_token, user);
+      
+      // Attendre un peu pour que l'auth soit bien sauvegardée
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Vérifier que l'auth est bien sauvegardée
+      const savedToken = localStorage.getItem("auth_token");
+      const savedUser = localStorage.getItem("auth_user");
+      logger.log("✅ Vérification après sauvegarde:", { 
+        tokenExists: !!savedToken, 
+        userExists: !!savedUser,
+        userEmail: savedUser ? JSON.parse(savedUser).email : null
+      });
+      
+      if (!savedToken || !savedUser) {
+        console.error("❌ L'authentification n'a pas été sauvegardée correctement");
+        setError("Erreur lors de la sauvegarde de l'authentification. Veuillez réessayer.");
+        setLoading(false);
+        return;
+      }
 
-      // Redirection selon le rôle
+      // Redirection selon le rôle - utiliser window.location.href pour forcer un rechargement complet
       if (user.role === "super_admin") {
+        logger.log("🔄 Redirection vers /admin/companies");
         window.location.href = "/admin/companies";
       } else {
-        window.location.href = "/app/tasks";
+        logger.log("🔄 Redirection vers /app/dashboard");
+        window.location.href = "/app/dashboard";
       }
     } catch (err: any) {
-      setError(err.message || "Erreur de connexion");
+      // Vérifier si l'erreur est liée à l'email non vérifié
+      const errorMessage = err.message || "Erreur de connexion";
+      if (errorMessage.includes("Email not verified") || errorMessage.includes("email not verified")) {
+        setError("Votre email n'a pas été vérifié. Veuillez vérifier votre boîte de réception ou demander un nouveau lien.");
+        // Optionnel : rediriger vers la page de vérification
+        setTimeout(() => {
+          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+        }, 3000);
+      } else {
+        setError(errorMessage);
+      }
       setLoading(false);
     }
   };
@@ -163,12 +212,20 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-[#0F172A]"
-            >
-              Mot de passe
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-[#0F172A]"
+              >
+                Mot de passe
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-sm text-[#F97316] hover:text-[#EA580C] hover:underline"
+              >
+                Mot de passe oublié ?
+              </Link>
+            </div>
             <input
               type="password"
               id="password"
@@ -181,9 +238,22 @@ export default function LoginPage() {
               disabled={loading}
             />
           </div>
+          {successMessage && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+              <p className="text-sm text-green-600">{successMessage}</p>
+            </div>
+          )}
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
               <p className="text-sm text-red-600">{error}</p>
+              {error.includes("email n'a pas été vérifié") && (
+                <Link
+                  href={`/verify-email?email=${encodeURIComponent(email)}`}
+                  className="text-sm text-[#F97316] hover:underline mt-2 block"
+                >
+                  Demander un nouveau lien de vérification
+                </Link>
+              )}
             </div>
           )}
           <button

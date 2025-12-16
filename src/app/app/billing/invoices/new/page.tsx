@@ -8,100 +8,166 @@ import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { calculateSubtotal, calculateTax, calculateTotal, calculateLineTotal, formatAmount, generateInvoiceNumber } from "@/components/billing/utils";
 import { DescriptionAutocomplete } from "@/components/billing/DescriptionAutocomplete";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettings } from "@/hooks/useSettings";
+import { getClients } from "@/services/clientsService";
+import { getInvoice } from "@/services/invoicesService";
+import { createInvoice, InvoiceCreate } from "@/services/invoicesService";
+import { getQuote } from "@/services/quotesService";
+import { createBillingLineTemplate } from "@/services/billingLineTemplatesService";
 
 export default function NewInvoicePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const quoteId = searchParams.get("quote"); // Si converti depuis un devis
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const { settings, company } = useSettings(false); // Ne pas auto-load, déjà chargé dans AppLayout
+
+  // Vérifier si l'entreprise est auto-entrepreneur
+  const isAutoEntrepreneurValue = (company as any)?.is_auto_entrepreneur;
+  const isAutoEntrepreneur = isAutoEntrepreneurValue === true || 
+                             isAutoEntrepreneurValue === 1 || 
+                             isAutoEntrepreneurValue === "true" ||
+                             String(isAutoEntrepreneurValue).toLowerCase() === "true";
+
+  // Récupérer les taux de TVA depuis les settings
+  // Si auto-entrepreneur, forcer à [0] uniquement
+  const taxRates = isAutoEntrepreneur 
+    ? [0] 
+    : (settings?.settings?.billing?.tax_rates || [0, 2.1, 5.5, 10, 20]);
+
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [clients, setClients] = useState<Array<{ id: number; name: string }>>([]);
+  const [projects] = useState<Array<{ id: number; name: string; client_id: number }>>([]);
 
-  // TODO: Récupérer depuis le backend
-  const mockClients = [
-    { id: 1, name: "Boulangerie Soleil" },
-    { id: 2, name: "Mme Dupont" },
-    { id: 3, name: "M. Martin" },
-    { id: 4, name: "Salon Beauté" },
-  ];
-
-  const mockProjects = [
-    { id: 1, name: "Rénovation cuisine", client_id: 3 },
-    { id: 2, name: "Installation équipement", client_id: 1 },
-    { id: 3, name: "Projet beauté", client_id: 2 },
-  ];
+  // Charger les clients depuis le backend
+  useEffect(() => {
+    const loadClients = async () => {
+      if (!token) return;
+      
+      try {
+        const clientsData = await getClients(token);
+        setClients(clientsData.map(c => ({ id: c.id, name: c.name })));
+      } catch (err) {
+        console.error("Erreur lors du chargement des clients:", err);
+        // En cas d'erreur, on continue avec une liste vide
+      }
+    };
+    
+    loadClients();
+  }, [token]);
+  
+  // TODO: Charger les projets depuis le backend (quand l'API sera disponible)
 
   const duplicateId = searchParams.get("duplicate");
 
   // Si on convertit depuis un devis, charger les données du devis
   useEffect(() => {
-    if (quoteId) {
-      // TODO: Charger le devis depuis le backend
-      // Pour l'instant, on simule avec des données mock
-      const mockQuote = {
-        client_id: 1,
-        project_id: 2,
-        lines: [
-          {
-            id: Date.now(),
-            description: "Prestation de service - Installation",
-            quantity: 1,
-            unitPrice: 1250,
-            taxRate: 20,
-          },
-        ],
-        notes: "Installation prévue pour le 15 février 2025.",
-        conditions: "Paiement à 30 jours. Garantie 1 an.",
-      };
+    const loadData = async () => {
+      if (!token) return;
+      
+      if (quoteId) {
+        // Charger le devis depuis le backend pour pré-remplir le formulaire
+        try {
+          const quoteToConvert = await getQuote(token, Number(quoteId));
+          
+          // Adapter les lignes du format backend au format frontend
+          const adaptedLines: BillingLine[] = (quoteToConvert.lines || []).map((line) => ({
+            id: Date.now() + Math.random(), // Nouveaux IDs pour les lignes
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unit_price_ht,
+            taxRate: line.tax_rate,
+            total: line.total_ttc,
+          }));
 
-      setFormData({
-        client_id: mockQuote.client_id,
-        project_id: mockQuote.project_id,
-        lines: mockQuote.lines,
-        notes: mockQuote.notes,
-        conditions: mockQuote.conditions,
-        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // +30 jours
-        status: "brouillon",
-      });
-    } else if (duplicateId) {
-      // Si on duplique une facture, charger les données
-      // TODO: Charger la facture depuis le backend
-      const mockInvoiceToDuplicate = {
-        client_id: Number(searchParams.get("client")) || 1,
-        project_id: searchParams.get("project") ? Number(searchParams.get("project")) : undefined,
-        lines: [
-          {
-            id: Date.now(),
-            description: "Prestation de service - Installation",
-            quantity: 1,
-            unitPrice: 1250,
-            taxRate: 20,
-          },
-          {
-            id: Date.now() + 1,
-            description: "Matériel supplémentaire",
-            quantity: 2,
-            unitPrice: 150,
-            taxRate: 20,
-          },
-        ],
-        notes: "Facture suite à l'acceptation du devis.",
-        conditions: "Paiement à 30 jours. Sans paiement, pénalités de retard.",
-      };
+          setFormData({
+            client_id: quoteToConvert.client_id,
+            project_id: quoteToConvert.project_id,
+            lines: adaptedLines,
+            notes: quoteToConvert.notes || "",
+            conditions: quoteToConvert.conditions || "",
+            due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // +30 jours par défaut
+            status: "brouillon", // Toujours en brouillon pour une conversion
+          });
+        } catch (err) {
+          console.error("Erreur lors du chargement du devis à convertir:", err);
+          // En cas d'erreur, on continue avec les paramètres de l'URL
+          const clientId = Number(searchParams.get("client")) || 0;
+          const projectId = searchParams.get("project") ? Number(searchParams.get("project")) : undefined;
+          
+          if (clientId > 0) {
+            setFormData(prev => ({
+              ...prev,
+              client_id: clientId,
+              project_id: projectId,
+            }));
+          }
+        }
+      } else if (duplicateId) {
+        // Si on duplique une facture, charger les données depuis le backend
+        try {
+          const invoiceToDuplicate = await getInvoice(token, Number(duplicateId));
+          
+          // Adapter les lignes du format backend au format frontend
+          const adaptedLines: BillingLine[] = (invoiceToDuplicate.lines || []).map((line) => ({
+            id: Date.now() + Math.random(), // Nouveaux IDs pour les lignes
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unit_price_ht,
+            taxRate: line.tax_rate,
+            total: line.total_ttc,
+          }));
 
-      setFormData({
-        client_id: mockInvoiceToDuplicate.client_id,
-        project_id: mockInvoiceToDuplicate.project_id,
-        lines: mockInvoiceToDuplicate.lines.map((line) => ({
-          ...line,
-          id: Date.now() + Math.random(), // Nouveaux IDs pour les lignes
-        })),
-        notes: mockInvoiceToDuplicate.notes,
-        conditions: mockInvoiceToDuplicate.conditions,
-        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // +30 jours
-        status: "brouillon", // Toujours en brouillon pour une duplication
-      });
-    }
-  }, [quoteId, duplicateId, searchParams]);
+          setFormData({
+            client_id: invoiceToDuplicate.client_id,
+            project_id: invoiceToDuplicate.project_id,
+            lines: adaptedLines,
+            notes: invoiceToDuplicate.notes || "",
+            conditions: invoiceToDuplicate.conditions || "",
+            due_date: invoiceToDuplicate.due_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+            status: "brouillon", // Toujours en brouillon pour une duplication
+            payment_terms: invoiceToDuplicate.payment_terms,
+            late_penalty_rate: invoiceToDuplicate.late_penalty_rate,
+            recovery_fee: invoiceToDuplicate.recovery_fee,
+            vat_applicable: invoiceToDuplicate.vat_applicable,
+            vat_on_debit: invoiceToDuplicate.vat_on_debit,
+            operation_category: invoiceToDuplicate.operation_category,
+            vat_exemption_reference: invoiceToDuplicate.vat_exemption_reference,
+            seller_name: invoiceToDuplicate.seller_name,
+            seller_address: invoiceToDuplicate.seller_address,
+            seller_siren: invoiceToDuplicate.seller_siren,
+            seller_siret: invoiceToDuplicate.seller_siret,
+            seller_vat_number: invoiceToDuplicate.seller_vat_number,
+            seller_rcs: invoiceToDuplicate.seller_rcs,
+            seller_legal_form: invoiceToDuplicate.seller_legal_form,
+            seller_capital: invoiceToDuplicate.seller_capital,
+            client_name: invoiceToDuplicate.client_name,
+            client_address: invoiceToDuplicate.client_address,
+            client_siren: invoiceToDuplicate.client_siren,
+            client_delivery_address: invoiceToDuplicate.client_delivery_address,
+            issue_date: invoiceToDuplicate.issue_date,
+            sale_date: invoiceToDuplicate.sale_date,
+          });
+        } catch (err) {
+          console.error("Erreur lors du chargement de la facture à dupliquer:", err);
+          // En cas d'erreur, on continue avec les paramètres de l'URL
+          const clientId = Number(searchParams.get("client")) || 0;
+          const projectId = searchParams.get("project") ? Number(searchParams.get("project")) : undefined;
+          
+          if (clientId > 0) {
+            setFormData(prev => ({
+              ...prev,
+              client_id: clientId,
+              project_id: projectId,
+            }));
+          }
+        }
+      }
+    };
+    
+    loadData();
+  }, [quoteId, duplicateId, searchParams, token]);
 
   const [formData, setFormData] = useState<{
     client_id: number;
@@ -119,18 +185,43 @@ export default function NewInvoicePage() {
         description: "",
         quantity: 1,
         unitPrice: 0,
-        taxRate: 20,
+        taxRate: isAutoEntrepreneur ? 0 : 20, // 0% si auto-entrepreneur
       },
     ],
     due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // +30 jours par défaut
     status: "brouillon",
   });
 
+  // Forcer toutes les lignes à 0% de TVA si auto-entrepreneur
+  useEffect(() => {
+    if (isAutoEntrepreneur) {
+      setFormData(prev => ({
+        ...prev,
+        lines: prev.lines.map(line => ({
+          ...line,
+          taxRate: 0
+        }))
+      }));
+    }
+  }, [isAutoEntrepreneur]);
+
   const subtotal = calculateSubtotal(formData.lines);
   const tax = calculateTax(formData.lines);
   const total = calculateTotal(formData.lines);
 
   const handleLineChange = (lineId: number, field: keyof BillingLine, value: string | number) => {
+    // Si auto-entrepreneur et qu'on essaie de modifier le taux de TVA, forcer à 0
+    if (field === "taxRate" && isAutoEntrepreneur) {
+      value = 0;
+      // Mettre à jour toutes les lignes à 0
+      const correctedLines = formData.lines.map((line) => ({
+        ...line,
+        taxRate: 0
+      }));
+      setFormData({ ...formData, lines: correctedLines });
+      return;
+    }
+    
     const updatedLines = formData.lines.map((line) =>
       line.id === lineId ? { ...line, [field]: value } : line
     );
@@ -143,7 +234,7 @@ export default function NewInvoicePage() {
       description: "",
       quantity: 1,
       unitPrice: 0,
-      taxRate: 20,
+      taxRate: isAutoEntrepreneur ? 0 : 20, // 0% si auto-entrepreneur
     };
     setFormData({
       ...formData,
@@ -160,79 +251,87 @@ export default function NewInvoicePage() {
   };
 
   // Fonction pour sauvegarder une nouvelle ligne dans la base de données
-  const handleSaveNewLine = async (description: string, unitPrice: number, taxRate: number) => {
-    // TODO: Appel API pour sauvegarder la nouvelle ligne
-    console.log("Sauvegarder nouvelle ligne:", { description, unitPrice, taxRate });
+  const handleSaveNewLine = async (description: string, unit: string | undefined, unitPrice: number, taxRate: number) => {
+    if (!token) return;
+    try {
+      await createBillingLineTemplate(token, {
+        description,
+        unit,
+        unit_price_ht: unitPrice,
+        tax_rate: taxRate,
+      });
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde de la ligne:", err);
+    }
   };
 
   const handleSave = async (saveAsDraft: boolean = false) => {
+    if (!token) {
+      setError("Non authentifié");
+      return;
+    }
+
     if (!formData.client_id) {
-      alert("Veuillez sélectionner un client");
+      setError("Veuillez sélectionner un client");
       return;
     }
 
     if (formData.lines.some((line) => !line.description || line.unitPrice === 0)) {
-      alert("Veuillez remplir toutes les lignes avec une description et un prix");
+      setError("Veuillez remplir toutes les lignes avec une description et un prix");
       return;
     }
 
     setIsSaving(true);
+    setError(null);
+    
     try {
-      const now = new Date().toISOString();
-      const userName = user?.full_name || user?.email || "Utilisateur";
-      const selectedClient = mockClients.find((c) => c.id === formData.client_id);
-      const selectedProject = formData.project_id
-        ? mockProjects.find((p) => p.id === formData.project_id)
-        : undefined;
-
-      // Générer le numéro (TODO: Récupérer le dernier numéro depuis le backend)
-      const invoiceNumber = generateInvoiceNumber(16, 2025); // Mock: dernier numéro était 16
-
-      const historyEvent: BillingHistoryEvent = {
-        id: Date.now(),
-        timestamp: now,
-        action: "Facture créée",
-        description: quoteId ? `Convertie depuis devis #${quoteId}` : undefined,
-        user: userName,
-      };
-
-      const timelineEvent: BillingTimelineEvent = {
-        id: Date.now(),
-        timestamp: now,
-        action: "Facture créée",
-        user: userName,
-      };
-
-      const newInvoice: Invoice = {
-        id: Date.now(),
-        number: invoiceNumber,
-        quote_id: quoteId ? Number(quoteId) : undefined,
+      // Préparer les données pour l'API
+      const invoiceData: InvoiceCreate = {
         client_id: formData.client_id,
-        client_name: selectedClient?.name || "",
         project_id: formData.project_id,
-        project_name: selectedProject?.name,
-        status: saveAsDraft ? "brouillon" : formData.status,
-        lines: formData.lines,
-        subtotal,
-        tax,
-        total,
-        amount_paid: 0,
-        amount_remaining: total,
+        quote_id: quoteId ? Number(quoteId) : undefined,
+        issue_date: new Date().toISOString().split("T")[0],
+        due_date: formData.due_date,
+        sale_date: formData.sale_date ? new Date(formData.sale_date).toISOString().split("T")[0] : undefined,
+        lines: formData.lines.map((line, index) => ({
+          description: line.description,
+          quantity: line.quantity,
+          unit: line.unit,
+          unit_price_ht: line.unitPrice,
+          tax_rate: line.taxRate,
+          order: index,
+        })),
         notes: formData.notes,
         conditions: formData.conditions,
-        created_at: now,
-        due_date: formData.due_date,
-        timeline: [timelineEvent],
-        history: [historyEvent],
+        payment_terms: formData.payment_terms,
+        late_penalty_rate: formData.late_penalty_rate,
+        recovery_fee: formData.recovery_fee,
+        vat_applicable: formData.vat_applicable ?? true,
+        vat_on_debit: formData.vat_on_debit ?? false,
+        operation_category: formData.operation_category,
+        vat_exemption_reference: formData.vat_exemption_reference,
+        seller_name: formData.seller_name,
+        seller_address: formData.seller_address,
+        seller_siren: formData.seller_siren,
+        seller_siret: formData.seller_siret,
+        seller_vat_number: formData.seller_vat_number,
+        seller_rcs: formData.seller_rcs,
+        seller_legal_form: formData.seller_legal_form,
+        seller_capital: formData.seller_capital,
+        client_name: formData.client_name,
+        client_address: formData.client_address,
+        client_siren: formData.client_siren,
+        client_delivery_address: formData.client_delivery_address,
       };
 
-      console.log("Create invoice:", newInvoice);
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Appeler l'API pour créer la facture
+      const createdInvoice = await createInvoice(token, invoiceData);
 
-      router.push(`/app/billing/invoices/${newInvoice.id}`);
-    } catch (error) {
-      console.error("Error creating invoice:", error);
-      alert("Erreur lors de la création de la facture");
+      // Rediriger vers la page de détail de la facture créée
+      router.push(`/app/billing/invoices/${createdInvoice.id}`);
+    } catch (err: any) {
+      console.error("Error creating invoice:", err);
+      setError(err.message || "Erreur lors de la création de la facture");
     } finally {
       setIsSaving(false);
     }
@@ -242,9 +341,14 @@ export default function NewInvoicePage() {
     <>
       <PageTitle title="Créer une facture" />
       <div className="space-y-6">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <button
-            onClick={() => router.push("/app/billing/invoices")}
+            onClick={() => router.push("/app/billing/quotes")}
             className="text-sm text-[#64748B] hover:text-[#0F172A]"
           >
             ← Retour à la liste
@@ -297,7 +401,7 @@ export default function NewInvoicePage() {
                     required
                   >
                     <option value="0">Sélectionner un client</option>
-                    {mockClients.map((client) => (
+                    {clients.map((client) => (
                       <option key={client.id} value={client.id}>
                         {client.name}
                       </option>
@@ -340,7 +444,7 @@ export default function NewInvoicePage() {
                   className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                 >
                   <option value="">Aucun projet</option>
-                  {mockProjects
+                  {projects
                     .filter((p) => !formData.client_id || p.client_id === formData.client_id)
                     .map((project) => (
                       <option key={project.id} value={project.id}>
@@ -381,14 +485,22 @@ export default function NewInvoicePage() {
                             handleLineChange(line.id, "description", value)
                           }
                           onSelectLine={(savedLine) => {
-                            // Pré-remplir le prix et la TVA si une ligne est sélectionnée
+                            // Pré-remplir le prix, l'unité et la TVA si une ligne est sélectionnée
                             handleLineChange(line.id, "unitPrice", savedLine.unitPrice);
-                            handleLineChange(line.id, "taxRate", savedLine.taxRate);
+                            if (savedLine.unit) {
+                              handleLineChange(line.id, "unit", savedLine.unit);
+                            }
+                            // Forcer à 0% si auto-entrepreneur, sinon utiliser le taux sauvegardé
+                            const taxRate = isAutoEntrepreneur ? 0 : savedLine.taxRate;
+                            handleLineChange(line.id, "taxRate", taxRate);
                           }}
-                          onSaveNewLine={(description, unitPrice, taxRate) => {
+                          onSaveNewLine={(description, unit, unitPrice, taxRate) => {
                             // Sauvegarder la nouvelle ligne et mettre à jour la ligne actuelle
-                            handleSaveNewLine(description, unitPrice, taxRate);
+                            handleSaveNewLine(description, unit, unitPrice, taxRate);
                             handleLineChange(line.id, "description", description);
+                            if (unit) {
+                              handleLineChange(line.id, "unit", unit);
+                            }
                             if (unitPrice > 0) {
                               handleLineChange(line.id, "unitPrice", unitPrice);
                             }
@@ -422,6 +534,20 @@ export default function NewInvoicePage() {
                           required
                         />
                       </div>
+                      <div className="col-span-1">
+                        <label className="block text-xs font-medium text-[#64748B] mb-1">
+                          Unité
+                        </label>
+                        <input
+                          type="text"
+                          value={line.unit || ""}
+                          onChange={(e) =>
+                            handleLineChange(line.id, "unit", e.target.value)
+                          }
+                          placeholder="ex: heure"
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        />
+                      </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-[#64748B] mb-1">
                           Prix unitaire *
@@ -445,12 +571,27 @@ export default function NewInvoicePage() {
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-[#64748B] mb-1">
                           TVA (%)
+                          {isAutoEntrepreneur && (
+                            <span className="text-[#F97316] ml-1" title="Auto-entrepreneur : TVA non applicable">
+                              (0% uniquement)
+                            </span>
+                          )}
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.1"
+                        {isAutoEntrepreneur ? (
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value="0%"
+                              readOnly
+                              disabled
+                              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm bg-[#F9FAFB] cursor-not-allowed opacity-60"
+                            />
+                            <p className="text-xs text-[#F97316] mt-1">
+                              Entreprise auto-entrepreneur : TVA non applicable
+                            </p>
+                          </div>
+                        ) : (
+                        <select
                           value={line.taxRate}
                           onChange={(e) =>
                             handleLineChange(
@@ -460,7 +601,14 @@ export default function NewInvoicePage() {
                             )
                           }
                           className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                        />
+                        >
+                          {taxRates.map((rate) => (
+                            <option key={rate} value={rate}>
+                              {rate}%
+                            </option>
+                          ))}
+                        </select>
+                        )}
                       </div>
                       <div className="col-span-1 flex items-end">
                         {formData.lines.length > 1 && (
@@ -531,27 +679,13 @@ export default function NewInvoicePage() {
                     placeholder="Notes internes ou informations supplémentaires..."
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                    Conditions (optionnel)
-                  </label>
-                  <textarea
-                    value={formData.conditions || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, conditions: e.target.value })
-                    }
-                    rows={4}
-                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                    placeholder="Conditions de paiement, garantie, délais..."
-                  />
-                </div>
               </div>
             </div>
 
             {/* Boutons d'action */}
             <div className="flex justify-end gap-3 pt-6 border-t border-[#E5E7EB]">
               <button
-                onClick={() => router.push("/app/billing/invoices")}
+                onClick={() => router.push("/app/billing/quotes")}
                 className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB]"
               >
                 Annuler

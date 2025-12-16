@@ -110,4 +110,19 @@ git push origin main
 - [ ] Variables d'environnement préparées
 - [ ] Compte Vercel créé
 - [ ] Domaine prêt à configurer
+- [ ] **Synchronisation emails configurée** (voir `backend/DEPLOY_SYNC_EMAILS.md`)
+
+## 📧 Synchronisation automatique des emails
+
+**À faire UNE SEULE FOIS sur le serveur de production :**
+
+```bash
+# Sur votre serveur de production
+cd backend
+./install_cron.sh
+```
+
+Cela configure la synchronisation automatique pour **TOUTES les entreprises**. Les utilisateurs n'ont rien à installer ou configurer.
+
+Voir `backend/DEPLOY_SYNC_EMAILS.md` pour plus de détails.
 

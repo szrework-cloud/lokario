@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
+import { getFollowUpSettings, updateFollowUpSettings, type FollowUpSettings } from "@/services/followupsService";
+import { logger } from "@/lib/logger";
 
 interface RelanceIaModalProps {
   isOpen: boolean;
@@ -10,6 +14,11 @@ interface RelanceIaModalProps {
 type RelanceMethod = "email" | "whatsapp" | "telephone" | "appel";
 
 export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
+  const { token } = useAuth();
+  const { showToast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  
   const [initialDelay, setInitialDelay] = useState("7");
   const [maxRelances, setMaxRelances] = useState(3);
   const [relanceDelays, setRelanceDelays] = useState<number[]>([7, 14, 21]);
@@ -19,13 +28,43 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
     stopOnInvoicePaid: true,
     stopOnQuoteRefused: true,
   });
-  const [messages, setMessages] = useState([
-    { id: 1, type: "devis", content: "Bonjour, nous vous rappelons que votre devis est en attente de réponse. N'hésitez pas à nous contacter pour toute question." },
-    { id: 2, type: "facture", content: "Bonjour, votre facture est impayée depuis plusieurs jours. Merci de régulariser votre situation dans les plus brefs délais." },
-    { id: 3, type: "info", content: "Bonjour, nous avons besoin d'informations complémentaires pour finaliser votre dossier. Pourriez-vous nous les transmettre ?" },
-  ]);
-  const [adaptToContext, setAdaptToContext] = useState(true);
-  const [selectedMessageType, setSelectedMessageType] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Array<{ id: number; type: string; content: string }>>([]);
+  // Relances avant la date d'échéance
+  const [enableRelancesBefore, setEnableRelancesBefore] = useState(false);
+  const [daysBeforeDue, setDaysBeforeDue] = useState<number | null>(null);
+  const [hoursBeforeDue, setHoursBeforeDue] = useState<number | null>(null);
+
+  // Charger les paramètres depuis l'API
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!isOpen || !token) return;
+      
+      setIsLoading(true);
+      try {
+        const settings = await getFollowUpSettings(token);
+        setInitialDelay(String(settings.initial_delay_days));
+        setMaxRelances(settings.max_relances);
+        setRelanceDelays(settings.relance_delays);
+        setRelanceMethods(settings.relance_methods as RelanceMethod[]);
+        setStopConditions({
+          stopOnClientResponse: settings.stop_conditions.stop_on_client_response,
+          stopOnInvoicePaid: settings.stop_conditions.stop_on_invoice_paid,
+          stopOnQuoteRefused: settings.stop_conditions.stop_on_quote_refused,
+        });
+        setMessages(settings.messages || []);
+        setEnableRelancesBefore(settings.enable_relances_before || false);
+        setDaysBeforeDue(settings.days_before_due ?? null);
+        setHoursBeforeDue(settings.hours_before_due ?? null);
+      } catch (error: any) {
+        console.error("Erreur lors du chargement des paramètres:", error);
+        showToast("Erreur lors du chargement des paramètres", "error");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadSettings();
+  }, [isOpen, token, showToast]);
 
   // Mettre à jour les délais et méthodes quand le nombre max de relances change
   const handleMaxRelancesChange = (value: number) => {
@@ -50,17 +89,69 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    console.log("Save relance IA config:", {
-      initialDelay,
-      maxRelances,
-      relanceDelays,
-      relanceMethods,
-      stopConditions,
-      messages,
-      adaptToContext,
-    });
-    onClose();
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg font-medium text-[#0F172A] mb-2">Chargement...</div>
+          <div className="text-sm text-[#64748B]">Récupération de la configuration</div>
+        </div>
+      </div>
+    );
+  }
+
+  const handleSave = async () => {
+    if (!token) {
+      showToast("Vous devez être connecté pour sauvegarder", "error");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Les messages sont déjà dans le bon format (type: "Devis non répondu", etc.)
+      // On garde seulement ceux qui ont un contenu
+      const mappedMessages = messages
+        .filter(msg => msg.content && msg.content.trim())
+        .map(msg => ({
+          id: msg.id,
+          type: msg.type,
+          content: msg.content
+        }));
+
+      const settingsToSave = {
+        initial_delay_days: parseInt(initialDelay) || 7,
+        max_relances: maxRelances,
+        relance_delays: relanceDelays,
+        relance_methods: relanceMethods,
+        stop_conditions: {
+          stop_on_client_response: stopConditions.stopOnClientResponse,
+          stop_on_invoice_paid: stopConditions.stopOnInvoicePaid,
+          stop_on_quote_refused: stopConditions.stopOnQuoteRefused,
+        },
+        messages: mappedMessages,
+        enable_relances_before: enableRelancesBefore,
+        days_before_due: daysBeforeDue,
+        hours_before_due: hoursBeforeDue,
+      };
+
+      logger.log("[RelanceIaModal] Sauvegarde des paramètres:", settingsToSave);
+
+      const savedSettings = await updateFollowUpSettings(settingsToSave, token);
+
+      logger.log("[RelanceIaModal] Paramètres sauvegardés avec succès:", savedSettings);
+
+      // Recharger les paramètres pour vérifier qu'ils sont bien sauvegardés
+      const reloadedSettings = await getFollowUpSettings(token);
+      logger.log("[RelanceIaModal] Paramètres rechargés:", reloadedSettings);
+
+      showToast("Configuration sauvegardée avec succès", "success");
+      onClose();
+    } catch (error: any) {
+      console.error("Erreur lors de la sauvegarde:", error);
+      showToast("Erreur lors de la sauvegarde de la configuration", "error");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -105,53 +196,115 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
               Délai entre chaque relance
             </label>
             <div className="space-y-4">
-              {relanceDelays.map((delay, index) => (
-                <div key={index} className="p-4 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB]">
-                  <label className="text-sm font-medium text-[#0F172A] mb-3 block">
-                    Relance {index + 1}
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs text-[#64748B]">Délai (jours)</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          value={delay}
+              {relanceDelays.map((delay, index) => {
+                return (
+                  <div key={index} className="p-4 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB]">
+                    <label className="text-sm font-medium text-[#0F172A] mb-3 block">
+                      Relance {index + 1}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-[#64748B]">Délai (jours)</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={delay}
+                            onChange={(e) => {
+                              const newDelays = [...relanceDelays];
+                              newDelays[index] = parseInt(e.target.value) || 0;
+                              setRelanceDelays(newDelays);
+                            }}
+                            min="1"
+                            className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                          />
+                          <span className="text-xs text-[#64748B]">j</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-[#64748B]">Moyen de relance</label>
+                        <select
+                          value={relanceMethods[index] || "email"}
                           onChange={(e) => {
-                            const newDelays = [...relanceDelays];
-                            newDelays[index] = parseInt(e.target.value) || 0;
-                            setRelanceDelays(newDelays);
+                            const newMethods = [...relanceMethods];
+                            newMethods[index] = e.target.value as RelanceMethod;
+                            setRelanceMethods(newMethods);
                           }}
-                          min="1"
                           className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                        />
-                        <span className="text-xs text-[#64748B]">j</span>
+                        >
+                          <option value="email">Email</option>
+                          <option value="whatsapp">WhatsApp</option>
+                          <option value="telephone">Téléphone (SMS)</option>
+                          <option value="appel">Appel téléphonique</option>
+                        </select>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-[#64748B]">Moyen de relance</label>
-                      <select
-                        value={relanceMethods[index] || "email"}
-                        onChange={(e) => {
-                          const newMethods = [...relanceMethods];
-                          newMethods[index] = e.target.value as RelanceMethod;
-                          setRelanceMethods(newMethods);
-                        }}
-                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                      >
-                        <option value="email">Email</option>
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="telephone">Téléphone (SMS)</option>
-                        <option value="appel">Appel téléphonique</option>
-                      </select>
-                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <p className="text-xs text-[#64748B]">
               Les relances seront envoyées automatiquement après ce délai si aucune réponse n'a été reçue.
             </p>
+          </div>
+
+          {/* Relances avant la date d'échéance */}
+          <div className="space-y-3 pt-4 border-t border-[#E5E7EB]">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={enableRelancesBefore}
+                onChange={(e) => setEnableRelancesBefore(e.target.checked)}
+                className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+              />
+              <span className="text-sm font-medium text-[#0F172A]">
+                Envoyer des relances avant la date d'échéance
+              </span>
+            </label>
+            {enableRelancesBefore && (
+              <div className="pl-6 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Nombre de jours avant la date d'échéance
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={daysBeforeDue ?? ""}
+                      onChange={(e) => setDaysBeforeDue(e.target.value ? parseInt(e.target.value) : null)}
+                      min="0"
+                      placeholder="Ex: 1"
+                      className="w-full max-w-xs rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    />
+                    <span className="text-xs text-[#64748B]">jour(s)</span>
+                  </div>
+                  <p className="text-xs text-[#64748B] mt-1">
+                    La relance sera envoyée X jour(s) avant la date d'échéance
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Nombre d'heures avant la date d'échéance
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={hoursBeforeDue ?? ""}
+                      onChange={(e) => setHoursBeforeDue(e.target.value ? parseInt(e.target.value) : null)}
+                      min="0"
+                      placeholder="Ex: 4"
+                      className="w-full max-w-xs rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    />
+                    <span className="text-xs text-[#64748B]">heure(s)</span>
+                  </div>
+                  <p className="text-xs text-[#64748B] mt-1">
+                    La relance sera envoyée X heure(s) avant la date d'échéance
+                  </p>
+                </div>
+                <p className="text-xs text-[#64748B] bg-blue-50 p-2 rounded">
+                  💡 Vous pouvez configurer les deux (jours ET heures). La relance sera envoyée dès que l'une des conditions est remplie.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Conditions d'arrêt */}
@@ -206,167 +359,67 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
           </div>
         </div>
 
-        {/* Messages de relances */}
+        {/* Templates de messages pour les relances */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-[#0F172A]">Messages de relances</h3>
-            <button
-              onClick={() => {
-                if (!adaptToContext) {
-                  const newId = Math.max(...messages.map(m => m.id), 0) + 1;
-                  setMessages([...messages, { id: newId, type: "devis", content: "" }]);
-                  setSelectedMessageType(newId.toString());
-                }
-              }}
-              disabled={adaptToContext}
-              className={`rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium transition-colors ${
-                adaptToContext
-                  ? "bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed"
-                  : "text-[#0F172A] hover:bg-[#F9FAFB]"
-              }`}
-            >
-              + Ajouter un message
-            </button>
-          </div>
-          {adaptToContext && (
-            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-              <p className="text-xs text-blue-800">
-                Les messages sont générés automatiquement par l'IA selon le contexte. Les messages ci-dessous servent de base mais seront adaptés pour chaque client.
-              </p>
-            </div>
-          )}
-          <div className={`space-y-4 ${adaptToContext ? "opacity-50 pointer-events-none" : ""}`}>
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`p-4 rounded-lg border ${
-                  selectedMessageType === message.id.toString()
-                    ? "border-[#F97316] bg-orange-50"
-                    : "border-[#E5E7EB] bg-white"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={message.type}
+          <h3 className="text-lg font-semibold text-[#0F172A]">Templates de messages pour les relances</h3>
+          <p className="text-sm text-[#64748B]">
+            Configurez les messages de base à envoyer pour chaque type de relance. Ces messages seront utilisés lors de la création de relances.
+          </p>
+          
+          <div className="space-y-3">
+            {[
+              { value: "Devis non répondu", label: "Devis non répondu" },
+              { value: "Facture impayée", label: "Facture impayée" },
+              { value: "Info manquante", label: "Info manquante" },
+              { value: "Rappel RDV", label: "Rappel RDV" },
+              { value: "Client inactif", label: "Client inactif" },
+              { value: "Projet en attente", label: "Projet en attente" },
+            ].map((followupType) => {
+              const template = messages.find(m => m.type === followupType.value);
+              const templateContent = template?.content || "";
+              
+              return (
+                <div key={followupType.value} className="border border-[#E5E7EB] rounded-lg">
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-[#0F172A]">
+                        {followupType.label}
+                      </label>
+                      {templateContent && (
+                        <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                          Template configuré
+                        </span>
+                      )}
+                    </div>
+                    <textarea
+                      value={templateContent}
                       onChange={(e) => {
-                        if (!adaptToContext) {
-                          setMessages(
-                            messages.map((m) =>
-                              m.id === message.id ? { ...m, type: e.target.value } : m
-                            )
-                          );
+                        const updatedMessages = [...messages];
+                        const existingIndex = updatedMessages.findIndex(m => m.type === followupType.value);
+                        
+                        if (existingIndex >= 0) {
+                          updatedMessages[existingIndex] = { ...updatedMessages[existingIndex], content: e.target.value };
+                        } else {
+                          const newId = Math.max(0, ...updatedMessages.map(m => m.id)) + 1;
+                          updatedMessages.push({
+                            id: newId,
+                            type: followupType.value,
+                            content: e.target.value
+                          });
                         }
+                        setMessages(updatedMessages);
                       }}
-                      disabled={adaptToContext}
-                      className={`rounded-lg border border-[#E5E7EB] px-3 py-1 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1 ${
-                        adaptToContext ? "bg-[#F3F4F6] cursor-not-allowed" : ""
-                      }`}
-                    >
-                      <option value="devis">Devis</option>
-                      <option value="facture">Facture</option>
-                      <option value="info">Info manquante</option>
-                      <option value="rdv">RDV</option>
-                      <option value="general">Général</option>
-                    </select>
-                    <button
-                      onClick={() => {
-                        if (!adaptToContext) {
-                          setSelectedMessageType(message.id.toString());
-                        }
-                      }}
-                      disabled={adaptToContext}
-                      className={`text-sm font-medium ${
-                        adaptToContext
-                          ? "text-[#9CA3AF] cursor-not-allowed"
-                          : "text-[#64748B] hover:text-[#0F172A]"
-                      }`}
-                    >
-                      {selectedMessageType === message.id.toString() ? "Modifier" : "Éditer"}
-                    </button>
+                      placeholder={`Exemple : Bonjour {client_name},\n\nNous vous contactons concernant {source_label}.\n\nCordialement,\n{company_name}`}
+                      rows={4}
+                      className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    />
+                    <p className="mt-2 text-xs text-[#64748B]">
+                      Variables disponibles : <code className="bg-white px-1 rounded">{"{client_name}"}</code>, <code className="bg-white px-1 rounded">{"{source_label}"}</code>, <code className="bg-white px-1 rounded">{"{company_name}"}</code>, <code className="bg-white px-1 rounded">{"{company_email}"}</code>, <code className="bg-white px-1 rounded">{"{company_phone}"}</code>, <code className="bg-white px-1 rounded">{"{company_address}"}</code>, <code className="bg-white px-1 rounded">{"{company_city}"}</code>, <code className="bg-white px-1 rounded">{"{company_postal_code}"}</code>, <code className="bg-white px-1 rounded">{"{company_country}"}</code>, <code className="bg-white px-1 rounded">{"{company_siren}"}</code>, <code className="bg-white px-1 rounded">{"{company_siret}"}</code>, <code className="bg-white px-1 rounded">{"{company_vat_number}"}</code>, <code className="bg-white px-1 rounded">{"{amount}"}</code>
+                    </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      if (!adaptToContext) {
-                        setMessages(messages.filter((m) => m.id !== message.id));
-                        if (selectedMessageType === message.id.toString()) {
-                          setSelectedMessageType(null);
-                        }
-                      }
-                    }}
-                    disabled={adaptToContext}
-                    className={`text-sm ${
-                      adaptToContext
-                        ? "text-[#9CA3AF] cursor-not-allowed"
-                        : "text-red-600 hover:text-red-800"
-                    }`}
-                  >
-                    Supprimer
-                  </button>
                 </div>
-                {selectedMessageType === message.id.toString() ? (
-                  <textarea
-                    value={message.content}
-                    onChange={(e) => {
-                      if (!adaptToContext) {
-                        setMessages(
-                          messages.map((m) =>
-                            m.id === message.id ? { ...m, content: e.target.value } : m
-                          )
-                        );
-                      }
-                    }}
-                    disabled={adaptToContext}
-                    className={`w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1 ${
-                      adaptToContext ? "bg-[#F3F4F6] cursor-not-allowed" : ""
-                    }`}
-                    rows={4}
-                    placeholder="Tapez votre message de relance..."
-                  />
-                ) : (
-                  <p className="text-sm text-[#0F172A]">{message.content || "Aucun message"}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Adaptation au contexte */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-[#0F172A]">Personnalisation IA</h3>
-          <div className="p-4 rounded-lg border border-[#E5E7EB] bg-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[#0F172A]">
-                  Adapter le message au contexte de la personne
-                </p>
-                <p className="text-xs text-[#64748B] mt-1">
-                  L'IA personnalisera le message en fonction de l'historique du client, de son secteur d'activité et de ses préférences.
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={adaptToContext}
-                  onChange={(e) => setAdaptToContext(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-[#E5E7EB] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#F97316] peer-focus:ring-offset-2 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#F97316]"></div>
-              </label>
-            </div>
-            {adaptToContext && (
-              <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
-                <p className="text-xs text-blue-800">
-                  <strong>Exemples d'adaptation :</strong>
-                </p>
-                <ul className="text-xs text-blue-700 mt-2 space-y-1 list-disc list-inside">
-                  <li>Ton formel pour les entreprises, plus décontracté pour les particuliers</li>
-                  <li>Références à l'historique d'achats ou de projets précédents</li>
-                  <li>Adaptation au secteur d'activité (commerce, restauration, services...)</li>
-                  <li>Utilisation du prénom et personnalisation du message</li>
-                </ul>
-              </div>
-            )}
+              );
+            })}
           </div>
         </div>
 
@@ -380,9 +433,10 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
           </button>
           <button
             onClick={handleSave}
-            className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
+            disabled={isSaving}
+            className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Enregistrer la configuration
+            {isSaving ? "Sauvegarde..." : "Enregistrer la configuration"}
           </button>
         </div>
       </div>

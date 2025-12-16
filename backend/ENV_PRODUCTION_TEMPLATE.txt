@@ -1,0 +1,72 @@
+# ============================================
+# Configuration Production - Lokario
+# ============================================
+# 
+# INSTRUCTIONS:
+# 1. Copier ce contenu vers .env en production
+# 2. Remplacer toutes les valeurs avec vos vraies valeurs de production
+# 3. NE JAMAIS commiter le fichier .env réel
+#
+# ============================================
+
+# Environnement
+ENVIRONMENT=production
+
+# ============================================
+# Base de données
+# ============================================
+# PostgreSQL recommandé pour la production
+# Format: postgresql://user:password@host:port/dbname
+DATABASE_URL=postgresql://lokario_user:CHANGEME@localhost:5432/lokario_prod
+
+# ============================================
+# Sécurité JWT
+# ============================================
+# ⚠️ CRITIQUE: Générer une clé sécurisée unique (min 32 caractères)
+# Commande pour générer: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+# Exemple généré: q1-HL20v0WVpPCGLGFGEoYOM0VBL3y7Zxo0IjV_Q3IY
+JWT_SECRET_KEY=GENERATE_A_SECURE_KEY_HERE_MIN_32_CHARS
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# ============================================
+# Configuration Email (SMTP)
+# ============================================
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USE_TLS=True
+SMTP_USERNAME=votre-email@gmail.com
+SMTP_PASSWORD=votre-mot-de-passe-application-gmail
+SMTP_FROM_EMAIL=noreply@lokario.fr
+FRONTEND_URL=https://lokario.fr
+
+# ============================================
+# OpenAI (pour classification IA)
+# ============================================
+OPENAI_API_KEY=sk-proj-VOTRE_CLE_OPENAI_PRODUCTION
+
+# ============================================
+# Stripe (MODE PRODUCTION - Clés Live)
+# ============================================
+# ⚠️ Utiliser les clés LIVE Stripe (pas les clés test)
+STRIPE_SECRET_KEY=sk_live_VOTRE_CLE_SECRETE_STRIPE
+STRIPE_PUBLISHABLE_KEY=pk_live_VOTRE_CLE_PUBLIQUE_STRIPE
+STRIPE_WEBHOOK_SECRET=whsec_VOTRE_SECRET_WEBHOOK_STRIPE
+
+# Stripe Price IDs (IDs de vos produits Stripe en mode Live)
+STRIPE_PRICE_STARTER=price_VOTRE_PRICE_ID_STARTER
+STRIPE_PRICE_PROFESSIONAL=price_VOTRE_PRICE_ID_PROFESSIONAL
+STRIPE_PRICE_ENTERPRISE=price_VOTRE_PRICE_ID_ENTERPRISE
+
+# ============================================
+# Webhooks & Intégrations
+# ============================================
+WEBHOOK_SECRET=VOTRE_SECRET_WEBHOOK
+MESSENGER_VERIFY_TOKEN=VOTRE_TOKEN_FACEBOOK_MESSENGER
+
+# ============================================
+# Stockage fichiers
+# ============================================
+UPLOAD_DIR=./uploads
+MAX_UPLOAD_SIZE=10485760
+ALLOWED_EXTENSIONS=[".jpg",".jpeg",".png",".gif",".pdf",".doc",".docx",".xls",".xlsx",".txt",".csv"]

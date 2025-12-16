@@ -8,7 +8,6 @@ import Link from "next/link";
 import { apiGet, apiPatch } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
-import { Toast } from "@/components/ui/Toast";
 import { Loader } from "@/components/ui/Loader";
 import { CompanySettings } from "@/store/settings-store";
 
@@ -29,7 +28,7 @@ export default function CompanyDetailPage() {
   const companyIdParam = params.id;
   const companyId = companyIdParam ? Number(companyIdParam) : null;
   const { token } = useAuth();
-  const { toast, showToast, hideToast } = useToast();
+  const { showToast } = useToast();
 
   const [company, setCompany] = useState<CompanyInfo | null>(null);
   const [settings, setSettings] = useState<AdminCompanySettings | null>(null);
@@ -169,9 +168,11 @@ export default function CompanyDetailPage() {
             company_id: companyId,
             settings: {
               modules: {
+                dashboard: { enabled: true },
                 tasks: { enabled: true },
                 inbox: { enabled: true },
                 relances: { enabled: true },
+                clients: { enabled: true },
                 projects: { enabled: true },
                 billing: { enabled: true },
                 reporting: { enabled: true },
@@ -201,9 +202,11 @@ export default function CompanyDetailPage() {
             settings: {
               ...data.settings,
               modules: {
+                dashboard: data.settings.modules.dashboard || { enabled: true },
                 tasks: data.settings.modules.tasks || { enabled: true },
                 inbox: data.settings.modules.inbox || { enabled: true },
                 relances: data.settings.modules.relances || { enabled: true },
+                clients: data.settings.modules.clients || { enabled: true },
                 projects: data.settings.modules.projects || { enabled: true },
                 billing: data.settings.modules.billing || { enabled: true },
                 reporting: data.settings.modules.reporting || { enabled: true },
@@ -220,18 +223,20 @@ export default function CompanyDetailPage() {
         const defaultSettings: AdminCompanySettings = {
           id: 0,
           company_id: companyId,
-          settings: {
-            modules: {
-              tasks: { enabled: true },
-              inbox: { enabled: true },
-              relances: { enabled: true },
-              projects: { enabled: true },
-              billing: { enabled: true },
-              reporting: { enabled: true },
-              chatbot_internal: { enabled: true },
-              chatbot_site: { enabled: false },
-              appointments: { enabled: true },
-            },
+            settings: {
+              modules: {
+                dashboard: { enabled: true },
+                tasks: { enabled: true },
+                inbox: { enabled: true },
+                relances: { enabled: true },
+                clients: { enabled: true },
+                projects: { enabled: true },
+                billing: { enabled: true },
+                reporting: { enabled: true },
+                chatbot_internal: { enabled: true },
+                chatbot_site: { enabled: false },
+                appointments: { enabled: true },
+              },
             ia: {
               ai_relances: true,
               ai_summary: true,
@@ -768,11 +773,21 @@ export default function CompanyDetailPage() {
 
             {activeTab === "modules" && settings && (
               <div className="space-y-4">
-                <p className="text-sm text-[#64748B] mb-4">
-                  Activez ou désactivez les modules selon vos besoins. Les
-                  modifications sont sauvegardées en temps réel.
-                </p>
-                <div className="space-y-0">
+                <div className="mb-6">
+                  <p className="text-sm text-[#64748B] mb-2">
+                    Activez ou désactivez les modules pour cette entreprise. Chaque entreprise a ses propres modules activés/désactivés.
+                  </p>
+                  <p className="text-xs text-[#64748B] italic">
+                    Les modifications seront sauvegardées lorsque vous cliquerez sur "Enregistrer les paramètres".
+                  </p>
+                </div>
+                <div className="space-y-0 border border-[#E5E7EB] rounded-lg overflow-hidden">
+                  <ModuleToggle
+                    label="Dashboard"
+                    description="Vue d'ensemble de la journée avec statistiques et tâches prioritaires."
+                    enabled={settings.settings.modules.dashboard?.enabled ?? true}
+                    onToggle={(enabled) => handleModuleToggle("dashboard" as any, enabled)}
+                  />
                   <ModuleToggle
                     label="Tâches"
                     description="Gestion des tâches, checklists et planning interne."
@@ -790,6 +805,12 @@ export default function CompanyDetailPage() {
                     description="Suivi et automatisation des relances clients."
                     enabled={settings.settings.modules.relances?.enabled ?? true}
                     onToggle={(enabled) => handleModuleToggle("relances", enabled)}
+                  />
+                  <ModuleToggle
+                    label="Clients"
+                    description="Gestion de la base de données clients, contacts et historique."
+                    enabled={settings.settings.modules.clients?.enabled ?? true}
+                    onToggle={(enabled) => handleModuleToggle("clients" as any, enabled)}
                   />
                   <ModuleToggle
                     label="Projets / Dossiers"
@@ -1008,12 +1029,6 @@ export default function CompanyDetailPage() {
         )}
       </div>
 
-      <Toast
-        message={toast.message}
-        isVisible={toast.isVisible}
-        onClose={hideToast}
-        type={toast.type}
-      />
     </>
   );
 }

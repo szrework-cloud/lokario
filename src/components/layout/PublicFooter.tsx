@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 export function PublicFooter() {
   return (
@@ -9,9 +10,18 @@ export function PublicFooter() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div>
-            <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
-              Local Assistant
+            <Link href="/" className="flex items-center gap-2 mb-4">
+              <Image 
+                src="/lokario-logo.png" 
+                alt="Lokario" 
+                width={32} 
+                height={32}
+                className="h-8 w-auto" 
+              />
+              <h3 className="text-lg font-semibold text-[#0F172A]">
+                LOKARIO
             </h3>
+            </Link>
             <p className="text-sm text-[#64748B]">
               Gestion administrative simplifiée pour petits commerces
             </p>
@@ -29,7 +39,7 @@ export function PublicFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-[#0F172A] transition-colors">
+                <Link href="/app/pricing" className="hover:text-[#0F172A] transition-colors">
                   Tarifs
                 </Link>
               </li>
@@ -72,18 +82,23 @@ export function PublicFooter() {
             </h4>
             <ul className="space-y-2 text-sm text-[#64748B]">
               <li>
-                <Link href="#" className="hover:text-[#0F172A] transition-colors">
+                <Link href="/legal/cgu" className="hover:text-[#0F172A] transition-colors">
                   CGU
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-[#0F172A] transition-colors">
+                <Link href="/legal/cgv" className="hover:text-[#0F172A] transition-colors">
+                  CGV
+                </Link>
+              </li>
+              <li>
+                <Link href="/legal/privacy" className="hover:text-[#0F172A] transition-colors">
                   Confidentialité
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-[#0F172A] transition-colors">
-                  Cookies
+                <Link href="/legal/mentions-legales" className="hover:text-[#0F172A] transition-colors">
+                  Mentions légales
                 </Link>
               </li>
             </ul>
@@ -91,21 +106,23 @@ export function PublicFooter() {
         </div>
 
         <div className="mt-8 pt-8 border-t border-[#E5E7EB] flex flex-col md:flex-row items-center justify-between text-sm text-[#64748B]">
-          <p>© 2025 Local Assistant. Tous droits réservés.</p>
+          <p>© 2025 LOKARIO. Tous droits réservés.</p>
           <div className="flex items-center gap-4 mt-4 md:mt-0">
             <a
-              href="#"
+              href="mailto:lokario.saas@gmail.com"
               className="hover:text-[#0F172A] transition-colors"
-              aria-label="Twitter"
+              aria-label="Email"
             >
-              Twitter
+              Email
             </a>
             <a
-              href="#"
+              href="https://wa.me/33770034283"
+              target="_blank"
+              rel="noopener noreferrer"
               className="hover:text-[#0F172A] transition-colors"
-              aria-label="LinkedIn"
+              aria-label="WhatsApp"
             >
-              LinkedIn
+              WhatsApp
             </a>
           </div>
         </div>

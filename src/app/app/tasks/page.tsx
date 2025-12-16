@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { PageTitle } from "@/components/layout/PageTitle";
-import { TasksTable, Task } from "@/components/tasks/TasksTable";
+import { TasksTable, Task as TaskTableType } from "@/components/tasks/TasksTable";
 import { TaskCard } from "@/components/tasks/TaskCard";
+import { WeeklyCalendar } from "@/components/tasks/WeeklyCalendar";
 import { TaskRow } from "@/components/dashboard/TaskRow";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { SectionCard } from "@/components/dashboard/SectionCard";
@@ -11,16 +13,46 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { CreateTaskModal, TaskFormData } from "@/components/tasks/CreateTaskModal";
 import { CreateChecklistModal, ChecklistFormData } from "@/components/tasks/CreateChecklistModal";
-import { NotificationsDropdown } from "@/components/tasks/NotificationsDropdown";
+import { RecurringTasksModal } from "@/components/tasks/RecurringTasksModal";
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
+import {
+  getTasks,
+  getTodayTasks,
+  getPriorityTasks,
+  getTaskStats,
+  getEmployees,
+  getChecklists,
+  getChecklistTemplates,
+  createChecklistTemplate,
+  updateChecklistTemplate,
+  deleteChecklistTemplate,
+  createTask as createTaskAPI,
+  updateTask as updateTaskAPI,
+  completeTask as completeTaskAPI,
+  deleteTask as deleteTaskAPI,
+  deleteAllTaskOccurrences,
+  executeChecklistTemplate,
+  Task as TaskType,
+  Employee,
+  ChecklistTemplate as ChecklistTemplateType,
+  ChecklistInstance,
+  TaskStats,
+} from "@/services/tasksService";
+import { Loader } from "@/components/ui/Loader";
+import { Button } from "@/components/ui/Button";
+import { getClients, Client } from "@/services/clientsService";
+import { ModuleLink } from "@/components/ui/ModuleLink";
+import { useModuleAccess } from "@/hooks/useModuleAccess";
+import { PageTransition } from "@/components/ui/PageTransition";
+import { AnimatedButton } from "@/components/ui/AnimatedButton";
 
 type PriorityTask = {
   id: number;
   title: string;
   description?: string;
   type: string;
-  priority: "urgent" | "high" | "medium" | "low" | "critical";
+  priority: "normal" | "high" | "critical";  // MVP V1: 3 priorités uniquement
   dueDate: string;
   dueTime?: string;
   assignedTo: string;
@@ -35,6 +67,7 @@ type ChecklistTemplate = {
   description: string;
   items: string[];
   recurrence?: "daily" | "weekly" | "monthly";
+  recurrenceDays?: number[];
   executionTime?: string;
 };
 
@@ -60,11 +93,16 @@ type Notification = {
 };
 
 export default function TasksPage() {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"today" | "priorities" | "tasks" | "checklists">("today");
+  const { user, token, refreshUserFromAPI } = useAuth();
+  const { isModuleEnabled } = useModuleAccess();
+  const searchParams = useSearchParams();
+  const taskIdFromUrl = searchParams?.get("taskId");
+  const clientIdFromUrl = searchParams?.get("clientId");
+  const [activeTab, setActiveTab] = useState<"today" | "tasks" | "checklists">("today");
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"employee" | "admin">("employee");
+  const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<TaskType | null>(null);
+  const [editingChecklistTemplate, setEditingChecklistTemplate] = useState<ChecklistTemplateType | null>(null);
   const [employeeFilter, setEmployeeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -72,13 +110,305 @@ export default function TasksPage() {
   const [originFilter, setOriginFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  
+  // États pour les données depuis l'API
+  const [tasks, setTasks] = useState<TaskType[]>([]);
+  const [todayTasks, setTodayTasks] = useState<TaskType[]>([]);
+  const [priorityTasksData, setPriorityTasksData] = useState<Record<string, TaskType[]>>({});
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [checklists, setChecklists] = useState<ChecklistInstance[]>([]);
+  const [templates, setTemplates] = useState<ChecklistTemplateType[]>([]);
+  const [stats, setStats] = useState<TaskStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showUncompleteConfirm, setShowUncompleteConfirm] = useState(false);
+  const [taskToUncomplete, setTaskToUncomplete] = useState<number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
+  const [showDeleteTemplateConfirm, setShowDeleteTemplateConfirm] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<number | null>(null);
+  const [showRecurringTasksModal, setShowRecurringTasksModal] = useState(false);
 
-  // Protection : forcer "today" si user est employé
-  useEffect(() => {
-    if (user?.role === "user" && activeTab !== "today") {
-      setActiveTab("today");
+  // Les employés peuvent maintenant voir tous les onglets (mais avec restrictions sur les actions)
+
+  // Fonction helper pour trouver les informations d'un client
+  const getClientInfo = (clientId?: number) => {
+    if (!clientId) return undefined;
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return undefined;
+    return {
+      id: client.id,
+      name: client.name,
+      type: client.type,
+      contactEmail: client.contactEmail,
+      contactPhone: client.contactPhone,
+      address: client.address,
+      sector: client.sector,
+    };
+  };
+
+  // Fonction pour charger les données
+  const loadData = useCallback(async () => {
+    if (!token) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Charger en parallèle
+      const [
+        employeesData,
+        clientsData,
+        todayTasksData,
+        priorityTasksDataResult,
+        checklistsData,
+        templatesData,
+        statsData,
+      ] = await Promise.all([
+        getEmployees(token),
+        getClients(token),
+        getTodayTasks(token),
+        getPriorityTasks(token),
+        getChecklists(token, "en_cours"),
+        getChecklistTemplates(token),
+        getTaskStats(token),
+      ]);
+      
+      // Mettre à jour les états de manière atomique pour éviter les problèmes de synchronisation
+      
+      setEmployees(employeesData);
+      setClients(clientsData);
+      setTodayTasks(todayTasksData);
+      
+      // S'assurer que priorityTasksDataResult est bien un objet valide
+      if (priorityTasksDataResult && typeof priorityTasksDataResult === 'object') {
+        // Vérifier qu'il contient bien les clés attendues
+        const hasValidKeys = 'critical' in priorityTasksDataResult || 
+                            'high' in priorityTasksDataResult || 
+                            'normal' in priorityTasksDataResult;
+        if (hasValidKeys) {
+          setPriorityTasksData(priorityTasksDataResult);
+        } else {
+          setPriorityTasksData({});
+        }
+      } else {
+        setPriorityTasksData({});
+      }
+      
+      setChecklists(checklistsData);
+      setTemplates(templatesData);
+      setStats(statsData);
+      
+      // Charger toutes les tâches pour l'onglet "tasks"
+      const employeeId = employeeFilter !== "all" ? parseInt(employeeFilter) : undefined;
+      const allTasksData = await getTasks(token, {
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        category: categoryFilter !== "all" ? categoryFilter : undefined,
+        priority: priorityFilter !== "all" ? priorityFilter : undefined,
+        assigned_to_id: employeeId && !isNaN(employeeId) ? employeeId : undefined,
+        search: searchQuery || undefined,
+      });
+      setTasks(allTasksData);
+      
+      // Si taskId est dans l'URL, ouvrir automatiquement cette tâche
+      if (taskIdFromUrl) {
+        const taskId = Number(taskIdFromUrl);
+        const allTasks = [...allTasksData, ...todayTasksData, ...Object.values(priorityTasksDataResult).flat()];
+        const task = allTasks.find(t => t.id === taskId);
+        if (task) {
+          // selectedTaskForDetails attend un TaskType (de tasksService)
+          setSelectedTaskForDetails(task);
+          setActiveTab("tasks"); // Basculer vers l'onglet tasks pour voir la tâche
+        }
+      } else if (clientIdFromUrl) {
+        // Si clientId est fourni, filtrer les tâches pour ce client
+        const clientId = Number(clientIdFromUrl);
+        const clientTasks = allTasksData.filter(t => t.clientId === clientId);
+        if (clientTasks.length > 0) {
+          setActiveTab("tasks");
+          // Optionnel : sélectionner la première tâche du client
+          // setSelectedTaskForDetails(clientTasks[0]);
+        }
+      }
+    } catch (err: any) {
+      console.error("Erreur lors du chargement des données:", err);
+      setError(err.message || "Erreur lors du chargement des données");
+    } finally {
+      setIsLoading(false);
     }
-  }, [user?.role, activeTab]);
+  }, [token, statusFilter, categoryFilter, priorityFilter, employeeFilter, searchQuery]);
+
+  // Charger les données depuis l'API
+  useEffect(() => {
+    loadData();
+    // Rafraîchir les permissions utilisateur à chaque chargement de page
+    if (refreshUserFromAPI) {
+      refreshUserFromAPI();
+    }
+  }, [loadData, refreshUserFromAPI]);
+
+  // S'assurer que les données sont bien synchronisées quand on change d'onglet
+  // Ne recharger que si les données semblent manquantes
+  // Supprimé : logique pour l'onglet "Priorités"
+
+  // Handlers pour les actions de tâches
+  const handleToggleComplete = async (taskId: number) => {
+    if (!token) return;
+    
+    // Vérifier si c'est un ID artificiel de checklist (ID >= 1000 et multiple de 1000 ou proche)
+    // Les IDs artificiels sont de la forme: checklist.id * 1000 + index
+    // Donc si taskId >= 1000 et taskId % 1000 < 100, c'est probablement un ID artificiel
+    if (taskId >= 1000 && taskId % 1000 < 100) {
+      // C'est une tâche de checklist avec ID artificiel
+      // Ces tâches ne peuvent pas être cochées directement car elles n'existent pas en base
+      // TODO: Implémenter la gestion des items de checklist via l'API checklist
+      setError("Les items de checklist sont gérés automatiquement lors de l'exécution d'un modèle");
+      return;
+    }
+    
+    // Trouver la tâche pour vérifier son statut actuel
+    const task = [...tasks, ...todayTasks, ...Object.values(priorityTasksData).flat()].find(t => t.id === taskId);
+    const isCurrentlyCompleted = task?.status === "Terminé" || task?.status === "Terminée";
+    
+    // Si on décoche (la tâche est terminée), ouvrir la modal de confirmation
+    if (isCurrentlyCompleted) {
+      setTaskToUncomplete(taskId);
+      setShowUncompleteConfirm(true);
+      return;
+    }
+    
+    // Cocher : marquer comme terminée (sans confirmation)
+    try {
+      await completeTaskAPI(token, taskId);
+      await loadData();
+    } catch (err: any) {
+      console.error("Erreur lors de la complétion de la tâche:", err);
+      setError(err.message || "Erreur lors de la complétion de la tâche");
+    }
+  };
+
+  const confirmUncompleteTask = async () => {
+    if (!token || !taskToUncomplete) return;
+    
+    try {
+      // Décocher : remettre à "À faire"
+      await updateTaskAPI(token, taskToUncomplete, {
+        status: "À faire"
+      });
+      await loadData();
+      setShowUncompleteConfirm(false);
+      setTaskToUncomplete(null);
+    } catch (err: any) {
+      console.error("Erreur lors du décochage de la tâche:", err);
+      setError(err.message || "Erreur lors du décochage de la tâche");
+    }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    if (!token) return;
+    
+    // Ouvrir la modal de confirmation
+    setTaskToDelete(taskId);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!token || !taskToDelete) return;
+    
+    try {
+      await deleteTaskAPI(token, taskToDelete);
+      await loadData();
+      setShowDeleteConfirm(false);
+      setTaskToDelete(null);
+    } catch (err: any) {
+      console.error("Erreur lors de la suppression de la tâche:", err);
+      setError(err.message || "Erreur lors de la suppression de la tâche");
+    }
+  };
+
+  const handleDeleteAllOccurrences = async (taskId: number) => {
+    if (!token) return;
+    
+    try {
+      const result = await deleteAllTaskOccurrences(token, taskId);
+      setSuccessMessage(`${result.deleted_count} occurrence(s) supprimée(s) avec succès`);
+      await loadData();
+    } catch (err: any) {
+      console.error("Erreur lors de la suppression de toutes les occurrences:", err);
+      setError(err.message || "Erreur lors de la suppression de toutes les occurrences");
+      throw err; // Re-throw pour que le modal puisse gérer l'erreur
+    }
+  };
+
+  const handleAddComment = (taskId: number) => {
+    // TODO: Implémenter l'ajout de commentaires
+  };
+
+  const handleDeleteTemplate = (templateId: number) => {
+    if (!token) return;
+    
+    // Ouvrir la modal de confirmation
+    setTemplateToDelete(templateId);
+    setShowDeleteTemplateConfirm(true);
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!token || !templateToDelete) return;
+    
+    try {
+      await deleteChecklistTemplate(token, templateToDelete);
+      await loadData();
+      setShowDeleteTemplateConfirm(false);
+      setTemplateToDelete(null);
+      setSuccessMessage("Modèle de routine supprimé avec succès");
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err: any) {
+      console.error("Erreur lors de la suppression du modèle:", err);
+      setError(err.message || "Erreur lors de la suppression du modèle de routine");
+    }
+  };
+
+  const handleUpdateTask = async (taskId: number, updates: { priority?: string; assigned_to_id?: number; due_date?: string; description?: string }) => {
+    if (!token) return;
+    
+    try {
+      await updateTaskAPI(token, taskId, updates);
+      await loadData();
+    } catch (err: any) {
+      console.error("Erreur lors de la mise à jour de la tâche:", err);
+      setError(err.message || "Erreur lors de la mise à jour de la tâche");
+    }
+  };
+
+  const handleExecuteChecklist = async (templateId: number, assignedToId?: number) => {
+    if (!token) return;
+    
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      const result = await executeChecklistTemplate(token, templateId, assignedToId);
+      
+      // Petit délai pour s'assurer que les tâches sont bien commitées en base
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadData();
+      
+      // Données rechargées avec succès
+      
+      // Vérifier si des tâches ont été créées ou si c'était déjà exécuté aujourd'hui
+      const template = templates.find(t => t.id === templateId);
+      if (template) {
+        setSuccessMessage(`Checklist "${template.name}" exécutée avec succès ! Les tâches sont maintenant disponibles dans la section "Aujourd'hui".`);
+        // Effacer le message après 5 secondes
+        setTimeout(() => setSuccessMessage(null), 5000);
+      }
+    } catch (err: any) {
+      console.error("Erreur lors de l'exécution de la checklist:", err);
+      setError(err.message || "Erreur lors de l'exécution de la checklist");
+    }
+  };
 
   // Date du jour formatée
   const today = new Date();
@@ -99,239 +429,303 @@ export default function TasksPage() {
   ];
   const formattedDate = `${dayNames[today.getDay()]} ${today.getDate()} ${monthNames[today.getMonth()]}`;
 
-  // TODO: Récupérer depuis le backend
-  const mockEmployees = [
-    { id: 1, name: "Jean Dupont", avatar: "JD" },
-    { id: 2, name: "Marie Martin", avatar: "MM" },
-    { id: 3, name: "Sophie Durand", avatar: "SD" },
-    { id: 4, name: "Pierre Bernard", avatar: "PB" },
-  ];
+  // Convertir les tâches API en format frontend
+  const convertTaskToFrontend = (task: TaskType): any => ({
+    id: task.id,
+    title: task.title,
+    description: (task as any).description,
+    assignedTo: task.assignedTo,
+    assignedToId: (task as any).assignedToId,
+    assignedToAvatar: task.assignedToAvatar,
+    type: task.category as any,
+    category: task.category,
+    priority: (task as any).priority as any,
+    dueDate: task.dueDate || "",
+    dueDateRaw: (task as any).dueDateRaw,
+    dueTime: (task as any).dueTime,
+    status: task.status as any,
+    clientId: task.clientId,
+    clientName: task.clientName,
+    projectId: task.projectId,
+    projectName: task.projectName,
+    conversationId: task.conversationId,
+    origin: (task as any).origin as "manual" | "checklist" | undefined,
+    checklistName: (task as any).checklistName,
+    isLate: (task as any).isLate,
+    // Inclure les champs de checklist pour le filtrage
+    checklistTemplateId: (task as any).checklistTemplateId,
+    checklistTemplateName: (task as any).checklistTemplateName,
+    checklistInstanceId: (task as any).checklistInstanceId,
+    isChecklistItem: (task as any).isChecklistItem,
+    // Préserver recurrence et recurrenceDays
+    recurrence: (task as any).recurrence,
+    recurrenceDays: (task as any).recurrenceDays,
+  });
 
-  const mockTasks: Task[] = [
-    {
-      id: 1,
-      title: "Vérifier stock farine",
-      assignedTo: "Marie",
-      type: "Interne",
-      dueDate: "Aujourd'hui",
-      status: "À faire",
-    },
-    {
-      id: 2,
-      title: "Relancer Mme Dupont",
-      assignedTo: "Jean",
-      type: "Client",
-      dueDate: "Aujourd'hui",
-      status: "À faire",
-    },
-    {
-      id: 3,
-      title: "Commande fournisseur boissons",
-      assignedTo: "Sophie",
-      type: "Fournisseur",
-      dueDate: "Cette semaine",
-      status: "En cours",
-    },
-    {
-      id: 4,
-      title: "Nettoyage salle",
-      assignedTo: "Pierre",
-      type: "Interne",
-      dueDate: "Hier",
-      status: "En retard",
-    },
-    {
-      id: 5,
-      title: "Préparer devis pour nouveau client",
-      assignedTo: "Marie",
-      type: "Client",
-      dueDate: "Demain",
-      status: "À faire",
-    },
-  ];
+  const frontendTasks: TaskTableType[] = tasks.map(convertTaskToFrontend);
+  const frontendTodayTasks: TaskTableType[] = todayTasks.map(convertTaskToFrontend);
 
-  const priorityTasks: PriorityTask[] = [
-    {
-      id: 1,
-      title: "Relancer facture impayée - Boulangerie Soleil",
-      description: "Facture #2025-014 en retard de 5 jours",
-      type: "Client",
-      priority: "critical",
-      dueDate: "Aujourd'hui",
-      dueTime: "09:00",
-      assignedTo: "Jean",
-      assignedToAvatar: "JD",
-      status: "À faire",
-      isLate: true,
-    },
-    {
-      id: 2,
-      title: "Nettoyage salle - En retard",
-      type: "Interne",
-      priority: "high",
-      dueDate: "Hier",
-      assignedTo: "Pierre",
-      assignedToAvatar: "PB",
-      status: "En retard",
-      isLate: true,
-    },
-    {
-      id: 3,
-      title: "Préparer devis pour nouveau client",
-      type: "Client",
-      priority: "high",
-      dueDate: "Aujourd'hui",
-      dueTime: "14:00",
-      assignedTo: "Marie",
-      assignedToAvatar: "MM",
-      status: "À faire",
-    },
-    {
-      id: 4,
-      title: "Commande fournisseur boissons",
-      type: "Fournisseur",
-      priority: "medium",
-      dueDate: "Cette semaine",
-      assignedTo: "Sophie",
-      assignedToAvatar: "SD",
-      status: "En cours",
-    },
-    {
-      id: 5,
-      title: "Vérifier stock farine",
-      type: "Interne",
-      priority: "medium",
-      dueDate: "Aujourd'hui",
-      dueTime: "10:00",
-      assignedTo: "Marie",
-      assignedToAvatar: "MM",
-      status: "À faire",
-    },
-    {
-      id: 6,
-      title: "Mise à jour catalogue produits",
-      type: "Interne",
-      priority: "low",
-      dueDate: "Cette semaine",
-      assignedTo: "Jean",
-      assignedToAvatar: "JD",
-      status: "À faire",
-    },
-  ];
+  // Combiner toutes les tâches (les tâches de checklist sont déjà dans todayTasks)
+  // Dédupliquer par ID pour éviter les doublons (une tâche peut être dans frontendTasks ET frontendTodayTasks)
+  const allTasksMap = new Map<number, TaskTableType>();
+  
+  // Ajouter les tâches de frontendTasks (préserver recurrence et recurrenceDays)
+  frontendTasks.forEach((t) => {
+    allTasksMap.set(t.id, { 
+      ...t, 
+      origin: "manual" as any,
+      checklistName: undefined as any,
+      recurrence: (t as any).recurrence,
+      recurrenceDays: (t as any).recurrenceDays,
+    } as any);
+  });
 
-  const mockActiveChecklists: Checklist[] = [
-    {
-      id: 1,
-      templateId: 1,
-      templateName: "Ouverture",
-      completedItems: 3,
-      totalItems: 5,
-      status: "en_cours",
-      startedAt: "2025-01-20T08:00:00",
-      executionTime: "08:00",
-    },
-    {
-      id: 2,
-      templateId: 2,
-      templateName: "Fermeture",
-      completedItems: 0,
-      totalItems: 5,
-      status: "en_cours",
-      startedAt: "2025-01-20T18:00:00",
-      executionTime: "18:00",
-    },
-  ];
+  // Ajouter les tâches de frontendTodayTasks (écrase les doublons si présents, préserver recurrence)
+  frontendTodayTasks.forEach((t) => {
+    allTasksMap.set(t.id, { 
+      ...t, 
+      origin: ((t as any).origin || "manual") as any,
+      recurrence: (t as any).recurrence,
+      recurrenceDays: (t as any).recurrenceDays,
+    } as any);
+  });
+  
+  const allTasks = Array.from(allTasksMap.values());
 
-  const todayTasks = mockTasks.filter((t) => t.dueDate === "Aujourd'hui");
-  const lateTasks = mockTasks.filter((t) => t.status === "En retard");
-  const todayChecklists = mockActiveChecklists.filter((c) => {
+  // Fonction pour vérifier si une date correspond à aujourd'hui
+  const isToday = (task: TaskTableType): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    // Utiliser la date brute si disponible (plus fiable)
+    if ((task as any).dueDateRaw) {
+      try {
+        // Parser en ignorant le timezone pour éviter les décalages
+        const dateStr = (task as any).dueDateRaw;
+        let taskDate: Date;
+        
+        if (dateStr.includes('T')) {
+          const dateOnly = dateStr.split('T')[0];
+          const [year, month, day] = dateOnly.split('-').map(Number);
+          taskDate = new Date(year, month - 1, day);
+        } else if (dateStr.includes('-')) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          taskDate = new Date(year, month - 1, day);
+        } else {
+          taskDate = new Date(dateStr);
+        }
+        
+        taskDate.setHours(0, 0, 0, 0);
+        const taskKey = `${taskDate.getFullYear()}-${String(taskDate.getMonth() + 1).padStart(2, '0')}-${String(taskDate.getDate()).padStart(2, '0')}`;
+        return taskKey === todayKey;
+      } catch {
+        // Si la date brute ne peut pas être parsée, utiliser le formaté
+      }
+    }
+    
+    // Sinon, utiliser la date formatée
+    const dateStr = task.dueDate;
+    if (!dateStr) return false;
+    if (dateStr === "Aujourd'hui") return true;
+    
+    // Parser le format français DD/MM/YYYY
+    if (dateStr.includes('/')) {
+      try {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          const taskDate = new Date(year, month, day);
+          taskDate.setHours(0, 0, 0, 0);
+          const taskKey = `${taskDate.getFullYear()}-${String(taskDate.getMonth() + 1).padStart(2, '0')}-${String(taskDate.getDate()).padStart(2, '0')}`;
+          return taskKey === todayKey;
+        }
+      } catch {
+        // Ignorer les erreurs
+      }
+    }
+    
+    // Essayer de parser comme date ISO
+    try {
+      const taskDate = new Date(dateStr);
+      taskDate.setHours(0, 0, 0, 0);
+      const taskKey = `${taskDate.getFullYear()}-${String(taskDate.getMonth() + 1).padStart(2, '0')}-${String(taskDate.getDate()).padStart(2, '0')}`;
+      return taskKey === todayKey;
+    } catch {
+      return false;
+    }
+  };
+
+  // Filtrer les tâches d'aujourd'hui depuis allTasks (pour cohérence avec le calendrier)
+  // Cela garantit que les tâches affichées dans "Aujourd'hui" sont les mêmes que dans le calendrier
+  // IMPORTANT: Pour les employés (role "user"), on affiche TOUTES leurs tâches assignées, pas seulement celles d'aujourd'hui
+  const allTasksToday = Array.from(allTasksMap.values()).filter((t) => {
+    // Si l'utilisateur est un employé, afficher toutes ses tâches assignées
+    if (user?.role === "user") {
+      const isAssigned = (t as any).assignedToId === user?.id;
+      return isAssigned;
+    }
+    // Pour les admins/owners : afficher les tâches d'aujourd'hui OU les tâches en retard (même si date passée)
+    const isTodayTask = isToday(t);
+    const isLate = t.status === "En retard";
+    return isTodayTask || isLate;
+  });
+  
+  // Appliquer le filtre employé aux tâches d'aujourd'hui (si on est dans l'onglet "today" en mode admin)
+  const allTasksTodayFiltered = allTasksToday.filter((task) => {
+    if (activeTab === "today" && employeeFilter !== "all") {
+      const employeeId = parseInt(employeeFilter);
+      if (!isNaN(employeeId) && (task as any).assignedToId !== employeeId) return false;
+    }
+    return true;
+  });
+  
+  // Filtrer les tâches en retard (seulement celles d'aujourd'hui)
+  // Vérifier aussi si la date d'échéance est passée pour détecter les tâches en retard
+  const lateTasks = allTasksTodayFiltered.filter((t) => {
+    if (t.status === "En retard") return true;
+    // Vérifier aussi si la date d'échéance est passée et la tâche n'est pas terminée
+    const statusStr = String(t.status);
+    if (statusStr === "Terminée" || statusStr === "Terminé") return false;
+    try {
+      const dueDateRaw = (t as any).dueDateRaw;
+      if (dueDateRaw) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let taskDate: Date;
+        if (dueDateRaw.includes('T')) {
+          const dateOnly = dueDateRaw.split('T')[0];
+          const [year, month, day] = dateOnly.split('-').map(Number);
+          taskDate = new Date(year, month - 1, day);
+        } else if (dueDateRaw.includes('-')) {
+          const [year, month, day] = dueDateRaw.split('-').map(Number);
+          taskDate = new Date(year, month - 1, day);
+        } else {
+          taskDate = new Date(dueDateRaw);
+        }
+        taskDate.setHours(0, 0, 0, 0);
+        return taskDate < today;
+      }
+    } catch {
+      // Ignorer les erreurs de parsing
+    }
+    return false;
+  });
+
+  // Toutes les tâches du jour (manuelles + checklist) pour l'affichage - SEULEMENT celles d'aujourd'hui
+  // Exclure les tâches en retard pour éviter les doublons
+  const todayTasksFiltered = allTasksTodayFiltered.filter((t) => {
+    // Exclure les tâches en retard
+    if (t.status === "En retard") return false;
+    // Exclure aussi les tâches dont la date d'échéance est passée (sauf si terminées)
+    const statusStr = String(t.status);
+    if (statusStr.includes("Termin")) return true;
+    try {
+      const dueDateRaw = (t as any).dueDateRaw;
+      if (dueDateRaw) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let taskDate: Date;
+        if (dueDateRaw.includes('T')) {
+          const dateOnly = dueDateRaw.split('T')[0];
+          const [year, month, day] = dateOnly.split('-').map(Number);
+          taskDate = new Date(year, month - 1, day);
+        } else if (dueDateRaw.includes('-')) {
+          const [year, month, day] = dueDateRaw.split('-').map(Number);
+          taskDate = new Date(year, month - 1, day);
+        } else {
+          taskDate = new Date(dueDateRaw);
+        }
+        taskDate.setHours(0, 0, 0, 0);
+        // Si la date est passée, c'est une tâche en retard, donc l'exclure
+        if (taskDate < today) return false;
+      }
+    } catch {
+      // Ignorer les erreurs de parsing
+    }
+    return true;
+  });
+  
+  // Total des tâches d'aujourd'hui (uniquement les non en retard, car les en retard sont dans une section séparée)
+  const totalTodayTasks = todayTasksFiltered.length;
+
+  // Permissions : vérifier les permissions de l'utilisateur
+  // Les owners/admins ont tous les droits par défaut, les users utilisent leurs permissions
+  const canEditTasks = user?.role === "super_admin" || user?.role === "owner" || (user?.role === "user" && user?.can_edit_tasks === true);
+  const canDeleteTasks = user?.role === "super_admin" || user?.role === "owner" || (user?.role === "user" && user?.can_delete_tasks === true);
+  const canCreateTasks = user?.role === "super_admin" || user?.role === "owner" || (user?.role === "user" && user?.can_create_tasks === true);
+
+  // Convertir priorityTasksData en PriorityTask[] (MVP V1: 3 priorités)
+  const normalizeTaskPriority = (priority?: string): "normal" | "high" | "critical" => {
+    if (!priority) return "normal";
+    const p = priority.toLowerCase();
+    if (p === "critical") return "critical";
+    if (p === "high" || p === "urgent") return "high";
+    return "normal";  // low, medium, ou autre → normal
+  };
+
+  const priorityTasks: PriorityTask[] = priorityTasksData && typeof priorityTasksData === 'object'
+    ? Object.entries(priorityTasksData)
+        .filter(([priority]) => priority !== "admin_alerts")  // Exclure admin_alerts de la conversion
+        .flatMap(([priority, tasks]) => {
+          if (!Array.isArray(tasks)) return [];
+          return tasks.map((task) => ({
+            id: task.id,
+            title: task.title,
+            description: (task as any).description,
+            type: task.category,
+            priority: normalizeTaskPriority((task as any).priority),
+            dueDate: task.dueDate || "",
+            dueTime: (task as any).dueTime,
+            assignedTo: task.assignedTo || "",
+            assignedToAvatar: task.assignedToAvatar,
+            status: task.status,
+            isLate: task.isLate,
+          }));
+        })
+    : [];
+
+  // Convertir checklists API en format frontend
+  const activeChecklists: Checklist[] = Array.isArray(checklists)
+    ? checklists.map((checklist) => ({
+        id: checklist.id,
+        templateId: checklist.templateId,
+        templateName: checklist.templateName,
+        completedItems: Array.isArray(checklist.completedItems) ? checklist.completedItems.length : 0,
+        totalItems: checklist.totalItems || 0,
+        status: checklist.status,
+        startedAt: checklist.startedAt,
+        executionTime: checklist.executionTime,
+      }))
+    : [];
+
+  const todayChecklists = activeChecklists.filter((c) => {
     const startDate = new Date(c.startedAt);
     return startDate.toDateString() === today.toDateString();
   });
 
-  const mockTemplates: ChecklistTemplate[] = [
-    {
-      id: 1,
-      name: "Ouverture",
-      description: "Checklist quotidienne d'ouverture",
-      items: [
-        "Vérifier les stocks",
-        "Allumer les équipements",
-        "Vérifier la caisse",
-        "Nettoyer les vitrines",
-        "Préparer les produits",
-      ],
-      recurrence: "daily",
-      executionTime: "08:00",
-    },
-    {
-      id: 2,
-      name: "Fermeture",
-      description: "Checklist quotidienne de fermeture",
-      items: [
-        "Fermer la caisse",
-        "Ranger les produits",
-        "Éteindre les équipements",
-        "Nettoyer les surfaces",
-        "Fermer les portes",
-      ],
-      recurrence: "daily",
-      executionTime: "18:00",
-    },
-    {
-      id: 3,
-      name: "Nettoyage",
-      description: "Checklist de nettoyage hebdomadaire",
-      items: [
-        "Nettoyer les sols",
-        "Nettoyer les vitrines",
-        "Nettoyer les équipements",
-        "Vider les poubelles",
-        "Désinfecter les surfaces",
-      ],
-      recurrence: "weekly",
-    },
-    {
-      id: 4,
-      name: "Routine matinale",
-      description: "Tâches de routine du matin",
-      items: [
-        "Vérifier les emails",
-        "Planifier la journée",
-        "Préparer les rendez-vous",
-        "Vérifier les stocks",
-      ],
-      recurrence: "daily",
-      executionTime: "09:00",
-    },
-  ];
 
-  const mockChecklistHistory = [
-    {
-      id: 1,
-      date: "2025-01-19",
-      employee: "Marie Martin",
-      executionTime: "08:15",
-      result: "complète",
-      comments: "Tout s'est bien passé",
-    },
-    {
-      id: 2,
-      date: "2025-01-19",
-      employee: "Jean Dupont",
-      executionTime: "18:20",
-      result: "incomplète",
-      comments: "Manque le nettoyage des vitrines",
-    },
-    {
-      id: 3,
-      date: "2025-01-18",
-      employee: "Sophie Durand",
-      executionTime: "08:05",
-      result: "complète",
-      comments: "",
-    },
-  ];
+
+
+  // lateTasks et todayTasksFiltered sont maintenant définis plus haut
+
+  // Utiliser les templates depuis l'API
+  const frontendTemplates: ChecklistTemplate[] = Array.isArray(templates)
+    ? templates.map((template) => ({
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        items: Array.isArray(template.items) ? template.items : [],
+        recurrence: template.recurrence,
+        recurrenceDays: template.recurrenceDays || [],
+        executionTime: template.executionTime,
+      }))
+    : [];
+
+  // Historique des checklists (pour l'instant vide, à implémenter si besoin)
+  const checklistHistory: any[] = [];
 
   // Notifications mock
   useEffect(() => {
@@ -387,43 +781,74 @@ export default function TasksPage() {
     critical: "Critique",
   };
 
-  const groupedTasks = {
-    critical: priorityTasks.filter((t) => t.priority === "critical"),
-    urgent: priorityTasks.filter((t) => t.priority === "urgent"),
-    high: priorityTasks.filter((t) => t.priority === "high"),
-    medium: priorityTasks.filter((t) => t.priority === "medium"),
-    low: priorityTasks.filter((t) => t.priority === "low"),
+  // MVP V1: 3 priorités uniquement (critical, high, normal)
+  // Mapper les anciennes priorités pour compatibilité
+  const normalizePriority = (priority?: string): "critical" | "high" | "normal" => {
+    if (!priority) return "normal";
+    const p = priority.toLowerCase();
+    if (p === "critical") return "critical";
+    if (p === "high" || p === "urgent") return "high";
+    return "normal";  // low, medium, ou autre → normal
   };
 
-  // Générer les tâches à partir des checklists actives
-  const checklistTasks = todayChecklists.flatMap((checklist) => {
-    const template = mockTemplates.find((t) => t.id === checklist.templateId);
-    if (!template) return [];
+  const groupedTasks = {
+    critical: [] as PriorityTask[],
+    high: [] as PriorityTask[],
+    normal: [] as PriorityTask[],
+  };
 
-    return template.items.map((item, index) => {
-      const isCompleted = index < checklist.completedItems;
-      return {
-        id: checklist.id * 1000 + index,
-        title: item,
-        assignedTo: mockEmployees[0]?.name || "Non assigné",
-        type: "Routine" as const,
-        dueDate: "Aujourd'hui",
-        dueTime: checklist.executionTime,
-        status: (isCompleted ? "Terminé" : "À faire") as "À faire" | "En cours" | "Terminé" | "En retard",
-        origin: "checklist" as const,
-        checklistName: checklist.templateName,
-      };
+  // Grouper les tâches par priorité normalisée
+      // Toutes les tâches sont affichées dans "Tâches du jour"
+  if (priorityTasksData && typeof priorityTasksData === 'object' && Object.keys(priorityTasksData).length > 0) {
+    // Si les données viennent directement de l'API avec les nouvelles priorités
+    if (priorityTasksData.critical && Array.isArray(priorityTasksData.critical)) {
+      groupedTasks.critical = ((priorityTasksData.critical as any[]) || []).filter((t: any) => {
+        // Exclure les tâches de checklist (vérifier origin, is_checklist_item, ou checklist_instance_id)
+        const isChecklist = t.origin === "checklist" || 
+                           t.is_checklist_item === true || 
+                           (t.checklist_instance_id !== null && t.checklist_instance_id !== undefined);
+        return !isChecklist;
+      });
+    }
+    if (priorityTasksData.high && Array.isArray(priorityTasksData.high)) {
+      groupedTasks.high = (priorityTasksData.high as any[]).filter((t: any) => {
+        const isChecklist = t.origin === "checklist" || 
+                           t.is_checklist_item === true || 
+                           (t.checklist_instance_id !== null && t.checklist_instance_id !== undefined);
+        return !isChecklist;
+      });
+    }
+    if (priorityTasksData.normal && Array.isArray(priorityTasksData.normal)) {
+      groupedTasks.normal = (priorityTasksData.normal as any[]).filter((t: any) => {
+        // Vérifier si c'est une tâche de checklist
+        const isChecklist = t.origin === "checklist" || 
+                           t.is_checklist_item === true || 
+                           t.isChecklistItem === true ||
+                           (t.checklist_instance_id !== null && t.checklist_instance_id !== undefined) ||
+                           (t.checklistInstanceId !== null && t.checklistInstanceId !== undefined);
+        return !isChecklist;
+      });
+    }
+  } else if (Array.isArray(priorityTasks)) {
+    // Fallback: grouper manuellement si c'est un tableau
+    priorityTasks.forEach((task) => {
+      // Exclure les tâches de checklist
+      const isChecklist = (task as any).origin === "checklist" || 
+                         (task as any).is_checklist_item === true ||
+                         ((task as any).checklist_instance_id !== null && (task as any).checklist_instance_id !== undefined);
+      if (isChecklist) return;
+      const normalized = normalizePriority((task as any).priority);
+      groupedTasks[normalized].push(task);
     });
-  });
+  }
 
-  // Combiner toutes les tâches
-  const allTasks = [
-    ...mockTasks.map((t) => ({ ...t, origin: "manual" as const, checklistName: undefined as string | undefined })),
-    ...checklistTasks,
-  ];
+  // allTasksMap et allTasks sont maintenant définis plus haut (après frontendTasks et frontendTodayTasks)
 
   const filteredTasks = allTasks.filter((task) => {
-    if (employeeFilter !== "all" && task.assignedTo !== employeeFilter) return false;
+    if (employeeFilter !== "all") {
+      const employeeId = parseInt(employeeFilter);
+      if (!isNaN(employeeId) && (task as any).assignedToId !== employeeId) return false;
+    }
     if (categoryFilter !== "all" && task.type !== categoryFilter) return false;
     if (statusFilter !== "all" && task.status !== statusFilter) return false;
     if (originFilter !== "all" && ("origin" in task ? task.origin : "manual") !== originFilter) return false;
@@ -443,78 +868,77 @@ export default function TasksPage() {
 
   // Header content selon l'onglet
   const getHeaderContent = () => {
-    const todayTasksCount = todayTasks.length;
-    const lateTasksCount = lateTasks.length;
-    const checklistsCount = todayChecklists.length;
-
-    const rightContent = (
-      <div className="flex items-center gap-3">
-        <NotificationsDropdown
-          notifications={notifications}
-          onMarkAsRead={handleMarkNotificationAsRead}
-          onMarkAllAsRead={handleMarkAllNotificationsAsRead}
-        />
-      </div>
-    );
-
     if (activeTab === "today") {
       return {
         title: "Aujourd'hui",
         subtitle: formattedDate,
-        badge: `${todayTasksCount} tâches • ${lateTasksCount} en retard • ${checklistsCount} checklist${checklistsCount > 1 ? "s" : ""}`,
-        rightContent,
       };
     }
 
     return {
-      title: activeTab === "priorities" ? "Priorités" : activeTab === "tasks" ? "Toutes les tâches" : "Modèles de routines",
+      title: activeTab === "tasks" ? "Toutes les tâches" : "Modèles de routines",
       subtitle: activeTab === "checklists" ? "Vos routines internes" : undefined,
-      rightContent,
     };
   };
 
   const header = getHeaderContent();
 
   // Actions communes pour toutes les pages (en haut à droite)
-  const pageActions = (
+  // Afficher uniquement si l'utilisateur a les permissions
+  const pageActions = canCreateTasks ? (
     <div className="flex items-center gap-3">
-      {(user?.role === "super_admin" || user?.role === "owner") && (
-        <label className="flex items-center gap-2 cursor-pointer">
-          <span className="text-sm text-[#64748B]">Employé</span>
-          <input
-            type="checkbox"
-            checked={viewMode === "admin"}
-            onChange={(e) => setViewMode(e.target.checked ? "admin" : "employee")}
-            className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
-          />
-          <span className="text-sm text-[#64748B]">Admin</span>
-        </label>
-      )}
       {activeTab === "checklists" ? (
-        <button
+        <AnimatedButton
+          variant="primary"
           onClick={() => setIsChecklistModalOpen(true)}
-          className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
         >
           + Ajouter une checklist
-        </button>
+        </AnimatedButton>
       ) : (
-        <button
+        <AnimatedButton
+          variant="primary"
           onClick={() => setIsTaskModalOpen(true)}
-          className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
         >
           + Ajouter une tâche
-        </button>
+        </AnimatedButton>
       )}
     </div>
-  );
+  ) : null;
 
+
+  // Afficher le loader pendant le chargement
+  if (isLoading) {
+    return (
+      <PageTransition>
+        <PageTitle title="Tâches" />
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader />
+        </div>
+      </PageTransition>
+    );
+  }
+
+  // Afficher l'erreur si présente
+  if (error) {
+    return (
+      <PageTransition>
+        <PageTitle title="Tâches" />
+        <Card>
+          <EmptyState
+            title="Erreur"
+            description={error}
+            icon="❌"
+          />
+        </Card>
+      </PageTransition>
+    );
+  }
 
   return (
-    <>
+    <PageTransition>
       <PageTitle
         title={header.title}
         subtitle={header.subtitle}
-        rightContent={header.rightContent}
       />
       <div className="space-y-6">
         {/* Header avec badge pour Aujourd'hui */}
@@ -524,10 +948,10 @@ export default function TasksPage() {
             {header.subtitle && (
               <p className="mt-2 text-[#64748B]">{header.subtitle}</p>
             )}
-            {activeTab === "today" && header.badge && (
+            {activeTab === "today" && (header as any).badge && (
               <div className="mt-2">
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#F97316] text-white">
-                  {header.badge}
+                  {(header as any).badge}
                 </span>
               </div>
             )}
@@ -543,8 +967,8 @@ export default function TasksPage() {
               className="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
             >
               <option value="all">Tous les employés</option>
-              {mockEmployees.map((emp) => (
-                <option key={emp.id} value={emp.name}>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id.toString()}>
                   {emp.name}
                 </option>
               ))}
@@ -565,42 +989,43 @@ export default function TasksPage() {
             >
               Aujourd'hui
             </button>
+            <button
+              onClick={() => setActiveTab("tasks")}
+              className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
+                activeTab === "tasks"
+                  ? "border-[#F97316] text-[#F97316]"
+                  : "border-transparent text-[#64748B] hover:border-[#FDBA74] hover:text-[#F97316]"
+              }`}
+            >
+              Toutes les tâches
+            </button>
+            {/* Les modèles sont réservés aux admins/owners pour l'instant */}
             {(user?.role === "super_admin" || user?.role === "owner") && (
-              <>
-                <button
-                  onClick={() => setActiveTab("priorities")}
-                  className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
-                    activeTab === "priorities"
-                      ? "border-[#F97316] text-[#F97316]"
-                      : "border-transparent text-[#64748B] hover:border-[#FDBA74] hover:text-[#F97316]"
-                  }`}
-                >
-                  Priorités
-                </button>
-                <button
-                  onClick={() => setActiveTab("tasks")}
-                  className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
-                    activeTab === "tasks"
-                      ? "border-[#F97316] text-[#F97316]"
-                      : "border-transparent text-[#64748B] hover:border-[#FDBA74] hover:text-[#F97316]"
-                  }`}
-                >
-                  Toutes les tâches
-                </button>
-                <button
-                  onClick={() => setActiveTab("checklists")}
-                  className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
-                    activeTab === "checklists"
-                      ? "border-[#F97316] text-[#F97316]"
-                      : "border-transparent text-[#64748B] hover:border-[#FDBA74] hover:text-[#F97316]"
-                  }`}
-                >
-                  Modèles
-                </button>
-              </>
+              <button
+                onClick={() => setActiveTab("checklists")}
+                className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
+                  activeTab === "checklists"
+                    ? "border-[#F97316] text-[#F97316]"
+                    : "border-transparent text-[#64748B] hover:border-[#FDBA74] hover:text-[#F97316]"
+                }`}
+              >
+                Modèles
+              </button>
             )}
           </nav>
         </div>
+
+        {/* Messages d'erreur et de succès */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">
+            {error}
+          </div>
+        )}
+        {successMessage && (
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mb-4">
+            {successMessage}
+          </div>
+        )}
 
         {/* Contenu selon l'onglet actif */}
         {activeTab === "today" && (
@@ -610,48 +1035,10 @@ export default function TasksPage() {
               {pageActions}
             </div>
 
-            {/* VUE SIMPLE POUR EMPLOYÉS */}
-            {user?.role === "user" ? (
-              <div className="space-y-4">
-                {/* Liste simple des tâches */}
-                {[...todayTasks, ...checklistTasks].length === 0 ? (
-                  <Card>
-                    <CardContent className="p-8 text-center">
-                      <p className="text-[#64748B]">Aucune tâche pour aujourd'hui</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  [...todayTasks, ...checklistTasks].map((task) => (
-                    <div
-                      key={task.id}
-                      className="flex items-center gap-3 p-4 rounded-lg border border-[#E5E7EB] bg-white hover:bg-[#F9FAFB] transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={task.status === "Terminé" || task.status === "Terminée"}
-                        onChange={() => console.log("Toggle:", task.id)}
-                        className="w-5 h-5 rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316] cursor-pointer"
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-[#0F172A]">{task.title}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {"dueTime" in task && task.dueTime && (
-                            <span className="text-xs text-[#64748B]">🕐 {task.dueTime}</span>
-                          )}
-                          {"origin" in task && task.origin === "checklist" && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              Routine
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            ) : (
-              /* VUE COMPLÈTE POUR ADMIN/OWNER */
-              <>
+            {/* VUE UNIFIÉE : Même interface pour tous, avec restrictions selon les permissions */}
+            {/* TODO: Ajouter un système de permissions depuis les paramètres */}
+            {/* Pour l'instant, les users ne peuvent pas modifier/supprimer les tâches */}
+            <>
                 {/* SECTION 1 — Tâches en retard (prioritaire) */}
                 {lateTasks.length > 0 && (
                   <SectionCard
@@ -660,16 +1047,28 @@ export default function TasksPage() {
                     <div className="space-y-3">
                       {lateTasks.map((task) => (
                         <TaskCard
-                          key={task.id}
+                          key={`late-${task.id}`}
                           id={task.id}
                           title={task.title}
+                          description={(task as any).description}
                           assignedTo={task.assignedTo || "Non assigné"}
+                          assignedToId={(task as any).assignedToId}
                           category={task.type || "Interne"}
-                          priority="high"
+                          priority={normalizeTaskPriority((task as any).priority) || "high"}
                           dueDate={task.dueDate}
+                          dueDateRaw={(task as any).dueDateRaw}
+                          dueTime={("dueTime" in task ? (task as any).dueTime : undefined)}
                           status={(task.status === "Terminée" ? "Terminé" : task.status) as "À faire" | "En cours" | "Terminé" | "En retard"}
                           isLate={true}
-                          onViewDetails={(id) => console.log("View details:", id)}
+                          comment={(task as any).description}
+                          employees={employees}
+                          clientId={(task as any).clientId}
+                          clientInfo={getClientInfo((task as any).clientId)}
+                          projectId={(task as any).projectId}
+                          projectName={(task as any).projectName}
+                          onToggleComplete={handleToggleComplete}
+                          onUpdate={canEditTasks ? handleUpdateTask : undefined}
+                          onDelete={canDeleteTasks ? handleDeleteTask : undefined}
                         />
                       ))}
                     </div>
@@ -682,15 +1081,10 @@ export default function TasksPage() {
                     <div className="flex items-center gap-2">
                       <h2 className="text-lg font-semibold text-[#0F172A]">Tâches du jour</h2>
                       <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                        {todayTasks.length} tâches
+                        {totalTodayTasks} tâche{totalTodayTasks !== 1 ? "s" : ""}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <select className="text-xs rounded border border-[#E5E7EB] px-2 py-1 text-[#64748B]">
-                        <option>Par heure</option>
-                        <option>Par priorité</option>
-                        <option>Par catégorie</option>
-                      </select>
                       <button
                         onClick={() => setActiveTab("tasks")}
                         className="text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
@@ -701,23 +1095,33 @@ export default function TasksPage() {
                   </div>
                   <SectionCard title="Tâches du jour">
                     <div className="space-y-3">
-                    {todayTasks.map((task) => {
+                    {/* Afficher uniquement les tâches du jour (sans les tâches en retard) */}
+                    {todayTasksFiltered.map((task) => {
                       const priorityTask = priorityTasks.find((pt) => pt.title === task.title);
                       return (
                         <TaskCard
-                          key={task.id}
+                          key={`today-admin-${task.id}`}
                           id={task.id}
                           title={task.title}
+                          description={(task as any).description}
                           assignedTo={task.assignedTo || "Non assigné"}
+                          assignedToId={(task as any).assignedToId}
                           assignedToAvatar={priorityTask?.assignedToAvatar}
                           category={task.type || "Interne"}
-                          priority={(priorityTask?.priority === "urgent" ? "high" : priorityTask?.priority) || "medium"}
+                          priority={normalizeTaskPriority((priorityTask as any)?.priority) || "normal"}
                           dueDate={task.dueDate}
-                          dueTime={("dueTime" in task && typeof task.dueTime === "string" ? task.dueTime : undefined) || priorityTask?.dueTime}
+                          dueDateRaw={(task as any).dueDateRaw}
+                          dueTime={("dueTime" in task && typeof (task as any).dueTime === "string" ? (task as any).dueTime : undefined) || (priorityTask as any)?.dueTime}
                           status={(task.status === "Terminée" ? "Terminé" : task.status) as "À faire" | "En cours" | "Terminé" | "En retard"}
-                          onToggleComplete={(id) => console.log("Toggle:", id)}
-                          onViewDetails={(id) => console.log("View:", id)}
-                          onAddComment={(id) => console.log("Comment:", id)}
+                          comment={(task as any).description}
+                          employees={employees}
+                          clientId={(task as any).clientId}
+                          clientInfo={getClientInfo((task as any).clientId)}
+                          projectId={(task as any).projectId}
+                          projectName={(task as any).projectName}
+                          onToggleComplete={handleToggleComplete}
+                          onUpdate={canEditTasks ? handleUpdateTask : undefined}
+                          onDelete={canDeleteTasks ? handleDeleteTask : undefined}
                         />
                       );
                     })}
@@ -725,291 +1129,41 @@ export default function TasksPage() {
                   </SectionCard>
                 </div>
 
-                {/* SECTION 3 — Tâches générées par checklists (routines) */}
-                {todayChecklists.length > 0 && (
-                  <SectionCard title="Tâches des routines">
-                    <div className="space-y-3">
-                      {todayChecklists.flatMap((checklist) => {
-                        const template = mockTemplates.find((t) => t.id === checklist.templateId);
-                        if (!template) return [];
-
-                        return template.items.map((item, index) => {
-                          const isCompleted = index < checklist.completedItems;
-                          return (
-                            <div key={`${checklist.id}-${index}`} className="relative">
-                              <TaskCard
-                                id={checklist.id * 1000 + index}
-                                title={item}
-                                assignedTo={mockEmployees[0]?.name || "Non assigné"}
-                                category="Routine"
-                                priority="medium"
-                                dueDate="Aujourd'hui"
-                                dueTime={checklist.executionTime}
-                                status={isCompleted ? "Terminé" : "À faire"}
-                                onToggleComplete={(id) => console.log("Toggle checklist item:", id)}
-                                onViewDetails={(id) => console.log("View:", id)}
-                              />
-                              <div className="absolute top-2 right-2">
-                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                                  {checklist.templateName}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        });
-                      })}
-                    </div>
-                  </SectionCard>
-                )}
-
-                {/* SECTION 4 — Statistiques rapides */}
+                {/* SECTION 3 — Statistiques rapides (MVP V1: 3 stats uniquement) */}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <Card>
                     <CardContent className="p-4">
-                      <h3 className="text-sm font-semibold text-[#0F172A] mb-2">Progression</h3>
+                      <h3 className="text-sm font-semibold text-[#0F172A] mb-2">Total du jour</h3>
                       <p className="text-2xl font-bold text-[#0F172A]">
-                        {mockTasks.filter((t) => t.status === "Terminée").length} / {mockTasks.length}
+                        {totalTodayTasks}
                       </p>
-                      <p className="text-xs text-[#64748B] mt-1">tâches terminées</p>
+                      <p className="text-xs text-[#64748B] mt-1">tâches aujourd'hui</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="p-4">
-                      <h3 className="text-sm font-semibold text-[#0F172A] mb-2">Routines</h3>
-                      <p className="text-2xl font-bold text-[#0F172A]">
-                        {todayChecklists.length}
+                      <h3 className="text-sm font-semibold text-[#0F172A] mb-2">Terminées</h3>
+                      <p className="text-2xl font-bold text-green-600">
+                        {todayTasksFiltered.filter((t) => t.status === "Terminée").length}
                       </p>
-                      <p className="text-xs text-[#64748B] mt-1">routines actives aujourd'hui</p>
+                      <p className="text-xs text-[#64748B] mt-1">faites / non faites</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="p-4">
-                      <h3 className="text-sm font-semibold text-[#0F172A] mb-2">Alerte</h3>
-                      <p className="text-lg font-bold text-red-600">
-                        {lateTasks.length} tâche{lateTasks.length > 1 ? "s" : ""} critique{lateTasks.length > 1 ? "s" : ""} non faite{lateTasks.length > 1 ? "s" : ""}
+                      <h3 className="text-sm font-semibold text-[#0F172A] mb-2">En retard</h3>
+                      <p className="text-2xl font-bold text-red-600">
+                        {lateTasks.length}
                       </p>
-                      <p className="text-xs text-[#64748B] mt-1">Action requise</p>
+                      <p className="text-xs text-[#64748B] mt-1">tâches en retard</p>
                     </CardContent>
                   </Card>
                 </div>
               </>
-            )}
           </div>
         )}
 
-        {activeTab === "priorities" && (
-          <div className="space-y-6">
-            {/* Actions en haut à droite */}
-            <div className="flex justify-end">
-              {pageActions}
-            </div>
-            {/* Filtres */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => setPriorityFilter("critical")}
-                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                  priorityFilter === "critical"
-                    ? "border-red-600 bg-red-600 text-white"
-                    : "border-red-200 bg-red-50 text-red-800 hover:bg-red-100"
-                }`}
-              >
-                Critique
-              </button>
-              <button
-                onClick={() => setPriorityFilter("high")}
-                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                  priorityFilter === "high"
-                    ? "border-orange-600 bg-orange-600 text-white"
-                    : "border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100"
-                }`}
-              >
-                Important
-              </button>
-              <button
-                onClick={() => setPriorityFilter("urgent")}
-                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                  priorityFilter === "urgent"
-                    ? "border-yellow-600 bg-yellow-600 text-white"
-                    : "border-yellow-200 bg-yellow-50 text-yellow-800 hover:bg-yellow-100"
-                }`}
-              >
-                Urgent
-              </button>
-              <select
-                value={employeeFilter}
-                onChange={(e) => setEmployeeFilter(e.target.value)}
-                className="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-              >
-                <option value="all">Assigné à</option>
-                {mockEmployees.map((emp) => (
-                  <option key={emp.id} value={emp.name}>
-                    {emp.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* SECTION 1 — Tâches Critiques */}
-            {groupedTasks.critical.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
-                        Critique
-                      </span>
-                      <h2 className="text-lg font-semibold text-[#0F172A]">
-                        {groupedTasks.critical.length} tâche{groupedTasks.critical.length > 1 ? "s" : ""}
-                      </h2>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {groupedTasks.critical.map((task) => (
-                      <div
-                        key={task.id}
-                        className="p-4 rounded-lg border border-red-200 bg-red-50"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xl">🔥</span>
-                              <h3 className="text-sm font-semibold text-[#0F172A]">
-                                {task.title}
-                              </h3>
-                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-200 text-red-800">
-                                Doit être fait aujourd'hui
-                              </span>
-                            </div>
-                            {task.description && (
-                              <p className="text-xs text-[#64748B] mb-2">{task.description}</p>
-                            )}
-                            <div className="flex items-center gap-3 text-xs text-[#64748B]">
-                              <span>Deadline: {("dueTime" in task && task.dueTime) || task.dueDate}</span>
-                              <span>•</span>
-                              <span>Assigné à: {task.assignedTo}</span>
-                            </div>
-                          </div>
-                          <input
-                            type="checkbox"
-                            className="mt-1 rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* SECTION 2 — Tâches Importantes */}
-            {groupedTasks.high.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 border border-orange-200">
-                      Important
-                    </span>
-                    <h2 className="text-lg font-semibold text-[#0F172A]">
-                      {groupedTasks.high.length} tâche{groupedTasks.high.length > 1 ? "s" : ""}
-                    </h2>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {groupedTasks.high.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        id={task.id}
-                        title={task.title}
-                        description={task.description}
-                        assignedTo={task.assignedTo}
-                        assignedToAvatar={task.assignedToAvatar}
-                        category={task.type}
-                        priority="high"
-                        dueDate={task.dueDate}
-                        dueTime={"dueTime" in task ? task.dueTime : undefined}
-                        status={task.status as any}
-                        onViewDetails={(id) => console.log("View:", id)}
-                        onAddComment={(id) => console.log("Comment:", id)}
-                      />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* SECTION 3 — À faire rapidement */}
-            {groupedTasks.urgent.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-200">
-                      Urgent
-                    </span>
-                    <h2 className="text-lg font-semibold text-[#0F172A]">
-                      {groupedTasks.urgent.length} tâche{groupedTasks.urgent.length > 1 ? "s" : ""}
-                    </h2>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {groupedTasks.urgent.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        id={task.id}
-                        title={task.title}
-                        assignedTo={task.assignedTo}
-                        category={task.type}
-                        priority="high"
-                        dueDate={task.dueDate}
-                        dueTime={"dueTime" in task ? task.dueTime : undefined}
-                        status={task.status as "À faire" | "En cours" | "Terminé" | "En retard"}
-                        onViewDetails={(id) => console.log("View:", id)}
-                      />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* SECTION 4 — Alerte Admin */}
-            {(user?.role === "super_admin" || user?.role === "owner") && viewMode === "admin" && (
-              <Card className="border-orange-300 bg-orange-50">
-                <CardHeader>
-                  <h2 className="text-lg font-semibold text-[#0F172A]">⚠️ Alerte Admin</h2>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <p className="text-[#64748B]">
-                      • {mockTasks.filter((t) => t.status === "À faire").length} tâches où aucun employé n'a commencé
-                    </p>
-                    <p className="text-[#64748B]">
-                      • {todayChecklists.filter((c) => c.status === "en_cours").length} checklist{todayChecklists.filter((c) => c.status === "en_cours").length > 1 ? "s" : ""} non complétée{todayChecklists.filter((c) => c.status === "en_cours").length > 1 ? "s" : ""}
-                    </p>
-                    <p className="text-[#64748B]">
-                      • {lateTasks.length} délai{lateTasks.length > 1 ? "s" : ""} dépassé{lateTasks.length > 1 ? "s" : ""}
-                    </p>
-                    <p className="text-[#64748B]">
-                      • {mockTasks.filter((t) => t.status === "À faire" && t.type === "Interne").length} tâches obligatoires non validées
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {priorityTasks.length === 0 && (
-              <Card>
-                <EmptyState
-                  title="Aucune tâche prioritaire"
-                  description="Toutes vos tâches sont à jour !"
-                  icon="✅"
-                />
-              </Card>
-            )}
-          </div>
-        )}
+        {/* Onglet "Priorités" supprimé */}
 
         {activeTab === "tasks" && (
           <div className="space-y-6">
@@ -1017,170 +1171,28 @@ export default function TasksPage() {
             <div className="flex justify-end">
               {pageActions}
             </div>
-            {/* Barre de recherche et filtres */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher une tâche..."
-                  className="flex-1 rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                />
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                >
-                  <option value="all">Tous les statuts</option>
-                  <option value="À faire">À faire</option>
-                  <option value="En cours">En cours</option>
-                  <option value="Terminé">Terminé</option>
-                  <option value="En retard">En retard</option>
-                </select>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                >
-                  <option value="all">Toutes les catégories</option>
-                  <option value="Interne">Interne</option>
-                  <option value="Client">Client</option>
-                  <option value="Fournisseur">Fournisseur</option>
-                  <option value="Routine">Routine</option>
-                </select>
-                <select
-                  value={employeeFilter}
-                  onChange={(e) => setEmployeeFilter(e.target.value)}
-                  className="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                >
-                  <option value="all">Tous les employés</option>
-                  {mockEmployees.map((emp) => (
-                    <option key={emp.id} value={emp.name}>
-                      {emp.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={priorityFilter}
-                  onChange={(e) => setPriorityFilter(e.target.value)}
-                  className="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                >
-                  <option value="all">Toutes les priorités</option>
-                  <option value="critical">Critique</option>
-                  <option value="high">Haute</option>
-                  <option value="medium">Moyenne</option>
-                  <option value="low">Faible</option>
-                </select>
-                <select
-                  value={originFilter}
-                  onChange={(e) => setOriginFilter(e.target.value)}
-                  className="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                >
-                  <option value="all">Toutes les origines</option>
-                  <option value="manual">Manuel</option>
-                  <option value="checklist">Généré par checklist</option>
-                </select>
-              </div>
-            </div>
 
-            {/* Stats Admin */}
-            {(user?.role === "super_admin" || user?.role === "owner") && (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <p className="text-xs text-[#64748B] mb-1">Total</p>
-                    <p className="text-xl font-bold text-[#0F172A]">{allTasks.length}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <p className="text-xs text-[#64748B] mb-1">Complétées</p>
-                    <p className="text-xl font-bold text-green-600">
-                      {allTasks.filter((t) => t.status === "Terminé" || t.status === "Terminée").length}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <p className="text-xs text-[#64748B] mb-1">En retard</p>
-                    <p className="text-xl font-bold text-red-600">
-                      {allTasks.filter((t) => t.status === "En retard").length}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <p className="text-xs text-[#64748B] mb-1">Générées par checklist</p>
-                    <p className="text-xl font-bold text-[#0F172A]">
-                      {allTasks.filter((t) => "origin" in t && t.origin === "checklist").length}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* Liste complète */}
-            {filteredTasks.length === 0 ? (
-              <Card>
-                <EmptyState
-                  title="Aucune tâche trouvée"
-                  description="Aucune tâche ne correspond à vos filtres."
-                  icon="📋"
-                />
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {filteredTasks.map((task) => {
-                  const priorityTask = priorityTasks.find((pt) => pt.title === task.title);
-                  const isFromChecklist = "origin" in task && task.origin === "checklist";
-                  
-                  return (
-                    <div key={task.id} className="relative">
-                      <TaskCard
-                        id={task.id}
-                        title={task.title}
-                        assignedTo={task.assignedTo || "Non assigné"}
-                        assignedToAvatar={priorityTask?.assignedToAvatar}
-                        category={task.type || "Interne"}
-                        priority={(priorityTask?.priority === "urgent" ? "high" : priorityTask?.priority) || "medium"}
-                        dueDate={task.dueDate}
-                        dueTime={("dueTime" in task ? task.dueTime : undefined) || priorityTask?.dueTime}
-                        status={(task.status === "Terminée" ? "Terminé" : task.status) as "À faire" | "En cours" | "Terminé" | "En retard"}
-                        isLate={task.status === "En retard"}
-                        onToggleComplete={(id) => console.log("Toggle:", id)}
-                        onViewDetails={(id) => console.log("View:", id)}
-                        onAddComment={(id) => console.log("Comment:", id)}
-                      />
-                      {isFromChecklist && task.checklistName && (
-                        <div className="absolute top-2 right-2">
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                            Généré par checklist : {task.checklistName}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Archivage */}
-            <Card>
-              <CardHeader>
-                <h3 className="text-sm font-semibold text-[#0F172A]">Tâches archivées</h3>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-[#64748B]">
-                  Historique complet des 30-60 derniers jours
-                </p>
-                <button className="mt-3 text-sm text-[#F97316] hover:text-[#EA580C]">
-                  Voir l'historique →
+            {/* Bouton pour ouvrir l'interface de sélection multiple */}
+            {canDeleteTasks && (
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={() => setShowRecurringTasksModal(true)}
+                  className="px-4 py-2 rounded-lg bg-[#F97316] text-white text-sm font-medium hover:bg-[#EA580C] transition-colors"
+                >
+                  Sélection multiple
                 </button>
-              </CardContent>
-            </Card>
+              </div>
+            )}
+
+            {/* Calendrier hebdomadaire */}
+            <WeeklyCalendar
+              tasks={allTasks as any}
+              employees={employees}
+              onTaskClick={(task) => setSelectedTaskForDetails(task as any)}
+              onToggleComplete={handleToggleComplete}
+              onUpdate={canEditTasks ? handleUpdateTask : undefined}
+              onDelete={canDeleteTasks ? handleDeleteTask : undefined}
+            />
           </div>
         )}
 
@@ -1197,14 +1209,16 @@ export default function TasksPage() {
               <p className="mt-2 text-[#64748B]">
                 Créez et gérez vos modèles de checklists. Ces modèles génèrent automatiquement les tâches quotidiennes qui apparaissent dans "Aujourd'hui" et "Toutes les tâches".
               </p>
-              <p className="mt-1 text-xs text-[#64748B] italic">
-                ⚠️ Cette page est réservée aux administrateurs. Les employés voient les tâches générées dans "Aujourd'hui".
-              </p>
+              {user?.role === "user" && (
+                <p className="mt-1 text-xs text-[#64748B] italic">
+                  ⚠️ Vous pouvez consulter les modèles mais pas les modifier.
+                </p>
+              )}
             </div>
 
             {/* Liste des modèles */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {mockTemplates.map((template) => (
+              {frontendTemplates.map((template) => (
                 <Card key={template.id}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
@@ -1228,32 +1242,46 @@ export default function TasksPage() {
                           {template.recurrence === "monthly" && "Mensuelle"}
                         </span>
                       </div>
-                      {template.executionTime && (
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-[#64748B]">Heure</span>
-                          <span className="font-medium text-[#0F172A]">{template.executionTime}</span>
-                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {canCreateTasks && (
+                        <button
+                          onClick={() => handleExecuteChecklist(template.id)}
+                          className="flex-1 rounded-lg bg-[#F97316] px-3 py-2 text-sm font-medium text-white hover:bg-[#EA580C] transition-colors"
+                        >
+                          Exécuter
+                        </button>
+                      )}
+                      {(user?.role === "super_admin" || user?.role === "owner") && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingChecklistTemplate(template as any);
+                              setIsChecklistModalOpen(true);
+                            }}
+                            className="flex-1 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB]"
+                          >
+                            Modifier
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTemplate(template.id)}
+                            className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                            title="Supprimer"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </>
                       )}
                     </div>
-                    {(user?.role === "super_admin" || user?.role === "owner") && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            console.log("Modifier checklist:", template);
-                          }}
-                          className="flex-1 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB]"
-                        >
-                          Modifier
-                        </button>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               ))}
             </div>
 
             {/* Message si aucun modèle */}
-            {mockTemplates.length === 0 && (
+            {frontendTemplates.length === 0 && (
               <Card>
                 <EmptyState
                   title="Aucun modèle de routine"
@@ -1270,22 +1298,347 @@ export default function TasksPage() {
       <CreateTaskModal
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
+        employees={employees}
         onSubmit={async (data: TaskFormData) => {
-          // TODO: Appel API pour créer la tâche
-          console.log("Create task:", data);
-          setIsTaskModalOpen(false);
+          if (!token) return;
+          
+          try {
+            // Mapper les données du formulaire vers l'API
+            await createTaskAPI(token, {
+              title: data.title,
+              description: data.description,
+              priority: data.priority,
+              assigned_to_id: data.assigned_to_id,
+              due_date: data.due_date,
+              due_time: data.due_time,
+              recurrence: data.recurrence || "none",
+              recurrence_days: data.recurrence_days,
+              is_mandatory: data.is_mandatory || false,
+            });
+            
+            // Recharger les données après création
+            await loadData();
+            
+            // Rafraîchir les permissions utilisateur
+            if (refreshUserFromAPI) {
+              await refreshUserFromAPI();
+            }
+            
+            // Afficher le message de succès
+            setSuccessMessage("Tâche créée avec succès !");
+            setTimeout(() => setSuccessMessage(null), 5000);
+            
+            setIsTaskModalOpen(false);
+          } catch (err: any) {
+            console.error("Erreur lors de la création de la tâche:", err);
+            setError(err.message || "Erreur lors de la création de la tâche");
+          }
         }}
       />
 
       <CreateChecklistModal
         isOpen={isChecklistModalOpen}
-        onClose={() => setIsChecklistModalOpen(false)}
-        onSubmit={async (data: ChecklistFormData) => {
-          // TODO: Appel API pour créer la checklist
-          console.log("Create checklist:", data);
+        onClose={() => {
           setIsChecklistModalOpen(false);
+          setEditingChecklistTemplate(null);
+        }}
+        employees={employees}
+        initialData={editingChecklistTemplate ? (() => {
+          const recurrenceDays = Array.isArray(editingChecklistTemplate.recurrenceDays) 
+            ? editingChecklistTemplate.recurrenceDays 
+            : (editingChecklistTemplate.recurrenceDays ? [editingChecklistTemplate.recurrenceDays] : []);
+          
+          return {
+            name: editingChecklistTemplate.name,
+            description: editingChecklistTemplate.description,
+            items: editingChecklistTemplate.items,
+            recurrence: editingChecklistTemplate.recurrence || "daily",
+            recurrence_days: recurrenceDays,
+            assigned_to_id: editingChecklistTemplate.defaultAssignedToId,
+          };
+        })() : undefined}
+        onSubmit={async (data: ChecklistFormData) => {
+          if (!token) return;
+          
+          try {
+            if (editingChecklistTemplate) {
+              // Mode édition
+              await updateChecklistTemplate(token, editingChecklistTemplate.id, {
+                name: data.name,
+                description: data.description,
+                items: data.items,
+                recurrence: data.recurrence,
+                recurrenceDays: data.recurrence_days,
+                defaultAssignedToId: data.assigned_to_id,
+              });
+            } else {
+              // Mode création
+              await createChecklistTemplate(token, {
+                name: data.name,
+                description: data.description || "",
+                items: data.items,
+                recurrence: data.recurrence,
+                recurrenceDays: data.recurrence_days,
+                isActive: true,
+                defaultAssignedToId: data.assigned_to_id,
+              });
+            }
+            
+            // Recharger les données après création/modification
+            await loadData();
+            
+            setIsChecklistModalOpen(false);
+            setEditingChecklistTemplate(null);
+          } catch (err: any) {
+            console.error(`Erreur lors de la ${editingChecklistTemplate ? 'modification' : 'création'} de la checklist:`, err);
+            setError(err.message || `Erreur lors de la ${editingChecklistTemplate ? 'modification' : 'création'} de la checklist`);
+          }
         }}
       />
-    </>
+
+      {/* Modal de détails/édition d'une tâche depuis le calendrier */}
+      {selectedTaskForDetails && (
+        <>
+          {/* Overlay */}
+          <div 
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => setSelectedTaskForDetails(null)}
+          />
+          {/* Modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className="bg-white rounded-lg shadow-xl p-6 pointer-events-auto w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-[#0F172A]">Détails de la tâche</h2>
+                <button
+                  onClick={() => setSelectedTaskForDetails(null)}
+                  className="text-[#64748B] hover:text-[#0F172A]"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Afficher TaskCard en mode édition */}
+              <TaskCard
+                id={selectedTaskForDetails.id}
+                title={selectedTaskForDetails.title}
+                description={(selectedTaskForDetails as any).description}
+                assignedTo={selectedTaskForDetails.assignedTo || "Non assigné"}
+                assignedToId={(selectedTaskForDetails as any).assignedToId}
+                category={selectedTaskForDetails.type || "Interne"}
+                priority={normalizeTaskPriority((selectedTaskForDetails as any).priority) || "normal"}
+                dueDate={selectedTaskForDetails.dueDate || ""}
+                dueDateRaw={(selectedTaskForDetails as any).dueDateRaw}
+                dueTime={(selectedTaskForDetails as any).dueTime}
+                status={(selectedTaskForDetails.status === "Terminée" ? "Terminé" : selectedTaskForDetails.status) as "À faire" | "En cours" | "Terminé" | "En retard"}
+                isLate={selectedTaskForDetails.status === "En retard"}
+                comment={(selectedTaskForDetails as any).description}
+                employees={employees}
+                clientId={(selectedTaskForDetails as any).clientId}
+                clientInfo={getClientInfo((selectedTaskForDetails as any).clientId)}
+                projectId={(selectedTaskForDetails as any).projectId}
+                projectName={(selectedTaskForDetails as any).projectName}
+                onToggleComplete={async (id) => {
+                  await handleToggleComplete(id);
+                  await loadData();
+                  // Recharger la tâche sélectionnée
+                  const allTasksForUpdate = [...tasks, ...todayTasks, ...Object.values(priorityTasksData).flat()];
+                  const updatedTask = allTasksForUpdate.find(t => t.id === id);
+                  if (updatedTask) setSelectedTaskForDetails(updatedTask);
+                }}
+                onUpdate={async (id, updates) => {
+                  await handleUpdateTask(id, updates);
+                  await loadData();
+                  // Recharger la tâche sélectionnée
+                  const allTasksForUpdate = [...tasks, ...todayTasks, ...Object.values(priorityTasksData).flat()];
+                  const updatedTask = allTasksForUpdate.find(t => t.id === id);
+                  if (updatedTask) setSelectedTaskForDetails(updatedTask);
+                }}
+                onDelete={async (id) => {
+                  await handleDeleteTask(id);
+                  setSelectedTaskForDetails(null);
+                }}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de confirmation pour décocher une tâche */}
+      {showUncompleteConfirm && (
+        <>
+          {/* Overlay noir */}
+          <div 
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => setShowUncompleteConfirm(false)}
+          />
+          {/* Modal centré au milieu de l'écran */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className="bg-white rounded-lg shadow-xl p-4 text-center pointer-events-auto w-64"
+            >
+              <p className="text-xs text-[#64748B] mb-3">
+                Décocher cette tâche ?
+              </p>
+              
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded-lg text-xs mb-3">
+                  {error}
+                </div>
+              )}
+              
+              <div className="flex justify-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setShowUncompleteConfirm(false);
+                    setTaskToUncomplete(null);
+                    setError(null);
+                  }}
+                  className="text-xs px-3 py-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={confirmUncompleteTask}
+                  className="text-xs px-3 py-1"
+                >
+                  Décocher
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de confirmation pour supprimer un modèle de routine */}
+      {showDeleteTemplateConfirm && (
+        <>
+          {/* Overlay noir */}
+          <div 
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => setShowDeleteTemplateConfirm(false)}
+          />
+          {/* Modal centré au milieu de l'écran */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className="bg-white rounded-lg shadow-xl p-4 text-center pointer-events-auto w-64"
+            >
+              <p className="text-xs text-[#64748B] mb-3">
+                Supprimer ce modèle de routine ?
+              </p>
+              
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded-lg text-xs mb-3">
+                  {error}
+                </div>
+              )}
+              
+              <div className="flex justify-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setShowDeleteTemplateConfirm(false);
+                    setTemplateToDelete(null);
+                    setError(null);
+                  }}
+                  className="text-xs px-3 py-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={confirmDeleteTemplate}
+                  className="text-xs px-3 py-1"
+                >
+                  Supprimer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de sélection multiple */}
+      <RecurringTasksModal
+        isOpen={showRecurringTasksModal}
+        onClose={() => setShowRecurringTasksModal(false)}
+        tasks={allTasks as any}
+        templates={templates}
+        onDeleteAllOccurrences={handleDeleteAllOccurrences}
+        onDeleteTask={async (taskId: number) => {
+          if (!token) return;
+          try {
+            await deleteTaskAPI(token, taskId);
+            await loadData();
+          } catch (err: any) {
+            console.error("Erreur lors de la suppression de la tâche:", err);
+            throw err;
+          }
+        }}
+      />
+
+      {/* Modal de confirmation pour supprimer une tâche */}
+      {showDeleteConfirm && (
+        <>
+          {/* Overlay noir */}
+          <div 
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => setShowDeleteConfirm(false)}
+          />
+          {/* Modal centré au milieu de l'écran */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className="bg-white rounded-lg shadow-xl p-4 text-center pointer-events-auto w-64"
+            >
+              <p className="text-xs text-[#64748B] mb-3">
+                Supprimer cette tâche ?
+              </p>
+              
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded-lg text-xs mb-3">
+                  {error}
+                </div>
+              )}
+              
+              <div className="flex justify-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setTaskToDelete(null);
+                    setError(null);
+                  }}
+                  className="text-xs px-3 py-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={confirmDeleteTask}
+                  className="text-xs px-3 py-1"
+                >
+                  Supprimer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </PageTransition>
   );
 }

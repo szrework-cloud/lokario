@@ -10,7 +10,7 @@ export function Card({ children, className }: CardProps) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-[#E5E7EB] bg-white shadow-sm",
+        "rounded-2xl border border-[#E5E7EB] bg-white shadow-sm transition-all duration-200 hover:shadow-md",
         className
       )}
     >
@@ -38,6 +38,10 @@ interface CardContentProps {
 }
 
 export function CardContent({ children, className }: CardContentProps) {
-  return <div className={cn("px-4 md:px-6 py-4 md:py-6", className)}>{children}</div>;
+  // Si className contient "flex" ou "items-center", on ne met pas de padding par défaut
+  // pour permettre le centrage
+  const hasFlex = className?.includes("flex") || className?.includes("items-center");
+  const paddingClass = hasFlex ? "p-0" : "px-4 md:px-6 py-4 md:py-6";
+  return <div className={cn(paddingClass, className)}>{children}</div>;
 }
 

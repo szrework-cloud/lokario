@@ -1,6 +1,8 @@
 "use client";
 
-import { Message, MessageSource } from "./types";
+import { useState } from "react";
+import { Message, MessageSource, Attachment } from "./types";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ChatMessageProps {
   message: Message;
@@ -9,6 +11,9 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message, showDateSeparator, dateLabel }: ChatMessageProps) {
+  const { token } = useAuth();
+  const [imagePreview, setImagePreview] = useState<{ url: string; name: string; blob?: Blob } | null>(null);
+  
   const sourceIcons: Record<MessageSource, string> = {
     email: "✉️",
     whatsapp: "📱",
@@ -28,6 +33,86 @@ export function ChatMessage({ message, showDateSeparator, dateLabel }: ChatMessa
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const handleDownloadAttachment = async (attachment: Attachment, blob?: Blob) => {
+    if (!token && !blob) {
+      console.error("Token d'authentification manquant");
+      return;
+    }
+
+    try {
+      let fileBlob = blob;
+      
+      // Si pas de blob fourni, télécharger le fichier
+      if (!fileBlob) {
+        const fileUrl = attachment.url;
+        const response = await fetch(fileUrl, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+        if (!response.ok) {
+          console.error("Erreur lors du téléchargement du fichier");
+          return;
+        }
+        
+        fileBlob = await response.blob();
+      }
+      
+      // Télécharger le fichier
+      const url = URL.createObjectURL(fileBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = attachment.name;
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Erreur lors du téléchargement de la pièce jointe:", error);
+    }
+  };
+
+  const handleOpenAttachment = async (attachment: Attachment, event?: React.MouseEvent) => {
+    if (!token) {
+      console.error("Token d'authentification manquant");
+      return;
+    }
+
+    // Si Ctrl+Click ou Cmd+Click, télécharger directement
+    if (event && (event.ctrlKey || event.metaKey)) {
+      handleDownloadAttachment(attachment);
+      return;
+    }
+
+    try {
+      // L'URL est déjà complète dans attachment.url
+      const fileUrl = attachment.url;
+      
+      // Si c'est une image, ouvrir la prévisualisation
+      if (attachment.type === "image") {
+        const response = await fetch(fileUrl, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const blob = await response.blob();
+          const imageUrl = URL.createObjectURL(blob);
+          setImagePreview({ url: imageUrl, name: attachment.name, blob });
+          return;
+        }
+      }
+      
+      // Pour les autres types de fichiers, télécharger
+      handleDownloadAttachment(attachment);
+    } catch (error) {
+      console.error("Erreur lors de l'ouverture de la pièce jointe:", error);
+    }
   };
 
   return (
@@ -85,30 +170,92 @@ export function ChatMessage({ message, showDateSeparator, dateLabel }: ChatMessa
                 {message.attachments.map((attachment) => (
                   <div
                     key={attachment.id}
-                    className="flex items-center gap-2 p-2 bg-black/10 rounded-lg"
+                    className={`w-full flex items-center gap-2 p-2 rounded-lg transition-all hover:shadow-md ${
+                      message.isFromClient
+                        ? "bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB]"
+                        : "bg-white/20 hover:bg-white/30 border border-white/30"
+                    }`}
                   >
-                    <span className="text-lg">
-                      {attachment.type === "image" && "🖼️"}
-                      {attachment.type === "pdf" && "📄"}
-                      {attachment.type === "document" && "📎"}
-                      {attachment.type === "other" && "📎"}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{attachment.name}</p>
-                      <p className="text-xs opacity-70">
-                        {(attachment.size / 1024).toFixed(1)} KB
-                      </p>
-                    </div>
-                    <a
-                      href={attachment.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs underline"
+                    <button
+                      onClick={(e) => handleOpenAttachment(attachment, e)}
+                      className="flex-1 flex items-center gap-2 min-w-0"
                     >
-                      Voir
-                    </a>
+                      <span className="text-lg flex-shrink-0">
+                        {attachment.type === "image" && "🖼️"}
+                        {attachment.type === "pdf" && "📄"}
+                        {attachment.type === "document" && "📎"}
+                        {attachment.type === "other" && "📎"}
+                      </span>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className={`text-xs font-medium truncate ${
+                          message.isFromClient ? "text-[#0F172A]" : "text-white"
+                        }`}>
+                          {attachment.name}
+                        </p>
+                        <p className={`text-xs ${
+                          message.isFromClient ? "text-[#64748B]" : "text-white/70"
+                        }`}>
+                          {(attachment.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadAttachment(attachment);
+                      }}
+                      className={`text-xs flex-shrink-0 px-2 py-1 rounded hover:bg-black/10 ${
+                        message.isFromClient ? "text-[#F97316]" : "text-white/90"
+                      }`}
+                      title="Télécharger (Ctrl+Click ou Cmd+Click pour télécharger directement)"
+                    >
+                      Télécharger
+                    </button>
                   </div>
                 ))}
+              </div>
+            )}
+            
+            {/* Modal de prévisualisation d'image */}
+            {imagePreview && (
+              <div
+                className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+                onClick={() => setImagePreview(null)}
+              >
+                <div className="max-w-4xl max-h-[90vh] p-4">
+                  <div className="relative">
+                    <div className="absolute -top-10 right-0 flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (imagePreview.blob) {
+                            handleDownloadAttachment(
+                              { name: imagePreview.name } as Attachment,
+                              imagePreview.blob
+                            );
+                          }
+                        }}
+                        className="text-white hover:text-gray-300 px-3 py-1 rounded bg-black/50 hover:bg-black/70 text-sm"
+                        title="Télécharger l'image"
+                      >
+                        Télécharger
+                      </button>
+                      <button
+                        onClick={() => setImagePreview(null)}
+                        className="text-white hover:text-gray-300 text-2xl font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <img
+                      src={imagePreview.url}
+                      alt={imagePreview.name}
+                      className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <p className="text-white text-center mt-2">{imagePreview.name}</p>
+                  </div>
+                </div>
               </div>
             )}
             <div className="flex items-center justify-end mt-1">

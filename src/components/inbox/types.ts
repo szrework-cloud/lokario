@@ -12,6 +12,8 @@ export interface Attachment {
   url: string;
   size: number; // en bytes
   uploadedAt: string;
+  filePath?: string; // Chemin du fichier sur le serveur (pour l'envoi)
+  mimeType?: string; // MIME type du fichier
 }
 
 export interface Message {
@@ -55,11 +57,21 @@ export type InboxFolder = {
   type: FolderType;
   isSystem: boolean; // Inbox, Archivés, Spam
 
-  // Classification IA
+  // Classification avec filtres
   aiRules?: {
-    keywords?: string[];
-    context?: string;
     autoClassify: boolean;
+    priority?: number;
+    filters?: {
+      keywords?: string[];
+      keywords_location?: "subject" | "content" | "any";
+      sender_email?: string[];
+      sender_domain?: string[];
+      sender_phone?: string[];
+      match_type?: "all" | "any";
+    };
+    // Ancien champ (pour compatibilité)
+    context?: string;
+    keywords?: string[];
   };
 
   // Réponse automatique
@@ -81,6 +93,8 @@ export interface InboxItem {
   client: string;
   clientId?: number;
   clientInfo?: ClientInfo;
+  clientEmail?: string;  // Email de l'expéditeur
+  clientPhone?: string;  // Téléphone de l'expéditeur
   subject: string;
   lastMessage: string;
   status: InboxStatus;
@@ -99,5 +113,6 @@ export interface InboxItem {
   autoReplySent?: boolean;
   autoReplyPending?: boolean;
   autoReplyMode?: "none" | "approval" | "auto";
+  pendingReplyContent?: string;
 }
 

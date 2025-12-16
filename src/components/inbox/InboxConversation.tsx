@@ -62,19 +62,24 @@ export function InboxConversation({
             <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-[#F97316] to-[#EA580C] flex items-center justify-center text-white text-xs font-semibold">
               {getInitials(conversation.client)}
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between mb-1">
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-semibold text-[#0F172A] truncate">
-                    {conversation.client}
-                  </h4>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-xs">{sourceIcons[conversation.source]}</span>
-                    <p className="text-xs text-[#64748B] truncate">
-                      {conversation.subject}
-                    </p>
-                  </div>
-                </div>
+                  <div className="flex items-start justify-between mb-1">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold text-[#0F172A] truncate">
+                        {conversation.client}
+                      </h4>
+                      {(conversation.clientEmail || conversation.clientPhone) && (
+                        <p className="text-xs text-[#64748B] truncate mt-0.5">
+                          {conversation.clientEmail || conversation.clientPhone}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-xs">{sourceIcons[conversation.source]}</span>
+                        <p className="text-xs text-[#64748B] truncate">
+                          {conversation.subject}
+                        </p>
+                      </div>
+                    </div>
                 {/* Point de couleur statut */}
                 <div
                   className={`flex-shrink-0 w-2 h-2 rounded-full ${
@@ -117,11 +122,6 @@ export function InboxConversation({
             >
               {conversation.status}
             </span>
-            {conversation.isUrgent && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                🔴 Urgent
-              </span>
-            )}
           </div>
         </div>
       </Card>

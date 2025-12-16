@@ -5,9 +5,11 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import Image from "next/image";
 
 const adminNavItems = [
   { label: "Entreprises", href: "/admin/companies" },
+  { label: "Utilisateurs", href: "/admin/users" },
   { label: "Packs", href: "/admin/packs" },
 ];
 
@@ -52,10 +54,19 @@ export default function AdminLayout({
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="border-b border-[#E5E7EB] px-6 py-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Image 
+                src="/lokario-logo.png" 
+                alt="Lokario" 
+                width={24} 
+                height={24}
+                className="h-6 w-auto" 
+              />
             <h1 className="text-xl font-semibold text-[#0F172A]">
-              Super Admin
+                LOKARIO
             </h1>
-            <p className="text-xs text-[#64748B] mt-1">Local Assistant</p>
+            </div>
+            <p className="text-xs text-[#64748B]">Super Admin</p>
           </div>
 
           {/* Navigation */}

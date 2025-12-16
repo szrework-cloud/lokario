@@ -5,13 +5,14 @@ import { InboxFolder } from "./types";
 import { useAuth } from "@/hooks/useAuth";
 import { CreateFolderModal } from "./CreateFolderModal";
 import { FolderSettingsModal } from "./FolderSettingsModal";
+import { logger } from "@/lib/logger";
 
 interface InboxFoldersSidebarProps {
   folders: InboxFolder[];
   activeFolderId: number | "all" | "pending";
   onFolderChange: (folderId: number | "all" | "pending") => void;
   onFolderEdit?: (folder: InboxFolder) => void;
-  onFolderSave?: (folder: InboxFolder) => void;
+  onFolderSave?: (folder: Omit<InboxFolder, "id" | "conversationIds" | "createdAt"> | InboxFolder) => void;
   onFolderDelete?: (folderId: number) => void;
   counts: Record<number | "all" | "pending", number>;
 }
@@ -33,7 +34,7 @@ export function InboxFoldersSidebar({
   // Debug: vérifier les permissions
   useEffect(() => {
     if (user) {
-      console.log("[InboxFoldersSidebar] User role:", user.role, "canEdit:", canEdit);
+      logger.log("[InboxFoldersSidebar] User role:", user.role, "canEdit:", canEdit);
     }
   }, [user, canEdit]);
 
@@ -42,15 +43,14 @@ export function InboxFoldersSidebar({
   
   // Debug: vérifier les dossiers
   useEffect(() => {
-    console.log("[InboxFoldersSidebar] Total folders:", folders.length);
-    console.log("[InboxFoldersSidebar] System folders:", systemFolders.length);
-    console.log("[InboxFoldersSidebar] Custom folders:", customFolders.length);
-    console.log("[InboxFoldersSidebar] Custom folders list:", customFolders.map(f => ({ id: f.id, name: f.name, isSystem: f.isSystem })));
+    logger.log("[InboxFoldersSidebar] Total folders:", folders.length);
+    logger.log("[InboxFoldersSidebar] System folders:", systemFolders.length);
+    logger.log("[InboxFoldersSidebar] Custom folders:", customFolders.length);
+    logger.log("[InboxFoldersSidebar] Custom folders list:", customFolders.map(f => ({ id: f.id, name: f.name, isSystem: f.isSystem })));
   }, [folders, systemFolders, customFolders]);
 
   const getFolderBadges = (folder: InboxFolder) => {
     const badges = [];
-    if (folder.aiRules?.autoClassify) badges.push("IA");
     if (folder.autoReply?.mode === "auto") badges.push("Auto");
     if (folder.autoReply?.mode === "approval") badges.push("Approval");
     return badges;
@@ -78,17 +78,15 @@ export function InboxFoldersSidebar({
             }`}
           >
             <span className="truncate">📥 Inbox</span>
-            {counts["all"] > 0 && (
-              <span
-                className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ml-2 flex-shrink-0 ${
-                  activeFolderId === "all"
-                    ? "bg-white/20 text-white"
-                    : "bg-[#E5E7EB] text-[#64748B]"
-                }`}
-              >
-                {counts["all"]}
-              </span>
-            )}
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ml-2 flex-shrink-0 min-w-[24px] text-center ${
+                activeFolderId === "all"
+                  ? "bg-white/20 text-white"
+                  : "bg-[#E5E7EB] text-[#64748B]"
+              }`}
+            >
+              {counts["all"] || 0}
+            </span>
           </button>
 
           {/* Réponses en attente */}
@@ -102,17 +100,15 @@ export function InboxFoldersSidebar({
               }`}
             >
               <span className="truncate">⏳ Réponses en attente</span>
-              {counts["pending"] > 0 && (
-                <span
-                  className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ml-2 flex-shrink-0 ${
-                    activeFolderId === "pending"
-                      ? "bg-white/20 text-white"
-                      : "bg-[#E5E7EB] text-[#64748B]"
-                  }`}
-                >
-                  {counts["pending"]}
-                </span>
-              )}
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ml-2 flex-shrink-0 min-w-[24px] text-center ${
+                  activeFolderId === "pending"
+                    ? "bg-white/20 text-white"
+                    : "bg-[#E5E7EB] text-[#64748B]"
+                }`}
+              >
+                {counts["pending"] || 0}
+              </span>
             </button>
           )}
 
@@ -176,18 +172,17 @@ export function InboxFoldersSidebar({
                     </button>
                     
                     {/* Compteur et bouton d'édition */}
-                    <div className="flex items-center gap-0.5 flex-shrink-0 pt-1.5 pr-1">
-                      {counts[folder.id] > 0 && (
-                        <span
-                          className={`px-1 py-0.5 rounded-full text-[10px] font-semibold ${
-                            isActive
-                              ? "bg-white/20 text-white"
-                              : "bg-[#E5E7EB] text-[#64748B]"
-                          }`}
-                        >
-                          {counts[folder.id]}
-                        </span>
-                      )}
+                    <div className="flex items-center gap-1 flex-shrink-0 pt-1.5 pr-1">
+                      {/* Compteur toujours visible */}
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold min-w-[20px] text-center ${
+                          isActive
+                            ? "bg-white/20 text-white"
+                            : "bg-[#E5E7EB] text-[#64748B]"
+                        }`}
+                      >
+                        {counts[folder.id] || 0}
+                      </span>
                       
                       {/* Bouton d'édition visible pour owner/super_admin (au survol seulement) */}
                       {canEdit && (
@@ -242,17 +237,15 @@ export function InboxFoldersSidebar({
                   <span className="truncate">
                     {folder.name === "Archivé" ? "📦" : "🗑️"} {folder.name}
                   </span>
-                  {counts[folder.id] > 0 && (
-                    <span
-                      className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ml-2 flex-shrink-0 ${
-                        isActive
-                          ? "bg-white/20 text-white"
-                          : "bg-[#E5E7EB] text-[#64748B]"
-                      }`}
-                    >
-                      {counts[folder.id]}
-                    </span>
-                  )}
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ml-2 flex-shrink-0 min-w-[24px] text-center ${
+                      isActive
+                        ? "bg-white/20 text-white"
+                        : "bg-[#E5E7EB] text-[#64748B]"
+                    }`}
+                  >
+                    {counts[folder.id] || 0}
+                  </span>
                 </button>
               );
             })}
@@ -275,8 +268,7 @@ export function InboxFoldersSidebar({
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           onSave={(folder) => {
-            // TODO: Appel API pour créer le dossier
-            console.log("Create folder:", folder);
+            onFolderSave?.(folder);
             setIsCreateModalOpen(false);
           }}
         />

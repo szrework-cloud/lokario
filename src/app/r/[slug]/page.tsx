@@ -1,21 +1,43 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useState, useMemo, useEffect } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { AppointmentType, Appointment } from "@/components/appointments/types";
-import { mockAppointmentTypes, mockEmployees } from "@/components/appointments/mockData";
 import { calculateAvailableSlots, formatDateForDisplay, formatTimeForDisplay } from "@/components/appointments/utils";
 import { Card, CardContent } from "@/components/ui/Card";
-
-// Mock : récupérer les RDV existants (à remplacer par API)
-const mockExistingAppointments: Appointment[] = [];
+import {
+  getPublicAppointmentTypes,
+  getPublicAppointments,
+  getPublicEmployees,
+  createPublicAppointment,
+} from "@/services/appointmentsService";
+import { useToast } from "@/components/ui/Toast";
+import { logger } from "@/lib/logger";
 
 export default function PublicBookingPage() {
   const params = useParams();
-  const slug = params.slug as string;
+  const searchParams = useSearchParams();
+  let slug = params.slug as string;
+  const appointmentId = searchParams?.get("appointmentId");
+
+  // Décoder le slug si nécessaire et nettoyer les placeholders
+  if (slug) {
+    try {
+      slug = decodeURIComponent(slug);
+    } catch {
+      // Si le décodage échoue, utiliser le slug tel quel
+    }
+    // Nettoyer les placeholders qui n'ont pas été remplacés
+    slug = slug.replace(/%7BslugEntreprise%7D/g, "").replace(/{slugEntreprise}/g, "");
+    
+    // Si le slug est vide après nettoyage, c'est qu'il n'y avait que le placeholder
+    if (!slug || slug.trim() === "") {
+      slug = "";
+    }
+  }
 
   // Debug: vérifier que la page est bien chargée
-  console.log("[PublicBookingPage] Page loaded with slug:", slug);
+  logger.log("[PublicBookingPage] Page loaded with slug:", slug, "appointmentId:", appointmentId);
 
   const [step, setStep] = useState<"type" | "date" | "slot" | "form" | "confirmation">("type");
   const [selectedType, setSelectedType] = useState<AppointmentType | null>(null);
@@ -23,11 +45,74 @@ export default function PublicBookingPage() {
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date; employeeId?: number; employeeName?: string } | null>(null);
   const [clientInfo, setClientInfo] = useState({ name: "", email: "", phone: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
+  const [employees, setEmployees] = useState<Array<{ id: number; name: string }>>([]);
+  const [existingAppointments, setExistingAppointments] = useState<Appointment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [appointmentToReschedule, setAppointmentToReschedule] = useState<Appointment | null>(null);
+  const { showToast } = useToast();
+
+  // Charger les données depuis l'API publique
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const [typesData, employeesData] = await Promise.all([
+          getPublicAppointmentTypes(slug),
+          getPublicEmployees(slug),
+        ]);
+        
+        setAppointmentTypes(typesData);
+        setEmployees(employeesData.map((e) => ({ id: e.id, name: e.name })));
+      } catch (err: any) {
+        console.error("Erreur lors du chargement des données:", err);
+        setError(err.message || "Erreur lors du chargement des données");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (slug) {
+      loadData();
+    }
+  }, [slug]);
+
+  // Charger les rendez-vous existants pour la date sélectionnée
+  useEffect(() => {
+    const loadAppointments = async () => {
+      if (!selectedDate || !slug) return;
+      
+      try {
+        const startDate = new Date(selectedDate);
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(selectedDate);
+        endDate.setHours(23, 59, 59, 999);
+        
+        const appointments = await getPublicAppointments(slug, {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        });
+        
+        setExistingAppointments(appointments);
+      } catch (err) {
+        console.error("Erreur lors du chargement des rendez-vous:", err);
+        // Ne pas bloquer l'interface si on ne peut pas charger les rendez-vous
+      }
+    };
+
+    if (selectedDate && slug) {
+      loadAppointments();
+    }
+  }, [selectedDate, slug]);
 
   // Filtrer uniquement les types actifs
   const availableTypes = useMemo(() => {
-    return mockAppointmentTypes.filter((type) => type.isActive);
-  }, []);
+    return appointmentTypes.filter((type) => type.isActive);
+  }, [appointmentTypes]);
 
   // Calculer les créneaux disponibles
   const availableSlots = useMemo(() => {
@@ -35,11 +120,11 @@ export default function PublicBookingPage() {
 
     return calculateAvailableSlots(
       selectedType,
-      mockExistingAppointments,
-      mockEmployees,
+      existingAppointments,
+      employees,
       selectedDate
     );
-  }, [selectedType, selectedDate]);
+  }, [selectedType, selectedDate, existingAppointments, employees]);
 
   const handleTypeSelect = (type: AppointmentType) => {
     setSelectedType(type);
@@ -62,20 +147,20 @@ export default function PublicBookingPage() {
 
     setIsSubmitting(true);
     try {
-      // TODO: Appel API pour créer le RDV
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simuler l'appel API
-      
-      console.log("Create appointment:", {
-        slug,
-        type: selectedType.name,
-        date: selectedSlot.start,
-        client: clientInfo,
+      await createPublicAppointment(slug, {
+        typeId: selectedType.id,
+        employeeId: selectedSlot.employeeId,
+        startDateTime: selectedSlot.start.toISOString(),
+        endDateTime: selectedSlot.end.toISOString(),
+        clientName: clientInfo.name,
+        clientEmail: clientInfo.email,
+        clientPhone: clientInfo.phone,
       });
 
       setStep("confirmation");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating appointment:", error);
-      alert("Erreur lors de la réservation. Veuillez réessayer.");
+      showToast(error.message || "Erreur lors de la réservation. Veuillez réessayer.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -93,13 +178,56 @@ export default function PublicBookingPage() {
     return dates;
   }, []);
 
-  // Si pas de slug, afficher un message d'erreur
-  if (!slug) {
+  // Si pas de slug ou slug invalide (placeholder non remplacé), afficher un message d'erreur
+  if (!slug || slug.trim() === "" || slug.includes("{slugEntreprise}") || slug.includes("%7BslugEntreprise%7D")) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 flex items-center justify-center">
+        <div className="text-center max-w-md px-4">
+          <h1 className="text-2xl font-bold text-[#0F172A] mb-2">⚠️ URL invalide</h1>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-left">
+            <p className="text-sm font-medium text-yellow-900 mb-2">Vous avez accédé directement à l'URL avec le placeholder.</p>
+            <p className="text-xs text-yellow-800 mb-2">
+              L'URL <code className="bg-yellow-100 px-1 rounded">/r/{"{slugEntreprise}"}</code> n'est pas destinée à être utilisée directement dans le navigateur.
+            </p>
+            <p className="text-xs text-yellow-800 mb-2">
+              <strong>Cette URL est utilisée automatiquement dans les messages de rappel et de no-show.</strong>
+            </p>
+            <p className="text-xs text-yellow-800">
+              Le placeholder {"{slugEntreprise}"} sera remplacé automatiquement par le slug réel de l'entreprise quand l'URL est utilisée dans un message.
+            </p>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+            <p className="text-xs font-medium text-blue-900 mb-2">Pour tester la page publique :</p>
+            <p className="text-xs text-blue-800">
+              Utilisez l'URL avec le slug réel de votre entreprise, par exemple :<br />
+              <code className="bg-blue-100 px-2 py-1 rounded block mt-1 text-[10px]">
+                {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/r/votre-slug-entreprise
+              </code>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Afficher un message d'erreur si les données ne peuvent pas être chargées
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h1 className="text-2xl font-bold text-[#0F172A] mb-2">Erreur</h1>
+          <p className="text-[#64748B]">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Afficher un loader pendant le chargement
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-[#0F172A] mb-2">Slug manquant</h1>
-          <p className="text-[#64748B]">Veuillez fournir un slug valide dans l'URL</p>
+          <p className="text-[#64748B]">Chargement...</p>
         </div>
       </div>
     );

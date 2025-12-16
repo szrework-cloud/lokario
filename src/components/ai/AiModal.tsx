@@ -1,7 +1,6 @@
 "use client";
 
 import { ReactNode } from "react";
-import { AiActionButton } from "./AiActionButton";
 
 interface AiModalProps {
   isOpen: boolean;
@@ -10,6 +9,7 @@ interface AiModalProps {
   context?: ReactNode;
   initialValue?: string;
   onGenerate: (value: string) => void;
+  onSend?: () => void;
   placeholder?: string;
   label?: string;
 }
@@ -21,17 +21,11 @@ export function AiModal({
   context,
   initialValue = "",
   onGenerate,
+  onSend,
   placeholder = "Votre message...",
   label = "Message",
 }: AiModalProps) {
   if (!isOpen) return null;
-
-  const handleGenerate = () => {
-    // TODO: call AI backend to generate message
-    // Pour l'instant, on simule avec un texte d'exemple
-    const exampleText = `(IA) Exemple de message adapté au contexte du client. Ce texte sera généré par l'IA en fonction du type de relance, du client et de l'historique.`;
-    onGenerate(exampleText);
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -80,14 +74,13 @@ export function AiModal({
           >
             Annuler
           </button>
-          <AiActionButton
-            onClick={handleGenerate}
-            label="Remplir avec l'IA"
-          />
           <button
             onClick={() => {
-              // TODO: Envoyer le message (appel backend)
-              onClose();
+              if (onSend) {
+                onSend();
+              } else {
+                onClose();
+              }
             }}
             className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
           >

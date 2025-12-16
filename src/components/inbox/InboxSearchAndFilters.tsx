@@ -38,11 +38,8 @@ export function InboxSearchAndFilters({
   ];
 
   const sourceChips = [
-    { id: "all", label: "Toutes", icon: "📥" },
+    { id: "all", label: "Message", icon: "📥" },
     { id: "email", label: "Email", icon: "✉️" },
-    { id: "whatsapp", label: "WhatsApp", icon: "📱" },
-    { id: "messenger", label: "Messenger", icon: "💬" },
-    { id: "formulaire", label: "Formulaire", icon: "📝" },
   ];
 
   // Fermer le menu si on clique en dehors

@@ -2,40 +2,79 @@
 
 import { useState, useEffect } from "react";
 import { AppointmentSettings } from "./types";
-import { mockAppointmentSettings } from "./mockData";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
+import {
+  getAppointmentSettings,
+  updateAppointmentSettings as updateAppointmentSettingsAPI,
+} from "@/services/appointmentsService";
 
 export function AppointmentSettingsView() {
   const { user } = useAuth();
   const { company } = useSettings(false);
-  const [settings, setSettings] = useState<AppointmentSettings>(mockAppointmentSettings);
+  const { token } = useAuth();
+  const [settings, setSettings] = useState<AppointmentSettings>({
+    autoReminderEnabled: true,
+    autoReminderOffsetHours: 4,
+    includeRescheduleLinkInReminder: true,
+    autoNoShowMessageEnabled: true,
+    rescheduleBaseUrl: typeof window !== "undefined" ? `${window.location.origin}/r/{slugEntreprise}` : "https://lokario.fr/r/{slugEntreprise}",
+  });
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Vérifier les permissions (owner/super_admin seulement)
   const canEdit = user?.role === "owner" || user?.role === "super_admin";
 
-  // Générer le slug depuis le nom de l'entreprise (mock pour l'instant)
-  const companySlug = company?.name
-    ? company.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-    : "mon-entreprise";
+  // Utiliser le slug de la base de données, ou le générer depuis le nom si absent
+  const companySlug = company?.slug 
+    ? company.slug
+    : (company?.name
+        ? company.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+        : "mon-entreprise");
 
   useEffect(() => {
-    // TODO: Charger les settings depuis l'API
-    setSettings(mockAppointmentSettings);
-  }, []);
+    const loadSettings = async () => {
+      if (!token) return;
+      
+      setIsLoading(true);
+      try {
+        const settingsData = await getAppointmentSettings(token);
+        // Si l'URL de reprogrammation n'est pas définie, préremplir avec l'URL par défaut
+        if (!settingsData.rescheduleBaseUrl) {
+          const defaultUrl = `${typeof window !== "undefined" ? window.location.origin : "https://lokario.fr"}/r/{slugEntreprise}`;
+          settingsData.rescheduleBaseUrl = defaultUrl;
+        }
+        setSettings(settingsData);
+      } catch (err) {
+        console.error("Erreur lors du chargement des paramètres:", err);
+        // Même en cas d'erreur, initialiser avec l'URL par défaut
+        setSettings({
+          autoReminderEnabled: true,
+          autoReminderOffsetHours: 4,
+          includeRescheduleLinkInReminder: true,
+          autoNoShowMessageEnabled: true,
+          rescheduleBaseUrl: `${typeof window !== "undefined" ? window.location.origin : "https://lokario.fr"}/r/{slugEntreprise}`,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadSettings();
+  }, [token]);
 
   const handleSave = async () => {
+    if (!token) return;
+    
     setIsSaving(true);
     try {
-      // TODO: Appel API pour sauvegarder les settings
-      console.log("Save settings:", settings);
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Simuler l'appel API
+      await updateAppointmentSettingsAPI(token, settings);
       alert("Paramètres sauvegardés avec succès");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving settings:", error);
-      alert("Erreur lors de la sauvegarde");
+      alert(error.message || "Erreur lors de la sauvegarde");
     } finally {
       setIsSaving(false);
     }
@@ -50,6 +89,14 @@ export function AppointmentSettingsView() {
           </p>
         </CardContent>
       </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-[#64748B]">Chargement des paramètres...</p>
+      </div>
     );
   }
 
@@ -175,21 +222,79 @@ export function AppointmentSettingsView() {
 
           {/* URL de reprogrammation */}
           <div className="pt-4 border-t border-[#E5E7EB]">
-            <label className="block text-sm font-medium text-[#0F172A] mb-1">
+            <label className="block text-sm font-medium text-[#0F172A] mb-2">
               URL de base pour la reprogrammation
             </label>
-            <input
-              type="text"
-              value={settings.rescheduleBaseUrl || ""}
-              onChange={(e) =>
-                setSettings((prev) => ({ ...prev, rescheduleBaseUrl: e.target.value }))
-              }
-              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-              placeholder="https://mon-saas.com/r/{slugEntreprise}"
-            />
-            <p className="text-xs text-[#64748B] mt-1">
-              Utilisez {"{slugEntreprise}"} comme placeholder pour l'identifiant de votre entreprise.
-            </p>
+            <div className="space-y-3">
+              <div>
+                <input
+                  type="text"
+                  value={settings.rescheduleBaseUrl || ""}
+                  onChange={(e) =>
+                    setSettings((prev) => ({ ...prev, rescheduleBaseUrl: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                  placeholder={`${typeof window !== "undefined" ? window.location.origin : "https://lokario.fr"}/r/{slugEntreprise}`}
+                />
+                <div className="mt-2 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-xs font-medium text-green-900 mb-2">✅ Comment utiliser cette URL ?</p>
+                  <div className="space-y-2 text-xs text-green-800">
+                    <p>
+                      <strong>1. Laissez le placeholder {"{slugEntreprise}"} dans l'URL</strong><br />
+                      Ne remplacez PAS {"{slugEntreprise}"} par votre slug réel. Le système le remplacera automatiquement.
+                    </p>
+                    <p>
+                      <strong>2. Exemple d'URL à mettre :</strong><br />
+                      <code className="bg-green-100 px-2 py-1 rounded block mt-1">
+                        {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/r/{"{slugEntreprise}"}
+                      </code>
+                    </p>
+                    <p>
+                      <strong>3. Votre slug réel :</strong> <code className="bg-green-100 px-1 rounded">{companySlug}</code>
+                    </p>
+                    <p>
+                      <strong>4. URL finale générée (exemple avec RDV #123) :</strong><br />
+                      <code className="bg-green-100 px-2 py-1 rounded block mt-1 text-[10px]">
+                        {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/r/{companySlug}?appointmentId=123
+                      </code>
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs font-medium text-blue-900 mb-1">💡 Comment ça fonctionne ?</p>
+                  <p className="text-xs text-blue-800">
+                    Quand un message de rappel ou de no-show est envoyé, le système remplace automatiquement {"{slugEntreprise}"} par votre slug réel (<code className="bg-blue-100 px-1 rounded">{companySlug}</code>) et ajoute l'ID du rendez-vous.
+                  </p>
+                </div>
+              </div>
+              
+              {/* Exemple d'URL générée */}
+              {settings.rescheduleBaseUrl && (
+                <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
+                  <p className="text-xs font-medium text-[#0F172A] mb-1">Exemple d'URL générée (sans appointmentId) :</p>
+                  <code className="text-xs text-[#64748B] break-all">
+                    {settings.rescheduleBaseUrl.replace("{slugEntreprise}", companySlug)}
+                  </code>
+                  <p className="text-xs text-[#64748B] mt-2">
+                    Dans les messages, cette URL sera complétée avec <code className="bg-gray-100 px-1 rounded">?appointmentId=XXX</code> pour identifier le rendez-vous à reprogrammer.
+                  </p>
+                </div>
+              )}
+              
+              {/* Bouton pour réinitialiser à l'URL par défaut */}
+              {settings.rescheduleBaseUrl && settings.rescheduleBaseUrl !== `${typeof window !== "undefined" ? window.location.origin : "https://lokario.fr"}/r/{slugEntreprise}` && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const defaultUrl = `${typeof window !== "undefined" ? window.location.origin : "https://lokario.fr"}/r/{slugEntreprise}`;
+                    setSettings((prev) => ({ ...prev, rescheduleBaseUrl: defaultUrl }));
+                  }}
+                  className="text-xs text-[#F97316] hover:text-[#EA580C] font-medium"
+                >
+                  Réinitialiser à l'URL par défaut
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Bouton sauvegarder */}

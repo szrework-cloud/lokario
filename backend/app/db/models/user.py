@@ -14,7 +14,17 @@ class User(Base):
     role = Column(String, nullable=False)  # super_admin, owner, user
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)  # nullable pour super_admin
     is_active = Column(Boolean, default=True, nullable=False)
+    email_verified = Column(Boolean, default=False, nullable=False)  # Email vérifié ou non
+    email_verification_token = Column(String, unique=True, nullable=True, index=True)  # Token de vérification
+    email_verification_token_expires_at = Column(DateTime(timezone=True), nullable=True)  # Expiration du token
+    password_reset_token = Column(String, unique=True, nullable=True, index=True)  # Token pour réinitialisation mot de passe
+    password_reset_token_expires_at = Column(DateTime(timezone=True), nullable=True)  # Expiration du token de réinitialisation
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Permissions pour les tâches (pour les users uniquement, les owners/admins ont tous les droits)
+    can_edit_tasks = Column(Boolean, default=False, nullable=False)
+    can_delete_tasks = Column(Boolean, default=False, nullable=False)
+    can_create_tasks = Column(Boolean, default=False, nullable=False)
     
     # Relations
     company = relationship("Company", back_populates="users")

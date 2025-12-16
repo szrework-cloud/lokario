@@ -1,8 +1,7 @@
 "use client";
 
 import { PageTitle } from "@/components/layout/PageTitle";
-import { FloatingChatWidget } from "@/components/chatbot/FloatingChatWidget";
-import { Card, CardContent } from "@/components/ui/Card";
+import { ChatWindow } from "@/components/chatbot/ChatWindow";
 
 export default function ChatbotPage() {
   return (
@@ -11,18 +10,12 @@ export default function ChatbotPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-[#0F172A]">Chatbot</h1>
+          <p className="text-slate-600 mt-2">
+            Posez vos questions sur vos clients, factures, tâches, projets et plus encore.
+          </p>
         </div>
 
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-slate-600 mb-4">
-              Le widget de chat est disponible en bas à droite de votre écran. Cliquez sur le bouton pour commencer une conversation avec l'assistant.
-            </p>
-            <p className="text-sm text-slate-600">
-              Si vous souhaitez intégrer un chatbot sur votre site web, veuillez contacter l'administrateur.
-            </p>
-          </CardContent>
-        </Card>
+        <ChatWindow />
       </div>
     </>
   );

@@ -14,6 +14,33 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
 
 
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    """
+    Valide la force d'un mot de passe.
+    Retourne (is_valid, error_message)
+    
+    Règles:
+    - Minimum 8 caractères
+    - Au moins une majuscule
+    - Au moins une minuscule
+    - Au moins un chiffre
+    """
+    if len(password) < 8:
+        return False, "Le mot de passe doit contenir au moins 8 caractères"
+    
+    import re
+    if not re.search(r'[A-Z]', password):
+        return False, "Le mot de passe doit contenir au moins une majuscule"
+    
+    if not re.search(r'[a-z]', password):
+        return False, "Le mot de passe doit contenir au moins une minuscule"
+    
+    if not re.search(r'\d', password):
+        return False, "Le mot de passe doit contenir au moins un chiffre"
+    
+    return True, ""
+
+
 def get_password_hash(password: str) -> str:
     """Hash un mot de passe avec bcrypt."""
     # Limiter à 72 bytes pour bcrypt

@@ -8,12 +8,21 @@ import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { calculateSubtotal, calculateTax, calculateTotal, calculateLineTotal, formatAmount, generateQuoteNumber } from "@/components/billing/utils";
 import { DescriptionAutocomplete } from "@/components/billing/DescriptionAutocomplete";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettings } from "@/hooks/useSettings";
+import { getClients } from "@/services/clientsService";
+import { getQuote, updateQuote, Quote as QuoteAPI } from "@/services/quotesService";
+import { createBillingLineTemplate } from "@/services/billingLineTemplatesService";
 
 export default function EditQuotePage() {
   const router = useRouter();
   const params = useParams();
   const quoteId = Number(params.id);
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const { settings } = useSettings(false); // Ne pas auto-load, déjà chargé dans AppLayout
+  const [error, setError] = useState<string | null>(null);
+
+  // Récupérer les taux de TVA depuis les settings
+  const taxRates = settings?.settings?.billing?.tax_rates || [0, 2.1, 5.5, 10, 20];
 
   // TODO: Récupérer depuis le backend
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -21,59 +30,49 @@ export default function EditQuotePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    // Simuler le chargement
-    setTimeout(() => {
-      const mockQuote: Quote = {
-        id: 1,
-        number: "DEV-2025-023",
-        client_id: 1,
-        client_name: "Boulangerie Soleil",
-        project_id: 2,
-        project_name: "Installation équipement",
-        status: "brouillon",
-        lines: [
-          {
-            id: 1,
-            description: "Prestation de service - Installation",
-            quantity: 1,
-            unitPrice: 1250,
-            taxRate: 20,
-          },
-          {
-            id: 2,
-            description: "Matériel supplémentaire",
-            quantity: 2,
-            unitPrice: 150,
-            taxRate: 20,
-          },
-        ],
-        subtotal: 1550,
-        tax: 310,
-        total: 1860,
-        notes: "Installation prévue pour le 15 février 2025.",
-        conditions: "Paiement à 30 jours. Garantie 1 an.",
-        created_at: "2025-01-15T10:00:00",
-        timeline: [
-          {
-            id: 1,
-            timestamp: "2025-01-15T10:00:00",
-            action: "Devis créé",
-            user: "Jean Dupont",
-          },
-        ],
-        history: [
-          {
-            id: 1,
-            timestamp: "2025-01-15T10:00:00",
-            action: "Devis créé",
-            user: "Jean Dupont",
-          },
-        ],
-      };
-      setQuote(mockQuote);
-      setIsLoading(false);
-    }, 300);
-  }, [quoteId]);
+    const loadQuote = async () => {
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getQuote(token, quoteId);
+        
+        // Adapter les données du backend au format frontend
+        const adaptedQuote: Quote = {
+          ...data,
+          lines: (data.lines || []).map((line) => ({
+            id: line.id || 0,
+            description: line.description,
+            quantity: line.quantity,
+            unit: line.unit,
+            unitPrice: line.unit_price_ht,
+            taxRate: line.tax_rate,
+            total: line.total_ttc,
+          })),
+          subtotal: data.subtotal_ht || 0,
+          tax: data.total_tax || 0,
+          total: data.total_ttc || data.amount || 0,
+          discount_type: data.discount_type,
+          discount_value: data.discount_value,
+          discount_label: data.discount_label,
+          timeline: [],
+          history: [],
+        };
+        
+        setQuote(adaptedQuote);
+      } catch (err: any) {
+        console.error("Erreur lors du chargement du devis:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadQuote();
+  }, [quoteId, token]);
 
   const handleLineChange = (lineId: number, field: keyof BillingLine, value: string | number) => {
     if (!quote) return;
@@ -139,70 +138,110 @@ export default function EditQuotePage() {
   };
 
   // Fonction pour sauvegarder une nouvelle ligne dans la base de données
-  const handleSaveNewLine = async (description: string, unitPrice: number, taxRate: number) => {
-    // TODO: Appel API pour sauvegarder la nouvelle ligne
-    console.log("Sauvegarder nouvelle ligne:", { description, unitPrice, taxRate });
+  const handleSaveNewLine = async (description: string, unit: string | undefined, unitPrice: number, taxRate: number) => {
+    if (!token) return;
+    try {
+      await createBillingLineTemplate(token, {
+        description,
+        unit,
+        unit_price_ht: unitPrice,
+        tax_rate: taxRate,
+      });
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde de la ligne:", err);
+    }
   };
 
   const handleSave = async (status: Quote["status"]) => {
-    if (!quote) return;
+    if (!quote || !token) return;
 
     setIsSaving(true);
+    setError(null);
+    
     try {
-      // Créer les événements d'historique et timeline
-      const now = new Date().toISOString();
-      const userName = user?.full_name || user?.email || "Utilisateur";
-
-      // Événement historique
-      const historyEvent: BillingHistoryEvent = {
-        id: Date.now(),
-        timestamp: now,
-        action: "Devis modifié",
-        description: `Statut: ${status}`,
-        user: userName,
+      // Préparer les données pour l'API
+      const updateData = {
+        lines: quote.lines.map((line, index) => ({
+          description: line.description,
+          quantity: line.quantity,
+          unit: line.unit,
+          unit_price_ht: line.unitPrice,
+          tax_rate: line.taxRate,
+          order: index,
+        })),
+        notes: quote.notes,
+        conditions: quote.conditions,
+        valid_until: quote.valid_until,
+        service_start_date: quote.service_start_date,
+        execution_duration: quote.execution_duration,
+        discount_type: quote.discount_type,
+        discount_value: quote.discount_value,
+        discount_label: quote.discount_label,
+        status: status,
       };
 
-      // Événement timeline (si le statut change)
-      let timelineEvent: BillingTimelineEvent | null = null;
-      if (quote.status !== status) {
-        timelineEvent = {
-          id: Date.now(),
-          timestamp: now,
-          action: `Statut changé: ${status}`,
-          description: `De '${quote.status}' à '${status}'`,
-          user: userName,
-        };
-      }
-
-      // Mettre à jour le devis avec les nouveaux événements
-      const updatedQuote: Quote = {
-        ...quote,
-        status,
-        history: [...quote.history, historyEvent],
-        timeline: timelineEvent ? [...quote.timeline, timelineEvent] : quote.timeline,
-      };
-
-      // TODO: Appel API pour sauvegarder
-      console.log("Save quote:", updatedQuote);
-
-      // Simuler un délai
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Appeler l'API pour mettre à jour le devis
+      await updateQuote(token, quote.id, updateData);
 
       // Rediriger vers la page de détail
       router.push(`/app/billing/quotes/${quote.id}`);
-    } catch (error) {
-      console.error("Error saving quote:", error);
+    } catch (err: any) {
+      console.error("Error saving quote:", err);
+      setError(err.message || "Erreur lors de la sauvegarde du devis");
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (isLoading || !quote) {
+  if (isLoading) {
     return (
       <>
         <PageTitle title="Modifier le devis" />
         <div className="space-y-6">
-          <p className="text-slate-600">Chargement...</p>
+          <div className="flex items-center justify-center p-8">
+            <div className="text-[#64748B]">Chargement du devis...</div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <PageTitle title="Erreur" />
+        <div className="space-y-6">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-red-800 mb-2">Erreur</h3>
+            <p className="text-sm text-red-700 mb-4">{error}</p>
+            <button
+              onClick={() => router.push("/app/billing/quotes")}
+              className="text-sm text-red-600 hover:text-red-800 font-medium"
+            >
+              ← Retour à la liste
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (!quote) {
+    return (
+      <>
+        <PageTitle title="Devis introuvable" />
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-slate-600">Le devis demandé n'existe pas.</p>
+              <button
+                onClick={() => router.push("/app/billing/quotes")}
+                className="mt-4 text-[#F97316] hover:text-[#EA580C]"
+              >
+                ← Retour à la liste
+              </button>
+            </CardContent>
+          </Card>
         </div>
       </>
     );
@@ -291,14 +330,20 @@ export default function EditQuotePage() {
                             handleLineChange(line.id, "description", value)
                           }
                           onSelectLine={(savedLine) => {
-                            // Pré-remplir le prix et la TVA si une ligne est sélectionnée
+                            // Pré-remplir le prix, l'unité et la TVA si une ligne est sélectionnée
                             handleLineChange(line.id, "unitPrice", savedLine.unitPrice);
+                            if (savedLine.unit) {
+                              handleLineChange(line.id, "unit", savedLine.unit);
+                            }
                             handleLineChange(line.id, "taxRate", savedLine.taxRate);
                           }}
-                          onSaveNewLine={(description, unitPrice, taxRate) => {
+                          onSaveNewLine={(description, unit, unitPrice, taxRate) => {
                             // Sauvegarder la nouvelle ligne et mettre à jour la ligne actuelle
-                            handleSaveNewLine(description, unitPrice, taxRate);
+                            handleSaveNewLine(description, unit, unitPrice, taxRate);
                             handleLineChange(line.id, "description", description);
+                            if (unit) {
+                              handleLineChange(line.id, "unit", unit);
+                            }
                             if (unitPrice > 0) {
                               handleLineChange(line.id, "unitPrice", unitPrice);
                             }
@@ -331,6 +376,20 @@ export default function EditQuotePage() {
                           className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                         />
                       </div>
+                      <div className="col-span-1">
+                        <label className="block text-xs font-medium text-[#64748B] mb-1">
+                          Unité
+                        </label>
+                        <input
+                          type="text"
+                          value={line.unit || ""}
+                          onChange={(e) =>
+                            handleLineChange(line.id, "unit", e.target.value)
+                          }
+                          placeholder="ex: heure"
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        />
+                      </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-[#64748B] mb-1">
                           Prix unitaire
@@ -354,11 +413,7 @@ export default function EditQuotePage() {
                         <label className="block text-xs font-medium text-[#64748B] mb-1">
                           TVA (%)
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.1"
+                        <select
                           value={line.taxRate}
                           onChange={(e) =>
                             handleLineChange(
@@ -368,7 +423,13 @@ export default function EditQuotePage() {
                             )
                           }
                           className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                        />
+                        >
+                          {taxRates.map((rate) => (
+                            <option key={rate} value={rate}>
+                              {rate}%
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div className="col-span-1 flex items-end">
                         <button
@@ -407,12 +468,93 @@ export default function EditQuotePage() {
                     {formatAmount(quote.tax)}
                   </span>
                 </div>
+                {quote.discount_type && quote.discount_value && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#64748B] italic">
+                      {quote.discount_label || "Réduction"}
+                      {quote.discount_type === "percentage" && ` (${quote.discount_value}%)`}
+                    </span>
+                    <span className="font-medium text-red-600 italic">
+                      -{formatAmount(
+                        quote.discount_type === "percentage"
+                          ? ((quote.subtotal + quote.tax) * quote.discount_value) / 100
+                          : quote.discount_value
+                      )}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg font-bold pt-2 border-t border-[#E5E7EB]">
                   <span className="text-[#0F172A]">Total TTC</span>
                   <span className="text-[#0F172A]">
                     {formatAmount(quote.total)}
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* Réduction/Escompte */}
+            <div>
+              <h2 className="text-lg font-semibold text-[#0F172A] mb-4">
+                Réduction / Escompte
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Type de réduction
+                  </label>
+                  <select
+                    value={quote.discount_type || ""}
+                    onChange={(e) =>
+                      setQuote({
+                        ...quote,
+                        discount_type: e.target.value as "percentage" | "fixed" | null,
+                        discount_value: e.target.value ? quote.discount_value : null,
+                      })
+                    }
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                  >
+                    <option value="">Aucune réduction</option>
+                    <option value="percentage">Pourcentage (%)</option>
+                    <option value="fixed">Montant fixe (€)</option>
+                  </select>
+                </div>
+                {quote.discount_type && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                        {quote.discount_type === "percentage" ? "Pourcentage (%)" : "Montant (€)"}
+                      </label>
+                      <input
+                        type="number"
+                        step={quote.discount_type === "percentage" ? "0.01" : "0.01"}
+                        min="0"
+                        value={quote.discount_value || ""}
+                        onChange={(e) =>
+                          setQuote({
+                            ...quote,
+                            discount_value: e.target.value ? parseFloat(e.target.value) : null,
+                          })
+                        }
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        placeholder={quote.discount_type === "percentage" ? "10" : "50.00"}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                        Libellé (optionnel)
+                      </label>
+                      <input
+                        type="text"
+                        value={quote.discount_label || ""}
+                        onChange={(e) =>
+                          setQuote({ ...quote, discount_label: e.target.value || null })
+                        }
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        placeholder="Ex: Remise commerciale, Escompte 2%..."
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

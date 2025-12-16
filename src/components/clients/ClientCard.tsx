@@ -1,13 +1,18 @@
+"use client";
+
 import { Card, CardContent } from "@/components/ui/Card";
 import { Tag } from "@/components/ui/Tag";
+import { AnimatedCard } from "@/components/ui/AnimatedCard";
+import { AnimatedBadge } from "@/components/ui/AnimatedBadge";
 import { Client } from "./ClientList";
 
 interface ClientCardProps {
   client: Client;
   onClick?: () => void;
+  delay?: number;
 }
 
-export function ClientCard({ client, onClick }: ClientCardProps) {
+export function ClientCard({ client, onClick, delay = 0 }: ClientCardProps) {
   const tagColors: Record<string, "success" | "warning" | "error" | "info" | "default"> = {
     VIP: "error",
     régulier: "success",
@@ -23,8 +28,8 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
   ].filter(Boolean).slice(0, 3) as Array<{ label: string; value: string | number }>;
 
   return (
-    <div onClick={onClick} className="cursor-pointer">
-      <Card className="hover:shadow-md transition-shadow">
+    <AnimatedCard delay={delay} hover={true} onClick={onClick} className="cursor-pointer">
+      <Card className="h-full">
         <CardContent className="p-6">
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1">
@@ -38,9 +43,13 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
                 {client.tags && client.tags.length > 0 && (
                   <>
                     {client.tags.map((tag) => (
-                      <Tag key={tag} variant={tagColors[tag] || "default"}>
+                      <AnimatedBadge 
+                        key={tag} 
+                        variant={tagColors[tag] === "error" ? "danger" : tagColors[tag] === "success" ? "success" : tagColors[tag] === "info" ? "info" : "default"}
+                        pulse={tag === "nouveau"}
+                      >
                         {tag}
-                      </Tag>
+                      </AnimatedBadge>
                     ))}
                   </>
                 )}
@@ -77,7 +86,7 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
           )}
         </CardContent>
       </Card>
-    </div>
+    </AnimatedCard>
   );
 }
 

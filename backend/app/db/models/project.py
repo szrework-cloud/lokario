@@ -29,7 +29,6 @@ class Project(Base):
     # Relations
     company = relationship("Company", backref="projects")
     client = relationship("Client", back_populates="projects")
-    tasks = relationship("Task", back_populates="project")
     quotes = relationship("Quote", back_populates="project")
     invoices = relationship("Invoice", back_populates="project")
     documents = relationship("Document", back_populates="project")

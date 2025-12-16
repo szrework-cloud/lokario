@@ -1,30 +1,187 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { apiPost, apiGet } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import type { CurrentUser } from "@/store/auth-store";
+
+type RegisterResponse = CurrentUser;
+
+type LoginResponse = {
+  access_token: string;
+  token_type: string;
+};
+
 export default function RegisterPage() {
+  const router = useRouter();
+  const { setAuth } = useAuth();
+  const [companyName, setCompanyName] = useState("");
+  const [companyCode, setCompanyCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [acceptCGU, setAcceptCGU] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    
+    if (!acceptCGU) {
+      setError("Vous devez accepter les Conditions Générales d'Utilisation et de Vente pour créer un compte.");
+      return;
+    }
+    
+    setLoading(true);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const isMockMode = !apiUrl || apiUrl.trim() === "";
+
+      if (isMockMode) {
+        // Mode mock : créer un utilisateur mock
+        const mockCompanyId = companyCode ? parseInt(companyCode) % 1000 : Date.now();
+        const mockUser: CurrentUser = {
+          id: Date.now(),
+          email: email.toLowerCase(),
+          full_name: fullName || null,
+          role: companyCode ? "user" : "owner",
+          company_id: mockCompanyId,
+          is_active: true,
+          created_at: new Date().toISOString(),
+        };
+        
+        setAuth("mock_token_" + mockUser.id, mockUser);
+        window.location.href = "/app/dashboard";
+        return;
+      }
+
+      // Mode avec backend
+      const payload: any = {
+        email: email.toLowerCase(),
+        password,
+        full_name: fullName || null,
+        role: "owner",
+      };
+
+      // Si un code entreprise est fourni, l'utiliser (pour créer un user dans une entreprise existante)
+      if (companyCode && companyCode.trim() !== "") {
+        payload.company_code = companyCode.trim();
+        payload.role = "user"; // Si code entreprise fourni, créer un user
+      } else if (companyName && companyName.trim() !== "") {
+        // Sinon, créer une nouvelle entreprise
+        payload.company_name = companyName;
+        payload.role = "owner";
+      } else {
+        setError("Veuillez fournir soit un nom d'entreprise, soit un code d'entreprise");
+        setLoading(false);
+        return;
+      }
+
+      const userData = await apiPost<RegisterResponse>("/auth/register", payload);
+
+      if (!userData || !userData.id) {
+        setError("Erreur lors de l'inscription");
+        setLoading(false);
+        return;
+      }
+
+      // Rediriger vers la page de vérification email
+      router.push(`/verify-email?email=${encodeURIComponent(email.toLowerCase())}`);
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de l'inscription");
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-2xl font-semibold text-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]">
+      <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
+        <h1 className="mb-6 text-2xl font-semibold text-[#0F172A]">
           Inscription
         </h1>
-        <form className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
               htmlFor="company"
-              className="block text-sm font-medium text-slate-700"
+              className="block text-sm font-medium text-[#0F172A]"
             >
-              Nom de l'entreprise
+              Nom de l'entreprise <span className="text-[#64748B]">(nouvelle entreprise)</span>
             </label>
             <input
               type="text"
               id="company"
               name="company"
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+              value={companyName}
+              onChange={(e) => {
+                setCompanyName(e.target.value);
+                if (e.target.value) setCompanyCode(""); // Vider le code si on entre un nom
+              }}
+              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="Mon Commerce"
+              disabled={loading}
+            />
+          </div>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-[#E5E7EB]"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-[#64748B]">OU</span>
+            </div>
+          </div>
+          <div>
+            <label
+              htmlFor="companyCode"
+              className="block text-sm font-medium text-[#0F172A]"
+            >
+              Code entreprise <span className="text-[#64748B]">(rejoindre une entreprise existante)</span>
+            </label>
+            <input
+              type="text"
+              id="companyCode"
+              name="companyCode"
+              value={companyCode}
+              onChange={(e) => {
+                // Ne garder que les chiffres, max 6
+                const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                setCompanyCode(value);
+                if (value) setCompanyName(""); // Vider le nom si on entre un code
+              }}
+              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              placeholder="123456"
+              maxLength={6}
+              disabled={loading}
+            />
+            <p className="mt-1 text-xs text-[#64748B]">
+              Code à 6 chiffres fourni par votre entreprise. Vous serez créé en tant que "User"
+            </p>
+          </div>
+          <div>
+            <label
+              htmlFor="fullName"
+              className="block text-sm font-medium text-[#0F172A]"
+            >
+              Nom complet
+            </label>
+            <input
+              type="text"
+              id="fullName"
+              name="fullName"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              placeholder="Jean Dupont"
+              disabled={loading}
             />
           </div>
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-slate-700"
+              className="block text-sm font-medium text-[#0F172A]"
             >
               Email
             </label>
@@ -32,14 +189,18 @@ export default function RegisterPage() {
               type="email"
               id="email"
               name="email"
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="votre@email.com"
+              disabled={loading}
             />
           </div>
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-slate-700"
+              className="block text-sm font-medium text-[#0F172A]"
             >
               Mot de passe
             </label>
@@ -47,16 +208,57 @@ export default function RegisterPage() {
               type="password"
               id="password"
               name="password"
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="••••••••"
+              disabled={loading}
             />
           </div>
+          {/* Acceptation CGU/CGV */}
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              id="acceptCGU"
+              name="acceptCGU"
+              checked={acceptCGU}
+              onChange={(e) => setAcceptCGU(e.target.checked)}
+              required
+              className="mt-1 h-4 w-4 rounded border-[#E5E7EB] text-[#F97316] focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+            />
+            <label htmlFor="acceptCGU" className="text-sm text-[#64748B] leading-relaxed">
+              J'accepte les{" "}
+              <Link href="/legal/cgu" target="_blank" className="text-[#F97316] hover:underline">
+                Conditions Générales d'Utilisation
+              </Link>
+              {" "}et les{" "}
+              <Link href="/legal/cgv" target="_blank" className="text-[#F97316] hover:underline">
+                Conditions Générales de Vente
+              </Link>
+              {" "}de Lokario
+            </label>
+          </div>
+          
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
           <button
             type="submit"
-            className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+            disabled={loading}
+            className="w-full rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
           >
-            Créer mon compte
+            {loading ? "Création du compte..." : "Créer mon compte"}
           </button>
+          <p className="text-center text-sm text-[#64748B]">
+            Déjà un compte ?{" "}
+            <Link href="/login" className="text-[#F97316] hover:underline">
+              Se connecter
+            </Link>
+          </p>
         </form>
       </div>
     </div>

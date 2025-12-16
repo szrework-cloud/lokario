@@ -1,12 +1,23 @@
-export default function Home() {
+"use client";
+
+import { LandingHeader } from "@/components/landing/Header";
+import { LandingHero } from "@/components/landing/Hero";
+import { LandingProductShowcase } from "@/components/landing/ProductShowcase";
+import { LandingFeaturesGrid } from "@/components/landing/FeaturesGrid";
+import { LandingCTASection } from "@/components/landing/CTASection";
+import { LandingFooter } from "@/components/landing/Footer";
+
+export default function LandingPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-slate-900 mb-4">
-          Local Assistant
-        </h1>
-        <p className="text-xl text-slate-600">Coming soon</p>
-      </div>
+    <div className="min-h-screen bg-black">
+      <LandingHeader />
+      <main>
+        <LandingHero />
+        <LandingProductShowcase />
+        <LandingFeaturesGrid />
+        <LandingCTASection />
+      </main>
+      <LandingFooter />
     </div>
   );
 }

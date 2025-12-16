@@ -9,27 +9,51 @@ import { calculateSubtotal, calculateTax, calculateTotal, calculateLineTotal, fo
 import { DescriptionAutocomplete } from "@/components/billing/DescriptionAutocomplete";
 import { TicketUploadModal } from "@/components/billing/TicketUploadModal";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettings } from "@/hooks/useSettings";
+import { getClients } from "@/services/clientsService";
+import { createQuote, QuoteCreate } from "@/services/quotesService";
+import { createBillingLineTemplate } from "@/services/billingLineTemplatesService";
+import { logger } from "@/lib/logger";
 
 export default function NewQuotePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const duplicateId = searchParams.get("duplicate");
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const { settings, company } = useSettings(false); // Ne pas auto-load, déjà chargé dans AppLayout
   const [isSaving, setIsSaving] = useState(false);
 
-  // TODO: Récupérer depuis le backend
-  const mockClients = [
-    { id: 1, name: "Boulangerie Soleil" },
-    { id: 2, name: "Mme Dupont" },
-    { id: 3, name: "M. Martin" },
-    { id: 4, name: "Salon Beauté" },
-  ];
+  const [clients, setClients] = useState<Array<{ id: number; name: string }>>([]);
+  const [projects] = useState<Array<{ id: number; name: string; client_id: number }>>([]);
 
-  const mockProjects = [
-    { id: 1, name: "Rénovation cuisine", client_id: 3 },
-    { id: 2, name: "Installation équipement", client_id: 1 },
-    { id: 3, name: "Projet beauté", client_id: 2 },
-  ];
+  // Vérifier si l'entreprise est auto-entrepreneur
+  const isAutoEntrepreneurValue = (company as any)?.is_auto_entrepreneur;
+  const isAutoEntrepreneur = isAutoEntrepreneurValue === true || 
+                             isAutoEntrepreneurValue === 1 || 
+                             isAutoEntrepreneurValue === "true" ||
+                             String(isAutoEntrepreneurValue).toLowerCase() === "true";
+
+  // Récupérer les taux de TVA depuis les settings
+  // Si auto-entrepreneur, forcer à [0] uniquement
+  const taxRates = isAutoEntrepreneur 
+    ? [0] 
+    : (settings?.settings?.billing?.tax_rates || [0, 2.1, 5.5, 10, 20]);
+
+  // Charger les clients depuis le backend
+  useEffect(() => {
+    const loadClients = async () => {
+      if (!token) return;
+      
+      try {
+        const clientsData = await getClients(token);
+        setClients(clientsData.map(c => ({ id: c.id, name: c.name })));
+      } catch (err) {
+        console.error("Erreur lors du chargement des clients:", err);
+      }
+    };
+    
+    loadClients();
+  }, [token]);
 
   const [formData, setFormData] = useState<{
     client_id: number;
@@ -37,6 +61,12 @@ export default function NewQuotePage() {
     lines: BillingLine[];
     notes?: string;
     conditions?: string;
+    valid_until?: string; // Format: YYYY-MM-DD
+    service_start_date?: string; // Format: YYYY-MM-DD
+    execution_duration?: string;
+    discount_type?: "percentage" | "fixed" | null;
+    discount_value?: number | null;
+    discount_label?: string | null;
     status: Quote["status"];
     attachments?: File[];
   }>({
@@ -47,7 +77,7 @@ export default function NewQuotePage() {
         description: "",
         quantity: 1,
         unitPrice: 0,
-        taxRate: 20,
+        taxRate: isAutoEntrepreneur ? 0 : 20, // 0% si auto-entrepreneur
       },
     ],
     status: "brouillon",
@@ -55,54 +85,71 @@ export default function NewQuotePage() {
   });
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
 
-  // Si on duplique un devis, charger les données
+  // Forcer toutes les lignes à 0% de TVA si auto-entrepreneur
   useEffect(() => {
-    if (duplicateId) {
-      // TODO: Charger le devis depuis le backend
-      // Pour l'instant, on simule avec des données mock
-      const mockQuoteToDuplicate = {
-        client_id: Number(searchParams.get("client")) || 1,
-        project_id: searchParams.get("project") ? Number(searchParams.get("project")) : undefined,
-        lines: [
-          {
-            id: Date.now(),
-            description: "Prestation de service - Installation",
-            quantity: 1,
-            unitPrice: 1250,
-            taxRate: 20,
-          },
-          {
-            id: Date.now() + 1,
-            description: "Matériel supplémentaire",
-            quantity: 2,
-            unitPrice: 150,
-            taxRate: 20,
-          },
-        ],
-        notes: "Installation prévue pour le 15 février 2025.",
-        conditions: "Paiement à 30 jours. Garantie 1 an.",
-      };
-
-      setFormData({
-        client_id: mockQuoteToDuplicate.client_id,
-        project_id: mockQuoteToDuplicate.project_id,
-        lines: mockQuoteToDuplicate.lines.map((line) => ({
+    if (isAutoEntrepreneur) {
+      setFormData(prev => ({
+        ...prev,
+        lines: prev.lines.map(line => ({
           ...line,
-          id: Date.now() + Math.random(), // Nouveaux IDs pour les lignes
-        })),
-        notes: mockQuoteToDuplicate.notes,
-        conditions: mockQuoteToDuplicate.conditions,
-        status: "brouillon", // Toujours en brouillon pour une duplication
-      });
+          taxRate: 0
+        }))
+      }));
     }
-  }, [duplicateId, searchParams]);
+  }, [isAutoEntrepreneur]);
+
+  // Si on duplique un devis, charger les données depuis le backend
+  useEffect(() => {
+    const loadQuoteToDuplicate = async () => {
+      if (!duplicateId || !token) return;
+      
+      try {
+        // TODO: Créer l'API getQuote dans le backend
+        // const quoteToDuplicate = await getQuote(token, Number(duplicateId));
+        // setFormData({
+        //   client_id: quoteToDuplicate.client_id,
+        //   project_id: quoteToDuplicate.project_id,
+        //   lines: quoteToDuplicate.lines.map((line) => ({
+        //     ...line,
+        //     id: Date.now() + Math.random(),
+        //   })),
+        //   notes: quoteToDuplicate.notes || "",
+        //   conditions: quoteToDuplicate.conditions || "",
+        //   status: "brouillon",
+        // });
+        
+        // Pour l'instant, utiliser les paramètres de l'URL
+        const clientId = Number(searchParams.get("client")) || 0;
+        const projectId = searchParams.get("project") ? Number(searchParams.get("project")) : undefined;
+        
+        if (clientId > 0) {
+          setFormData(prev => ({
+            ...prev,
+            client_id: clientId,
+            project_id: projectId,
+          }));
+        }
+      } catch (err) {
+        console.error("Erreur lors du chargement du devis à dupliquer:", err);
+      }
+    };
+    
+    loadQuoteToDuplicate();
+  }, [duplicateId, searchParams, token]);
 
   // Fonction pour sauvegarder une nouvelle ligne dans la base de données
-  const handleSaveNewLine = async (description: string, unitPrice: number, taxRate: number) => {
-    // TODO: Appel API pour sauvegarder la nouvelle ligne
-    console.log("Sauvegarder nouvelle ligne:", { description, unitPrice, taxRate });
-    // Pour l'instant, on simule juste l'enregistrement
-    // Dans une vraie app, on ferait un appel API ici
+  const handleSaveNewLine = async (description: string, unit: string | undefined, unitPrice: number, taxRate: number) => {
+    if (!token) return;
+    try {
+      await createBillingLineTemplate(token, {
+        description,
+        unit,
+        unit_price_ht: unitPrice,
+        tax_rate: taxRate,
+      });
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde de la ligne:", err);
+    }
   };
 
   const subtotal = calculateSubtotal(formData.lines);
@@ -110,10 +157,30 @@ export default function NewQuotePage() {
   const total = calculateTotal(formData.lines);
 
   const handleLineChange = (lineId: number, field: keyof BillingLine, value: string | number) => {
-    const updatedLines = formData.lines.map((line) =>
-      line.id === lineId ? { ...line, [field]: value } : line
-    );
-    setFormData({ ...formData, lines: updatedLines });
+    // Si auto-entrepreneur et qu'on essaie de modifier le taux de TVA, forcer à 0
+    if (field === "taxRate" && isAutoEntrepreneur) {
+      value = 0;
+      // Mettre à jour toutes les lignes à 0
+      setFormData(prev => ({
+        ...prev,
+        lines: prev.lines.map((line) => ({
+          ...line,
+          taxRate: 0
+        }))
+      }));
+      return;
+    }
+    
+    // Utiliser la forme fonctionnelle pour toujours avoir le dernier état
+    setFormData((prev) => {
+      const updatedLines = prev.lines.map((line) => {
+        if (line.id === lineId) {
+          return { ...line, [field]: value };
+        }
+        return line;
+      });
+      return { ...prev, lines: updatedLines };
+    });
   };
 
   const handleAddLine = () => {
@@ -122,7 +189,7 @@ export default function NewQuotePage() {
       description: "",
       quantity: 1,
       unitPrice: 0,
-      taxRate: 20,
+      taxRate: isAutoEntrepreneur ? 0 : 20, // 0% si auto-entrepreneur
     };
     setFormData({
       ...formData,
@@ -156,7 +223,7 @@ export default function NewQuotePage() {
     });
   };
 
-  const handleSave = async (saveAsDraft: boolean = false) => {
+  const handleSave = async (statusOverride?: Quote["status"]) => {
     if (!formData.client_id) {
       alert("Veuillez sélectionner un client");
       return;
@@ -171,13 +238,14 @@ export default function NewQuotePage() {
     try {
       const now = new Date().toISOString();
       const userName = user?.full_name || user?.email || "Utilisateur";
-      const selectedClient = mockClients.find((c) => c.id === formData.client_id);
+      const selectedClient = clients.find((c) => c.id === formData.client_id);
       const selectedProject = formData.project_id
-        ? mockProjects.find((p) => p.id === formData.project_id)
+        ? projects.find((p) => p.id === formData.project_id)
         : undefined;
 
       // Générer le numéro (TODO: Récupérer le dernier numéro depuis le backend)
-      const quoteNumber = generateQuoteNumber(23, 2025); // Mock: dernier numéro était 23
+      // TODO: Récupérer le dernier numéro depuis le backend
+      const quoteNumber = generateQuoteNumber(0, new Date().getFullYear());
 
       // Créer les événements initiaux
       const historyEvent: BillingHistoryEvent = {
@@ -194,40 +262,64 @@ export default function NewQuotePage() {
         user: userName,
       };
 
-      const newQuote: Quote = {
-        id: Date.now(), // TODO: ID depuis le backend
-        number: quoteNumber,
+      // Préparer les données pour l'API
+      // Si on clique sur "Créer et envoyer", créer en "brouillon" pour ouvrir le formulaire d'envoi
+      const finalStatus = statusOverride === "envoyé" ? "brouillon" : (statusOverride || formData.status);
+      const quoteData: QuoteCreate = {
         client_id: formData.client_id,
-        client_name: selectedClient?.name || "",
         project_id: formData.project_id,
-        project_name: selectedProject?.name,
-        status: saveAsDraft ? "brouillon" : formData.status,
-        lines: formData.lines,
-        subtotal,
-        tax,
-        total,
+        status: finalStatus,
         notes: formData.notes,
         conditions: formData.conditions,
-        created_at: now,
-        timeline: [timelineEvent],
-        history: [historyEvent],
+        valid_until: formData.valid_until ? new Date(formData.valid_until) : undefined,
+        service_start_date: formData.service_start_date ? new Date(formData.service_start_date) : undefined,
+        execution_duration: formData.execution_duration || undefined,
+        discount_type: formData.discount_type || null,
+        discount_value: formData.discount_value || null,
+        discount_label: formData.discount_label || null,
+        lines: formData.lines.map((line, index) => ({
+          description: line.description,
+          quantity: line.quantity,
+          unit: line.unit,
+          unit_price_ht: line.unitPrice,
+          tax_rate: line.taxRate,
+          order: index,
+        })),
       };
 
-      // TODO: Appel API pour créer le devis
-      // TODO: Uploader les fichiers attachés (formData.attachments) vers le backend
-      console.log("Create quote:", newQuote);
-      if (formData.attachments && formData.attachments.length > 0) {
-        console.log("Attachments:", formData.attachments.map(f => f.name));
+      // Appel API pour créer le devis
+      if (!token) {
+        throw new Error("Token d'authentification manquant");
       }
 
-      // Simuler un délai
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      try {
+        const createdQuote = await createQuote(token, quoteData);
 
-      // Rediriger vers la page de détail
-      router.push(`/app/billing/quotes/${newQuote.id}`);
+        // TODO: Uploader les fichiers attachés (formData.attachments) vers le backend
+        if (formData.attachments && formData.attachments.length > 0) {
+          logger.log("Attachments à uploader:", formData.attachments.map(f => f.name));
+          // TODO: Implémenter l'upload des fichiers
+        }
+
+        // Rediriger vers la page de détail
+        // Si on a cliqué sur "Créer et envoyer", ouvrir automatiquement le formulaire d'envoi
+        if (statusOverride === "envoyé") {
+          router.push(`/app/billing/quotes/${createdQuote.id}?send=true`);
+        } else {
+          router.push(`/app/billing/quotes/${createdQuote.id}`);
+        }
+      } catch (apiError) {
+        // Si l'API n'existe pas encore (404), afficher un message clair
+        if ((apiError as any).message?.includes("404") || (apiError as any).message?.includes("Not Found")) {
+          alert("L'API devis n'est pas encore disponible dans le backend. Veuillez créer l'API quotes dans le backend.");
+        } else {
+          throw apiError; // Relancer l'erreur pour qu'elle soit gérée par le catch externe
+        }
+      }
     } catch (error) {
       console.error("Error creating quote:", error);
-      alert("Erreur lors de la création du devis");
+      const errorMessage = (error as any).message || "Erreur lors de la création du devis";
+      alert(`Erreur: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
@@ -285,7 +377,7 @@ export default function NewQuotePage() {
                     required
                   >
                     <option value="0">Sélectionner un client</option>
-                    {mockClients.map((client) => (
+                    {clients.map((client) => (
                       <option key={client.id} value={client.id}>
                         {client.name}
                       </option>
@@ -316,7 +408,7 @@ export default function NewQuotePage() {
                     className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                   >
                     <option value="">Aucun projet</option>
-                    {mockProjects
+                    {projects
                       .filter((p) => !formData.client_id || p.client_id === formData.client_id)
                       .map((project) => (
                         <option key={project.id} value={project.id}>
@@ -380,14 +472,24 @@ export default function NewQuotePage() {
                             handleLineChange(line.id, "description", value)
                           }
                           onSelectLine={(savedLine) => {
-                            // Pré-remplir le prix et la TVA si une ligne est sélectionnée
-                            handleLineChange(line.id, "unitPrice", savedLine.unitPrice);
-                            handleLineChange(line.id, "taxRate", savedLine.taxRate);
+                            // Pré-remplir le prix, l'unité et la TVA si une ligne est sélectionnée
+                            // S'assurer que les valeurs sont des numbers
+                            const unitPrice = typeof savedLine.unitPrice === 'string' ? parseFloat(savedLine.unitPrice) : savedLine.unitPrice;
+                            // Forcer à 0% si auto-entrepreneur, sinon utiliser le taux sauvegardé
+                            const taxRate = isAutoEntrepreneur ? 0 : (typeof savedLine.taxRate === 'string' ? parseFloat(savedLine.taxRate) : savedLine.taxRate);
+                            handleLineChange(line.id, "unitPrice", unitPrice);
+                            if (savedLine.unit) {
+                              handleLineChange(line.id, "unit", savedLine.unit);
+                            }
+                            handleLineChange(line.id, "taxRate", taxRate);
                           }}
-                          onSaveNewLine={(description, unitPrice, taxRate) => {
+                          onSaveNewLine={(description, unit, unitPrice, taxRate) => {
                             // Sauvegarder la nouvelle ligne et mettre à jour la ligne actuelle
-                            handleSaveNewLine(description, unitPrice, taxRate);
+                            handleSaveNewLine(description, unit, unitPrice, taxRate);
                             handleLineChange(line.id, "description", description);
+                            if (unit) {
+                              handleLineChange(line.id, "unit", unit);
+                            }
                             if (unitPrice > 0) {
                               handleLineChange(line.id, "unitPrice", unitPrice);
                             }
@@ -421,6 +523,20 @@ export default function NewQuotePage() {
                           required
                         />
                       </div>
+                      <div className="col-span-1">
+                        <label className="block text-xs font-medium text-[#64748B] mb-1">
+                          Unité
+                        </label>
+                        <input
+                          type="text"
+                          value={line.unit || ""}
+                          onChange={(e) =>
+                            handleLineChange(line.id, "unit", e.target.value)
+                          }
+                          placeholder="ex: heure"
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        />
+                      </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-[#64748B] mb-1">
                           Prix unitaire *
@@ -429,7 +545,7 @@ export default function NewQuotePage() {
                           type="number"
                           min="0"
                           step="0.01"
-                          value={line.unitPrice}
+                          value={line.unitPrice ?? 0}
                           onChange={(e) =>
                             handleLineChange(
                               line.id,
@@ -444,13 +560,28 @@ export default function NewQuotePage() {
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-[#64748B] mb-1">
                           TVA (%)
+                          {isAutoEntrepreneur && (
+                            <span className="text-[#F97316] ml-1" title="Auto-entrepreneur : TVA non applicable">
+                              (0% uniquement)
+                            </span>
+                          )}
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.1"
-                          value={line.taxRate}
+                        {isAutoEntrepreneur ? (
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value="0%"
+                              readOnly
+                              disabled
+                              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm bg-[#F9FAFB] cursor-not-allowed opacity-60"
+                            />
+                            <p className="text-xs text-[#F97316] mt-1">
+                              Entreprise auto-entrepreneur : TVA non applicable
+                            </p>
+                          </div>
+                        ) : (
+                        <select
+                          value={line.taxRate ?? 20}
                           onChange={(e) =>
                             handleLineChange(
                               line.id,
@@ -459,7 +590,14 @@ export default function NewQuotePage() {
                             )
                           }
                           className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                        />
+                        >
+                          {taxRates.map((rate) => (
+                            <option key={rate} value={rate}>
+                              {rate}%
+                            </option>
+                          ))}
+                        </select>
+                        )}
                       </div>
                       <div className="col-span-1 flex items-end">
                         {formData.lines.length > 1 && (
@@ -558,7 +696,122 @@ export default function NewQuotePage() {
               </div>
             )}
 
-            {/* Bloc 5 : Notes & Conditions */}
+            {/* Bloc 5 : Conformité légale */}
+            <div>
+              <h2 className="text-lg font-semibold text-[#0F172A] mb-4">
+                Conformité légale
+              </h2>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Devis valable jusqu'au (optionnel)
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.valid_until || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, valid_until: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Date de début de prestation (optionnel)
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.service_start_date || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, service_start_date: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Durée d'exécution (optionnel)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.execution_duration || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, execution_duration: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    placeholder="Ex: 30 jours, 2 semaines..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bloc 6 : Réduction/Escompte */}
+            <div>
+              <h2 className="text-lg font-semibold text-[#0F172A] mb-4">
+                Réduction / Escompte
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Type de réduction
+                  </label>
+                  <select
+                    value={formData.discount_type || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discount_type: e.target.value as "percentage" | "fixed" | null,
+                        discount_value: e.target.value ? formData.discount_value : null,
+                      })
+                    }
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                  >
+                    <option value="">Aucune réduction</option>
+                    <option value="percentage">Pourcentage (%)</option>
+                    <option value="fixed">Montant fixe (€)</option>
+                  </select>
+                </div>
+                {formData.discount_type && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                        {formData.discount_type === "percentage" ? "Pourcentage (%)" : "Montant (€)"}
+                      </label>
+                      <input
+                        type="number"
+                        step={formData.discount_type === "percentage" ? "0.01" : "0.01"}
+                        min="0"
+                        value={formData.discount_value || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            discount_value: e.target.value ? parseFloat(e.target.value) : null,
+                          })
+                        }
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        placeholder={formData.discount_type === "percentage" ? "10" : "50.00"}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                        Libellé (optionnel)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.discount_label || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, discount_label: e.target.value || null })
+                        }
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        placeholder="Ex: Remise commerciale, Escompte 2%..."
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Bloc 6 : Notes & Conditions */}
             <div>
               <h2 className="text-lg font-semibold text-[#0F172A] mb-4">
                 Notes & Conditions
@@ -578,20 +831,6 @@ export default function NewQuotePage() {
                     placeholder="Notes internes ou informations supplémentaires..."
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                    Conditions (optionnel)
-                  </label>
-                  <textarea
-                    value={formData.conditions || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, conditions: e.target.value })
-                    }
-                    rows={4}
-                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                    placeholder="Conditions de paiement, garantie, délais..."
-                  />
-                </div>
               </div>
             </div>
 
@@ -604,17 +843,14 @@ export default function NewQuotePage() {
                 Annuler
               </button>
               <button
-                onClick={() => handleSave(true)}
+                onClick={() => handleSave("brouillon")}
                 disabled={isSaving}
                 className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB] disabled:opacity-60"
               >
                 {isSaving ? "Enregistrement..." : "Enregistrer comme brouillon"}
               </button>
               <button
-                onClick={() => {
-                  setFormData({ ...formData, status: "envoyé" });
-                  handleSave(false);
-                }}
+                onClick={() => handleSave("envoyé")}
                 disabled={isSaving}
                 className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60"
               >

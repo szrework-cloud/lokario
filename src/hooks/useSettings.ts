@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { logger } from "@/lib/logger";
 import {
   useSettingsStore,
   CompanySettings,
@@ -65,9 +66,11 @@ export function useSettings(autoLoad: boolean = true) {
             company_id: 1,
             settings: {
                   modules: {
+                    dashboard: { enabled: true },
                     tasks: { enabled: true },
                     inbox: { enabled: true },
                     relances: { enabled: true },
+                    clients: { enabled: true },
                     projects: { enabled: true },
                     billing: { enabled: true },
                     reporting: { enabled: true },
@@ -101,23 +104,34 @@ export function useSettings(autoLoad: boolean = true) {
       setSettings(data);
       lastCompanyIdRef.current = user.company_id;
     } catch (err: any) {
-      setError(err.message || "Erreur lors du chargement des paramètres");
-      setHasLoaded(false);
+      // Si erreur 401 (Unauthorized), ne pas afficher d'erreur car c'est géré par le système d'auth
+      if (err.isAuthError || err.status === 401) {
+        console.warn("Session expirée lors du chargement des paramètres");
+        setHasLoaded(false);
+        // Ne pas définir d'erreur pour éviter d'afficher un message d'erreur
+        // Le système d'authentification gérera la redirection
+      } else {
+        setError(err.message || "Erreur lors du chargement des paramètres");
+        setHasLoaded(false);
+      }
     } finally {
       setLoading(false);
       loadingRef.current = false;
     }
   }, [token, user?.company_id, setLoading, setError, setSettings, reset, setHasLoaded]);
 
+  // Utiliser des valeurs stables pour éviter les changements d'ordre
+  const companyId = user?.company_id ?? null;
+  
   useEffect(() => {
     // Si le company_id change, réinitialiser hasLoaded
-    if (user?.company_id !== lastCompanyIdRef.current) {
+    if (companyId !== lastCompanyIdRef.current) {
       setHasLoaded(false);
-      lastCompanyIdRef.current = user?.company_id ?? null;
+      lastCompanyIdRef.current = companyId;
     }
 
     // Si pas de token ou company_id, reset et arrêter
-    if (!token || !user?.company_id) {
+    if (!token || !companyId) {
       reset();
       return;
     }
@@ -130,7 +144,26 @@ export function useSettings(autoLoad: boolean = true) {
     // Charger les settings
     void reloadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoLoad, token, user?.company_id, hasLoaded, isLoading]);
+  }, [autoLoad, token, companyId, hasLoaded, isLoading, reloadSettings]);
+
+  // Recharger les settings quand la fenêtre redevient visible (utilisateur revient sur l'onglet)
+  // Cela permet de détecter les changements depuis l'admin sans poller en continu
+  useEffect(() => {
+    if (!autoLoad || !token || !companyId || !hasLoaded) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !loadingRef.current) {
+        void reloadSettings();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLoad, token, companyId, hasLoaded, reloadSettings]);
 
   const saveSettings = useCallback(
     async (updatedSettings: CompanySettings["settings"]) => {
@@ -143,7 +176,7 @@ export function useSettings(autoLoad: boolean = true) {
         
         // En mode développement sans backend, simuler une réponse
         if (!process.env.NEXT_PUBLIC_API_URL) {
-          console.log("[MOCK API] PATCH /companies/me/settings", updatedSettings);
+          logger.log("[MOCK API] PATCH /companies/me/settings", updatedSettings);
           // Simuler une mise à jour locale
           updateSettingsLocal(updatedSettings);
           return;

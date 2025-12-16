@@ -33,7 +33,7 @@ export function FollowUpsTable({
               Date limite
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Statut
+              Type
             </th>
           </tr>
         </thead>

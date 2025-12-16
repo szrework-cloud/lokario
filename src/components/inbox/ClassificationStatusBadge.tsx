@@ -9,10 +9,6 @@ interface ClassificationStatusBadgeProps {
 export function ClassificationStatusBadge({ item }: ClassificationStatusBadgeProps) {
   const badges = [];
 
-  if (item.aiClassified) {
-    badges.push({ text: "🤖 Classé par IA", color: "bg-blue-100 text-blue-800" });
-  }
-
   if (item.autoReplyMode === "auto" && item.autoReplySent) {
     badges.push({ text: "📧 Réponse auto envoyée", color: "bg-green-100 text-green-800" });
   }

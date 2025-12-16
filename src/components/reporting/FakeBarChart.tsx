@@ -28,10 +28,6 @@ export function FakeBarChart({ title, data, maxValue }: FakeBarChartProps) {
           </div>
         ))}
       </div>
-      <p className="text-xs text-[#64748B] mt-4">
-        TODO: Remplacer par un vrai graphique (Chart.js, Recharts, etc.) avec
-        données backend
-      </p>
     </div>
   );
 }

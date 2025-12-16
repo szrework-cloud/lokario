@@ -1,0 +1,1079 @@
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_
+from typing import List, Optional
+from datetime import datetime, timedelta
+
+from app.db.session import get_db
+from app.db.models.appointment import Appointment, AppointmentType, AppointmentStatus
+from app.db.models.user import User
+from app.db.models.client import Client
+from app.api.schemas.appointment import (
+    AppointmentTypeCreate,
+    AppointmentTypeUpdate,
+    AppointmentTypeRead,
+    AppointmentCreate,
+    AppointmentUpdate,
+    AppointmentRead,
+    AppointmentSettings,
+    AppointmentSettingsUpdate,
+    PublicAppointmentCreate,
+)
+from app.api.deps import get_current_active_user
+from app.core.config import settings
+
+router = APIRouter(prefix="/appointments", tags=["appointments"])
+
+
+def _check_company_access(current_user: User):
+    """Vérifier que l'utilisateur est attaché à une entreprise"""
+    if current_user.company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
+
+
+# ===== PUBLIC ENDPOINTS (sans authentification) - DOIT ÊTRE AVANT LES ROUTES AVEC PARAMÈTRES =====
+
+@router.get("/public/types")
+def get_public_appointment_types(
+    slug: str = Query(..., description="Company slug (code)"),
+    db: Session = Depends(get_db)
+):
+    """Récupère les types de rendez-vous actifs d'une entreprise (endpoint public)"""
+    from app.db.models.company import Company
+    
+    # Trouver l'entreprise par son slug ou son code
+    company = db.query(Company).filter(
+        or_(Company.slug == slug, Company.code == slug),
+        Company.is_active == True
+    ).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    
+    # Récupérer uniquement les types actifs
+    types = db.query(AppointmentType).filter(
+        AppointmentType.company_id == company.id,
+        AppointmentType.is_active == True
+    ).order_by(AppointmentType.name).all()
+    
+    return types
+
+
+@router.get("/public/employees")
+def get_public_employees(
+    slug: str = Query(..., description="Company slug (code)"),
+    db: Session = Depends(get_db)
+):
+    """Récupère les employés d'une entreprise (endpoint public)"""
+    from app.db.models.company import Company
+    
+    # Trouver l'entreprise par son slug ou son code
+    company = db.query(Company).filter(
+        or_(Company.slug == slug, Company.code == slug),
+        Company.is_active == True
+    ).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    
+    # Récupérer les utilisateurs actifs de l'entreprise
+    employees = db.query(User).filter(
+        User.company_id == company.id,
+        User.is_active == True
+    ).order_by(User.full_name).all()
+    
+    return [
+        {
+            "id": emp.id,
+            "name": emp.full_name,
+            "email": emp.email
+        }
+        for emp in employees
+    ]
+
+
+@router.get("/public/appointments")
+def get_public_appointments(
+    slug: str = Query(..., description="Company slug (code)"),
+    start_date: Optional[datetime] = Query(None, description="Start date filter"),
+    end_date: Optional[datetime] = Query(None, description="End date filter"),
+    db: Session = Depends(get_db)
+):
+    """Récupère les rendez-vous d'une entreprise pour calculer les créneaux disponibles (endpoint public)"""
+    from app.db.models.company import Company
+    
+    # Trouver l'entreprise par son slug ou son code
+    company = db.query(Company).filter(
+        or_(Company.slug == slug, Company.code == slug),
+        Company.is_active == True
+    ).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    
+    # Récupérer les rendez-vous non annulés
+    query = db.query(Appointment).options(
+        joinedload(Appointment.client),
+        joinedload(Appointment.type),
+        joinedload(Appointment.employee)
+    ).filter(
+        Appointment.company_id == company.id,
+        Appointment.status != AppointmentStatus.CANCELLED
+    )
+    
+    # Filtrer par date si fourni
+    if start_date:
+        query = query.filter(Appointment.start_date_time >= start_date)
+    
+    if end_date:
+        query = query.filter(Appointment.start_date_time <= end_date)
+    
+    appointments = query.order_by(Appointment.start_date_time.asc()).all()
+    
+    return [AppointmentRead.from_orm_with_relations(apt) for apt in appointments]
+
+
+@router.post("/public/appointments", response_model=AppointmentRead, status_code=status.HTTP_201_CREATED)
+def create_public_appointment(
+    appointment_data: PublicAppointmentCreate,
+    slug: str = Query(..., description="Company slug (code)"),
+    db: Session = Depends(get_db)
+):
+    """Crée un rendez-vous public (sans authentification)"""
+    from app.db.models.company import Company
+    
+    # Trouver l'entreprise par son slug ou son code
+    company = db.query(Company).filter(
+        or_(Company.slug == slug, Company.code == slug),
+        Company.is_active == True
+    ).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    
+    # Vérifier que le type existe
+    appointment_type = db.query(AppointmentType).filter(
+        AppointmentType.id == appointment_data.type_id,
+        AppointmentType.company_id == company.id,
+        AppointmentType.is_active == True
+    ).first()
+    
+    if not appointment_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment type not found"
+        )
+    
+    # Vérifier que l'employé existe si fourni
+    if appointment_data.employee_id:
+        employee = db.query(User).filter(
+            User.id == appointment_data.employee_id,
+            User.company_id == company.id
+        ).first()
+        
+        if not employee:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Employee not found or not in same company"
+            )
+    
+    # Chercher le client par email
+    client = db.query(Client).filter(
+        Client.company_id == company.id,
+        Client.email == appointment_data.client_email
+    ).first()
+    
+    # Si le client n'existe pas, le créer
+    if not client:
+        client = Client(
+            company_id=company.id,
+            name=appointment_data.client_name,
+            email=appointment_data.client_email,
+            phone=appointment_data.client_phone
+        )
+        db.add(client)
+        db.flush()  # Pour obtenir l'ID
+    
+    # Vérifier les conflits de créneaux
+    # Récupérer le type de rendez-vous pour prendre en compte les buffers
+    appointment_type = db.query(AppointmentType).filter(
+        AppointmentType.id == appointment_data.type_id,
+        AppointmentType.company_id == company.id
+    ).first()
+    
+    if not appointment_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment type not found"
+        )
+    
+    # Calculer les dates avec buffers
+    buffer_before = timedelta(minutes=appointment_type.buffer_before_minutes or 0)
+    buffer_after = timedelta(minutes=appointment_type.buffer_after_minutes or 0)
+    effective_start = appointment_data.start_date_time - buffer_before
+    effective_end = appointment_data.end_date_time + buffer_after
+    
+    conflicting = db.query(Appointment).filter(
+        Appointment.company_id == company.id,
+        Appointment.status != AppointmentStatus.CANCELLED,
+        (
+            (Appointment.start_date_time < effective_end) &
+            (Appointment.end_date_time > effective_start)
+        )
+    )
+    
+    if appointment_data.employee_id:
+        conflicting = conflicting.filter(Appointment.employee_id == appointment_data.employee_id)
+    
+    if conflicting.first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Time slot conflict: another appointment exists at this time"
+        )
+    
+    # Créer le rendez-vous
+    appointment = Appointment(
+        company_id=company.id,
+        client_id=client.id,
+        type_id=appointment_data.type_id,
+        employee_id=appointment_data.employee_id,
+        start_date_time=appointment_data.start_date_time,
+        end_date_time=appointment_data.end_date_time,
+        status=AppointmentStatus.SCHEDULED,
+        notes_internal=appointment_data.notes_internal
+    )
+    
+    db.add(appointment)
+    db.commit()
+    db.refresh(appointment)
+    
+    # Recharger avec les relations
+    appointment = db.query(Appointment).options(
+        joinedload(Appointment.client),
+        joinedload(Appointment.type),
+        joinedload(Appointment.employee)
+    ).filter(Appointment.id == appointment.id).first()
+    
+    return AppointmentRead.from_orm_with_relations(appointment)
+
+
+# ===== APPOINTMENT TYPES =====
+
+@router.get("/types", response_model=List[AppointmentTypeRead])
+def get_appointment_types(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    active_only: Optional[bool] = Query(None, description="Filter by active status")
+):
+    """Récupère tous les types de rendez-vous de l'entreprise"""
+    _check_company_access(current_user)
+    
+    query = db.query(AppointmentType).filter(
+        AppointmentType.company_id == current_user.company_id
+    )
+    
+    if active_only is not None:
+        query = query.filter(AppointmentType.is_active == active_only)
+    
+    types = query.order_by(AppointmentType.name).all()
+    return [AppointmentTypeRead.from_orm(t) for t in types]
+
+
+@router.get("/types/{type_id}", response_model=AppointmentTypeRead)
+def get_appointment_type(
+    type_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récupère un type de rendez-vous"""
+    _check_company_access(current_user)
+    
+    appointment_type = db.query(AppointmentType).filter(
+        AppointmentType.id == type_id,
+        AppointmentType.company_id == current_user.company_id
+    ).first()
+    
+    if not appointment_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment type not found"
+        )
+    
+    return AppointmentTypeRead.from_orm(appointment_type)
+
+
+@router.post("/types", response_model=AppointmentTypeRead, status_code=status.HTTP_201_CREATED)
+def create_appointment_type(
+    type_data: AppointmentTypeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Crée un nouveau type de rendez-vous"""
+    _check_company_access(current_user)
+    
+    # Vérifier que l'utilisateur est owner
+    if current_user.role not in ["owner", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners and admins can create appointment types"
+        )
+    
+    appointment_type = AppointmentType(
+        company_id=current_user.company_id,
+        name=type_data.name,
+        description=type_data.description,
+        duration_minutes=type_data.duration_minutes,
+        buffer_before_minutes=type_data.buffer_before_minutes,
+        buffer_after_minutes=type_data.buffer_after_minutes,
+        is_active=type_data.is_active
+    )
+    
+    # Définir les employés autorisés (peut être None, liste vide, ou liste avec IDs)
+    if type_data.employees_allowed_ids is not None:
+        appointment_type.set_employees_allowed_ids(type_data.employees_allowed_ids)
+    else:
+        appointment_type.employees_allowed_ids = None
+    
+    db.add(appointment_type)
+    db.commit()
+    db.refresh(appointment_type)
+    
+    return AppointmentTypeRead.from_orm(appointment_type)
+
+
+@router.patch("/types/{type_id}", response_model=AppointmentTypeRead)
+def update_appointment_type(
+    type_id: int,
+    type_data: AppointmentTypeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Met à jour un type de rendez-vous"""
+    _check_company_access(current_user)
+    
+    # Vérifier que l'utilisateur est owner
+    if current_user.role not in ["owner", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners and admins can update appointment types"
+        )
+    
+    appointment_type = db.query(AppointmentType).filter(
+        AppointmentType.id == type_id,
+        AppointmentType.company_id == current_user.company_id
+    ).first()
+    
+    if not appointment_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment type not found"
+        )
+    
+    # Mettre à jour les champs fournis
+    update_data = type_data.model_dump(exclude_unset=True)
+    
+    # Gérer employees_allowed_ids séparément
+    if "employees_allowed_ids" in update_data:
+        employees_ids = update_data.pop("employees_allowed_ids")
+        if employees_ids is not None:
+            appointment_type.set_employees_allowed_ids(employees_ids)
+        else:
+            appointment_type.employees_allowed_ids = None
+    
+    for field, value in update_data.items():
+        setattr(appointment_type, field, value)
+    
+    db.commit()
+    db.refresh(appointment_type)
+    
+    return AppointmentTypeRead.from_orm(appointment_type)
+
+
+@router.delete("/types/{type_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_appointment_type(
+    type_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Supprime un type de rendez-vous"""
+    _check_company_access(current_user)
+    
+    # Vérifier que l'utilisateur est owner
+    if current_user.role not in ["owner", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners and admins can delete appointment types"
+        )
+    
+    appointment_type = db.query(AppointmentType).filter(
+        AppointmentType.id == type_id,
+        AppointmentType.company_id == current_user.company_id
+    ).first()
+    
+    if not appointment_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment type not found"
+        )
+    
+    # Vérifier qu'il n'y a pas de rendez-vous associés
+    appointments_count = db.query(Appointment).filter(
+        Appointment.type_id == type_id
+    ).count()
+    
+    if appointments_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete appointment type with {appointments_count} associated appointment(s)"
+        )
+    
+    db.delete(appointment_type)
+    db.commit()
+    
+    return None
+
+
+# ===== APPOINTMENTS =====
+
+@router.get("", response_model=List[AppointmentRead])
+def get_appointments(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    client_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    employee_id: Optional[int] = Query(None)
+):
+    """Récupère tous les rendez-vous de l'entreprise avec filtres"""
+    _check_company_access(current_user)
+    
+    query = db.query(Appointment).options(
+        joinedload(Appointment.client),
+        joinedload(Appointment.type),
+        joinedload(Appointment.employee),
+        joinedload(Appointment.conversation)
+    ).filter(
+        Appointment.company_id == current_user.company_id
+    )
+    
+    # Filtres
+    if client_id:
+        query = query.filter(Appointment.client_id == client_id)
+    
+    if status:
+        try:
+            status_enum = AppointmentStatus(status)
+            query = query.filter(Appointment.status == status_enum)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status: {status}"
+            )
+    
+    if start_date:
+        query = query.filter(Appointment.start_date_time >= start_date)
+    
+    if end_date:
+        query = query.filter(Appointment.start_date_time <= end_date)
+    
+    if employee_id:
+        query = query.filter(Appointment.employee_id == employee_id)
+    
+    appointments = query.order_by(Appointment.start_date_time.asc()).all()
+    
+    return [AppointmentRead.from_orm_with_relations(apt) for apt in appointments]
+
+
+# ===== APPOINTMENT SETTINGS (doit être avant les routes avec paramètres) =====
+
+@router.get("/settings")
+def get_appointment_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récupère les paramètres de rendez-vous de l'entreprise"""
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Valeurs par défaut
+    default_settings = {
+        "auto_reminder_enabled": True,
+        "auto_reminder_offset_hours": 4,
+        "include_reschedule_link_in_reminder": True,
+        "auto_no_show_message_enabled": True,
+        "reschedule_base_url": None,
+        "max_reminder_relances": 1,
+        "reminder_relances": [],
+    }
+    
+    try:
+        _check_company_access(current_user)
+    except Exception as e:
+        logger.error(f"Company access check failed: {e}")
+        raise
+    
+    try:
+        from app.db.models.company_settings import CompanySettings
+        
+        company_settings = db.query(CompanySettings).filter(
+            CompanySettings.company_id == current_user.company_id
+        ).first()
+        
+        if not company_settings:
+            return default_settings
+        
+        settings_dict = company_settings.settings
+        appointment_settings = settings_dict.get("appointments", {})
+        
+        if not appointment_settings:
+            return default_settings
+        
+        # Nettoyer et convertir les valeurs pour éviter les erreurs de type
+        cleaned_settings = default_settings.copy()
+        
+        # Convertir auto_reminder_enabled
+        if "auto_reminder_enabled" in appointment_settings:
+            val = appointment_settings["auto_reminder_enabled"]
+            if isinstance(val, bool):
+                cleaned_settings["auto_reminder_enabled"] = val
+            elif isinstance(val, str):
+                cleaned_settings["auto_reminder_enabled"] = val.lower() in ("true", "1", "yes")
+            elif isinstance(val, (int, float)):
+                cleaned_settings["auto_reminder_enabled"] = bool(val)
+        
+        # Convertir auto_reminder_offset_hours (s'assurer que c'est un int)
+        if "auto_reminder_offset_hours" in appointment_settings:
+            val = appointment_settings["auto_reminder_offset_hours"]
+            try:
+                if isinstance(val, int):
+                    cleaned_settings["auto_reminder_offset_hours"] = max(1, val)
+                elif isinstance(val, str):
+                    cleaned_settings["auto_reminder_offset_hours"] = max(1, int(float(val)))
+                elif isinstance(val, float):
+                    cleaned_settings["auto_reminder_offset_hours"] = max(1, int(val))
+            except (ValueError, TypeError):
+                pass  # Garder la valeur par défaut
+        
+        # Convertir include_reschedule_link_in_reminder
+        if "include_reschedule_link_in_reminder" in appointment_settings:
+            val = appointment_settings["include_reschedule_link_in_reminder"]
+            if isinstance(val, bool):
+                cleaned_settings["include_reschedule_link_in_reminder"] = val
+            elif isinstance(val, str):
+                cleaned_settings["include_reschedule_link_in_reminder"] = val.lower() in ("true", "1", "yes")
+            elif isinstance(val, (int, float)):
+                cleaned_settings["include_reschedule_link_in_reminder"] = bool(val)
+        
+        # Convertir auto_no_show_message_enabled
+        if "auto_no_show_message_enabled" in appointment_settings:
+            val = appointment_settings["auto_no_show_message_enabled"]
+            if isinstance(val, bool):
+                cleaned_settings["auto_no_show_message_enabled"] = val
+            elif isinstance(val, str):
+                cleaned_settings["auto_no_show_message_enabled"] = val.lower() in ("true", "1", "yes")
+            elif isinstance(val, (int, float)):
+                cleaned_settings["auto_no_show_message_enabled"] = bool(val)
+        
+        # reschedule_base_url (string, peut être None)
+        if "reschedule_base_url" in appointment_settings:
+            val = appointment_settings["reschedule_base_url"]
+            if val is not None and val != "":
+                cleaned_settings["reschedule_base_url"] = str(val)
+            else:
+                cleaned_settings["reschedule_base_url"] = None
+        
+        # Convertir max_reminder_relances
+        if "max_reminder_relances" in appointment_settings:
+            val = appointment_settings["max_reminder_relances"]
+            try:
+                if isinstance(val, int):
+                    cleaned_settings["max_reminder_relances"] = max(1, min(3, val))
+                elif isinstance(val, str):
+                    cleaned_settings["max_reminder_relances"] = max(1, min(3, int(float(val))))
+                elif isinstance(val, float):
+                    cleaned_settings["max_reminder_relances"] = max(1, min(3, int(val)))
+            except (ValueError, TypeError):
+                pass
+        
+        # Convertir reminder_relances (liste de templates)
+        if "reminder_relances" in appointment_settings:
+            val = appointment_settings["reminder_relances"]
+            if isinstance(val, list):
+                cleaned_settings["reminder_relances"] = val
+            else:
+                cleaned_settings["reminder_relances"] = []
+        
+        # S'assurer que tous les types sont corrects avant de retourner
+        cleaned_settings["auto_reminder_offset_hours"] = int(cleaned_settings["auto_reminder_offset_hours"])
+        cleaned_settings["auto_reminder_enabled"] = bool(cleaned_settings["auto_reminder_enabled"])
+        cleaned_settings["include_reschedule_link_in_reminder"] = bool(cleaned_settings["include_reschedule_link_in_reminder"])
+        cleaned_settings["auto_no_show_message_enabled"] = bool(cleaned_settings["auto_no_show_message_enabled"])
+        cleaned_settings["max_reminder_relances"] = int(cleaned_settings.get("max_reminder_relances", 1))
+        if "reminder_relances" not in cleaned_settings:
+            cleaned_settings["reminder_relances"] = []
+        
+        return cleaned_settings
+        
+    except Exception as e:
+        logger.error(f"Error in get_appointment_settings: {e}", exc_info=True)
+        # En cas d'erreur, retourner les valeurs par défaut
+        return default_settings
+
+
+@router.patch("/settings")
+def update_appointment_settings(
+    settings_data: AppointmentSettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Met à jour les paramètres de rendez-vous"""
+    _check_company_access(current_user)
+    
+    # Vérifier que l'utilisateur est owner
+    if current_user.role not in ["owner", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners and admins can update appointment settings"
+        )
+    
+    from app.db.models.company_settings import CompanySettings
+    
+    company_settings = db.query(CompanySettings).filter(
+        CompanySettings.company_id == current_user.company_id
+    ).first()
+    
+    if not company_settings:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company settings not found"
+        )
+    
+    # Mettre à jour les settings
+    from fastapi.responses import JSONResponse
+    from sqlalchemy.orm.attributes import flag_modified
+    
+    settings_dict = company_settings.settings
+    if "appointments" not in settings_dict:
+        settings_dict["appointments"] = {}
+    
+    # Mettre à jour uniquement les champs fournis (exclude_unset=True)
+    update_data = settings_data.model_dump(exclude_unset=True)
+    settings_dict["appointments"].update(update_data)
+    
+    company_settings.settings = settings_dict
+    flag_modified(company_settings, "settings")  # Important pour les champs JSON
+    
+    db.commit()
+    db.refresh(company_settings)
+    
+    # Retourner directement un dictionnaire pour éviter la validation Pydantic
+    return JSONResponse(content=settings_dict.get("appointments", {}))
+
+
+@router.get("/{appointment_id}", response_model=AppointmentRead)
+def get_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récupère un rendez-vous"""
+    _check_company_access(current_user)
+    
+    appointment = db.query(Appointment).options(
+        joinedload(Appointment.client),
+        joinedload(Appointment.type),
+        joinedload(Appointment.employee),
+        joinedload(Appointment.conversation)
+    ).filter(
+        Appointment.id == appointment_id,
+        Appointment.company_id == current_user.company_id
+    ).first()
+    
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment not found"
+        )
+    
+    return AppointmentRead.from_orm_with_relations(appointment)
+
+
+@router.post("", response_model=AppointmentRead, status_code=status.HTTP_201_CREATED)
+def create_appointment(
+    appointment_data: AppointmentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Crée un nouveau rendez-vous"""
+    _check_company_access(current_user)
+    
+    # Vérifier que l'utilisateur est owner
+    if current_user.role not in ["owner", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners and admins can create appointments"
+        )
+    
+    # Vérifier que le client existe et appartient à la même entreprise
+    client = db.query(Client).filter(
+        Client.id == appointment_data.client_id,
+        Client.company_id == current_user.company_id
+    ).first()
+    
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client not found or not in same company"
+        )
+    
+    # Vérifier que le type existe
+    appointment_type = db.query(AppointmentType).filter(
+        AppointmentType.id == appointment_data.type_id,
+        AppointmentType.company_id == current_user.company_id
+    ).first()
+    
+    if not appointment_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment type not found"
+        )
+    
+    # Vérifier que l'employé existe si fourni
+    if appointment_data.employee_id:
+        employee = db.query(User).filter(
+            User.id == appointment_data.employee_id,
+            User.company_id == current_user.company_id
+        ).first()
+        
+        if not employee:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Employee not found or not in same company"
+            )
+    
+    # Vérifier les conflits de créneaux
+    # Récupérer le type de rendez-vous pour prendre en compte les buffers
+    appointment_type = db.query(AppointmentType).filter(
+        AppointmentType.id == appointment_data.type_id,
+        AppointmentType.company_id == current_user.company_id
+    ).first()
+    
+    if not appointment_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment type not found"
+        )
+    
+    # Calculer les dates avec buffers
+    buffer_before = timedelta(minutes=appointment_type.buffer_before_minutes or 0)
+    buffer_after = timedelta(minutes=appointment_type.buffer_after_minutes or 0)
+    effective_start = appointment_data.start_date_time - buffer_before
+    effective_end = appointment_data.end_date_time + buffer_after
+    
+    conflicting = db.query(Appointment).filter(
+        Appointment.company_id == current_user.company_id,
+        Appointment.status != AppointmentStatus.CANCELLED,
+        (
+            (Appointment.start_date_time < effective_end) &
+            (Appointment.end_date_time > effective_start)
+        )
+    )
+    
+    if appointment_data.employee_id:
+        conflicting = conflicting.filter(Appointment.employee_id == appointment_data.employee_id)
+    
+    if conflicting.first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Time slot conflict: another appointment exists at this time"
+        )
+    
+    # Créer le rendez-vous
+    appointment = Appointment(
+        company_id=current_user.company_id,
+        client_id=appointment_data.client_id,
+        type_id=appointment_data.type_id,
+        employee_id=appointment_data.employee_id,
+        conversation_id=appointment_data.conversation_id,
+        start_date_time=appointment_data.start_date_time,
+        end_date_time=appointment_data.end_date_time,
+        status=AppointmentStatus(appointment_data.status),
+        notes_internal=appointment_data.notes_internal,
+        created_by_id=current_user.id
+    )
+    
+    db.add(appointment)
+    db.commit()
+    db.refresh(appointment)
+    
+    # Créer une notification pour le nouveau rendez-vous
+    try:
+        from app.core.notifications import create_notification
+        from app.db.models.notification import NotificationType
+        from app.core.config import settings
+        
+        frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
+        client_name = client.name if client else "Client"
+        employee_name = appointment.employee.full_name if appointment.employee else "Non assigné"
+        
+        create_notification(
+            db=db,
+            company_id=current_user.company_id,
+            notification_type=NotificationType.APPOINTMENT_CREATED,
+            title="Nouveau rendez-vous créé",
+            message=f"Rendez-vous avec {client_name} le {appointment.start_date_time.strftime('%d/%m/%Y à %H:%M')} ({employee_name})",
+            link_url=f"{frontend_url}/app/appointments",
+            link_text="Voir les rendez-vous",
+            source_type="appointment",
+            source_id=appointment.id,
+            user_id=appointment.employee_id,  # Notifier l'employé assigné si disponible
+        )
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"✅ Notification créée pour le nouveau rendez-vous {appointment.id}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Erreur lors de la création de la notification pour le rendez-vous {appointment.id}: {e}")
+    
+    # Recharger avec les relations
+    appointment = db.query(Appointment).options(
+        joinedload(Appointment.client),
+        joinedload(Appointment.type),
+        joinedload(Appointment.employee),
+        joinedload(Appointment.conversation)
+    ).filter(Appointment.id == appointment.id).first()
+    
+    return AppointmentRead.from_orm_with_relations(appointment)
+
+
+@router.patch("/{appointment_id}", response_model=AppointmentRead)
+def update_appointment(
+    appointment_id: int,
+    appointment_data: AppointmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Met à jour un rendez-vous"""
+    _check_company_access(current_user)
+    
+    # Vérifier que l'utilisateur est owner
+    if current_user.role not in ["owner", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners and admins can update appointments"
+        )
+    
+    appointment = db.query(Appointment).filter(
+        Appointment.id == appointment_id,
+        Appointment.company_id == current_user.company_id
+    ).first()
+    
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment not found"
+        )
+    
+    # Vérifier les conflits si les dates changent
+    update_data = appointment_data.model_dump(exclude_unset=True)
+    new_start = update_data.get("start_date_time", appointment.start_date_time)
+    new_end = update_data.get("end_date_time", appointment.end_date_time)
+    new_employee_id = update_data.get("employee_id", appointment.employee_id)
+    new_type_id = update_data.get("type_id", appointment.type_id)
+    
+    if new_start != appointment.start_date_time or new_end != appointment.end_date_time or new_employee_id != appointment.employee_id or new_type_id != appointment.type_id:
+        # Récupérer le type de rendez-vous pour prendre en compte les buffers
+        type_to_check = db.query(AppointmentType).filter(
+            AppointmentType.id == new_type_id,
+            AppointmentType.company_id == current_user.company_id
+        ).first()
+        
+        if type_to_check:
+            # Calculer les dates avec buffers
+            buffer_before = timedelta(minutes=type_to_check.buffer_before_minutes or 0)
+            buffer_after = timedelta(minutes=type_to_check.buffer_after_minutes or 0)
+            effective_start = new_start - buffer_before
+            effective_end = new_end + buffer_after
+        else:
+            effective_start = new_start
+            effective_end = new_end
+        
+        conflicting = db.query(Appointment).filter(
+            Appointment.company_id == current_user.company_id,
+            Appointment.id != appointment_id,
+            Appointment.status != AppointmentStatus.CANCELLED,
+            (
+                (Appointment.start_date_time < effective_end) &
+                (Appointment.end_date_time > effective_start)
+            )
+        )
+        
+        if new_employee_id:
+            conflicting = conflicting.filter(Appointment.employee_id == new_employee_id)
+        
+        if conflicting.first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Time slot conflict: another appointment exists at this time"
+            )
+    
+    # Sauvegarder l'ancien statut et les anciennes dates pour les notifications
+    old_status = appointment.status
+    old_start = appointment.start_date_time
+    old_end = appointment.end_date_time
+    
+    # Mettre à jour les champs
+    if "status" in update_data:
+        try:
+            appointment.status = AppointmentStatus(update_data["status"])
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status: {update_data['status']}"
+            )
+        update_data.pop("status")
+    
+    for field, value in update_data.items():
+        setattr(appointment, field, value)
+    
+    db.commit()
+    db.refresh(appointment)
+    
+    # Créer des notifications selon les changements
+    try:
+        from app.core.notifications import create_notification
+        from app.db.models.notification import NotificationType
+        from app.core.config import settings
+        
+        frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
+        client_name = appointment.client.name if appointment.client else "Client"
+        
+        # Notification si annulé
+        if old_status != AppointmentStatus.CANCELLED and appointment.status == AppointmentStatus.CANCELLED:
+            create_notification(
+                db=db,
+                company_id=current_user.company_id,
+                notification_type=NotificationType.APPOINTMENT_CANCELLED,
+                title="Rendez-vous annulé",
+                message=f"Le rendez-vous avec {client_name} du {old_start.strftime('%d/%m/%Y à %H:%M')} a été annulé",
+                link_url=f"{frontend_url}/app/appointments",
+                link_text="Voir les rendez-vous",
+                source_type="appointment",
+                source_id=appointment.id,
+                user_id=appointment.employee_id,
+            )
+        # Notification si modifié (dates ou statut changé, mais pas annulé)
+        elif (old_start != appointment.start_date_time or 
+              old_end != appointment.end_date_time or 
+              (old_status != appointment.status and appointment.status != AppointmentStatus.CANCELLED)):
+            create_notification(
+                db=db,
+                company_id=current_user.company_id,
+                notification_type=NotificationType.APPOINTMENT_MODIFIED,
+                title="Rendez-vous modifié",
+                message=f"Le rendez-vous avec {client_name} a été modifié (nouvelle date: {appointment.start_date_time.strftime('%d/%m/%Y à %H:%M')})",
+                link_url=f"{frontend_url}/app/appointments",
+                link_text="Voir les rendez-vous",
+                source_type="appointment",
+                source_id=appointment.id,
+                user_id=appointment.employee_id,
+            )
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"✅ Notification créée pour la modification du rendez-vous {appointment.id}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Erreur lors de la création de la notification pour le rendez-vous {appointment.id}: {e}")
+    
+    # Recharger avec les relations
+    appointment = db.query(Appointment).options(
+        joinedload(Appointment.client),
+        joinedload(Appointment.type),
+        joinedload(Appointment.employee),
+        joinedload(Appointment.conversation)
+    ).filter(Appointment.id == appointment.id).first()
+    
+    return AppointmentRead.from_orm_with_relations(appointment)
+
+
+@router.delete("/{appointment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Supprime un rendez-vous"""
+    _check_company_access(current_user)
+    
+    # Vérifier que l'utilisateur est owner
+    if current_user.role not in ["owner", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners and admins can delete appointments"
+        )
+    
+    appointment = db.query(Appointment).filter(
+        Appointment.id == appointment_id,
+        Appointment.company_id == current_user.company_id
+    ).first()
+    
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment not found"
+        )
+    
+    # Créer une notification pour l'annulation (suppression = annulation)
+    try:
+        from app.core.notifications import create_notification
+        from app.db.models.notification import NotificationType
+        from app.core.config import settings
+        
+        frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
+        client_name = appointment.client.name if appointment.client else "Client"
+        
+        create_notification(
+            db=db,
+            company_id=current_user.company_id,
+            notification_type=NotificationType.APPOINTMENT_CANCELLED,
+            title="Rendez-vous annulé",
+            message=f"Le rendez-vous avec {client_name} du {appointment.start_date_time.strftime('%d/%m/%Y à %H:%M')} a été annulé",
+            link_url=f"{frontend_url}/app/appointments",
+            link_text="Voir les rendez-vous",
+            source_type="appointment",
+            source_id=appointment.id,
+            user_id=appointment.employee_id,
+        )
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"✅ Notification créée pour l'annulation du rendez-vous {appointment.id}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Erreur lors de la création de la notification pour l'annulation du rendez-vous {appointment.id}: {e}")
+    
+    db.delete(appointment)
+    db.commit()
+    
+    return None
+
+

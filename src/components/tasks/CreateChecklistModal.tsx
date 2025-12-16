@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { sectorTemplates, SectorTemplate } from "./sectorTemplates";
 import { useSettings } from "@/hooks/useSettings";
+import { logger } from "@/lib/logger";
 
 interface CreateChecklistModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: ChecklistFormData) => void;
+  employees?: Array<{ id: number; name: string; email: string; avatar?: string }>;
+  initialData?: ChecklistFormData & { id?: number }; // Pour le mode édition
 }
 
 export interface ChecklistFormData {
@@ -18,10 +21,9 @@ export interface ChecklistFormData {
   assigned_to_id?: number;
   recurrence: "daily" | "weekly" | "monthly";
   recurrence_days?: number[]; // Pour hebdomadaire (0-6, dimanche = 0)
-  execution_time?: string;
 }
 
-export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateChecklistModalProps) {
+export function CreateChecklistModal({ isOpen, onClose, onSubmit, employees = [], initialData }: CreateChecklistModalProps) {
   const { company } = useSettings(false);
   
   // Normaliser le secteur (ex: "Coiffure" → "coiffure", "Tabac-Presse" → "tabac")
@@ -48,19 +50,65 @@ export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateCheckl
   
   const companySector = normalizeSector(company?.sector);
   
-  const [formData, setFormData] = useState<Partial<ChecklistFormData>>({
-    items: [""],
-    recurrence: "daily",
+  // Initialiser avec les données existantes si en mode édition
+  const [formData, setFormData] = useState<Partial<ChecklistFormData>>(() => {
+    if (initialData) {
+      // S'assurer que recurrence_days est toujours un tableau
+      const recurrenceDays = Array.isArray(initialData.recurrence_days) 
+        ? initialData.recurrence_days 
+        : (initialData.recurrence_days ? [initialData.recurrence_days] : []);
+      
+      return {
+        name: initialData.name,
+        description: initialData.description,
+        items: initialData.items && initialData.items.length > 0 ? initialData.items : [""],
+        recurrence: initialData.recurrence || "daily",
+        recurrence_days: recurrenceDays,
+        assigned_to_id: initialData.assigned_to_id,
+      };
+    }
+    return {
+      items: [""],
+      recurrence: "daily",
+      recurrence_days: [],
+    };
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // TODO: Récupérer depuis le backend
-  const mockEmployees = [
-    { id: 1, name: "Jean Dupont" },
-    { id: 2, name: "Marie Martin" },
-    { id: 3, name: "Sophie Durand" },
-    { id: 4, name: "Pierre Bernard" },
-  ];
+  // Réinitialiser le formulaire quand le modal s'ouvre/ferme ou que initialData change
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        // S'assurer que recurrence_days est toujours un tableau
+        const recurrenceDays = Array.isArray(initialData.recurrence_days) 
+          ? initialData.recurrence_days 
+          : (initialData.recurrence_days ? [initialData.recurrence_days] : []);
+        
+        logger.log("[CreateChecklistModal] Initialisation avec initialData:", {
+          name: initialData.name,
+          recurrence: initialData.recurrence,
+          recurrence_days: initialData.recurrence_days,
+          recurrenceDays_normalized: recurrenceDays,
+        });
+        
+        setFormData({
+          name: initialData.name,
+          description: initialData.description,
+          items: initialData.items && initialData.items.length > 0 ? initialData.items : [""],
+          recurrence: initialData.recurrence || "daily",
+          recurrence_days: recurrenceDays,
+          assigned_to_id: initialData.assigned_to_id,
+        });
+      } else {
+        setFormData({
+          items: [""],
+          recurrence: "daily",
+          recurrence_days: [],
+        });
+      }
+    }
+  }, [isOpen, initialData]);
+
 
   const weekDays = [
     { value: 0, label: "Dimanche" },
@@ -71,6 +119,12 @@ export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateCheckl
     { value: 5, label: "Vendredi" },
     { value: 6, label: "Samedi" },
   ];
+
+  // Jours du mois (1-31) pour la récurrence mensuelle
+  const monthDays = Array.from({ length: 31 }, (_, i) => ({
+    value: i + 1,
+    label: String(i + 1),
+  }));
 
   const handleAddItem = () => {
     setFormData({
@@ -96,7 +150,6 @@ export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateCheckl
       description: template.description,
       items: template.items,
       recurrence: template.recurrence,
-      execution_time: template.executionTime,
     });
   };
 
@@ -114,8 +167,7 @@ export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateCheckl
         items: formData.items.filter((i) => i.trim()),
         assigned_to_id: formData.assigned_to_id,
         recurrence: formData.recurrence || "daily",
-        recurrence_days: formData.recurrence_days,
-        execution_time: formData.execution_time,
+        recurrence_days: formData.recurrence_days || (formData.recurrence === "weekly" ? [] : undefined),
       });
       setFormData({ items: [""], recurrence: "daily" });
       onClose();
@@ -133,7 +185,9 @@ export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateCheckl
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-[#0F172A]">Créer une checklist</h2>
+            <h2 className="text-xl font-semibold text-[#0F172A]">
+              {initialData ? "Modifier la checklist" : "Créer une checklist"}
+            </h2>
             <button
               onClick={onClose}
               className="text-[#64748B] hover:text-[#0F172A]"
@@ -334,9 +388,9 @@ export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateCheckl
                   className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                 >
                   <option value="">Tous les employés</option>
-                  {mockEmployees.map((emp) => (
+                  {employees.map((emp) => (
                     <option key={emp.id} value={emp.id}>
-                      {emp.name}
+                      {emp.name || emp.email}
                     </option>
                   ))}
                 </select>
@@ -349,12 +403,22 @@ export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateCheckl
                 <select
                   required
                   value={formData.recurrence || "daily"}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const newRecurrence = e.target.value as ChecklistFormData["recurrence"];
+                    // Si on passe à "weekly" ou "monthly", préserver les jours déjà sélectionnés ou initialiser avec un tableau vide
+                    let recurrenceDays: number[] | undefined;
+                    if (newRecurrence === "weekly" || newRecurrence === "monthly") {
+                      recurrenceDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                    } else {
+                      recurrenceDays = undefined;
+                    }
+                    
                     setFormData({
                       ...formData,
-                      recurrence: e.target.value as ChecklistFormData["recurrence"],
-                    })
-                  }
+                      recurrence: newRecurrence,
+                      recurrence_days: recurrenceDays,
+                    });
+                  }}
                   className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                 >
                   <option value="daily">Quotidienne</option>
@@ -370,50 +434,83 @@ export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateCheckl
                   Jours de la semaine
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {weekDays.map((day) => (
-                    <label
-                      key={day.value}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.recurrence_days?.includes(day.value) || false}
-                        onChange={(e) => {
-                          const days = formData.recurrence_days || [];
-                          if (e.target.checked) {
-                            setFormData({
-                              ...formData,
-                              recurrence_days: [...days, day.value],
-                            });
-                          } else {
-                            setFormData({
-                              ...formData,
-                              recurrence_days: days.filter((d) => d !== day.value),
-                            });
-                          }
-                        }}
-                        className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
-                      />
-                      <span className="text-sm text-[#0F172A]">{day.label}</span>
-                    </label>
-                  ))}
+                  {weekDays.map((day) => {
+                    const recurrenceDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                    const isChecked = recurrenceDays.includes(day.value);
+                    
+                    return (
+                      <label
+                        key={day.value}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const currentDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                recurrence_days: [...currentDays, day.value],
+                              });
+                            } else {
+                              setFormData({
+                                ...formData,
+                                recurrence_days: currentDays.filter((d) => d !== day.value),
+                              });
+                            }
+                          }}
+                          className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+                        />
+                        <span className="text-sm text-[#0F172A]">{day.label}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                Heure d'exécution (optionnel)
-              </label>
-              <input
-                type="time"
-                value={formData.execution_time || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, execution_time: e.target.value })
-                }
-                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-              />
-            </div>
+            {formData.recurrence === "monthly" && (
+              <div>
+                <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                  Jours du mois
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {monthDays.map((day) => {
+                    const recurrenceDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                    const isChecked = recurrenceDays.includes(day.value);
+                    
+                    return (
+                      <label
+                        key={day.value}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const currentDays = Array.isArray(formData.recurrence_days) ? formData.recurrence_days : [];
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                recurrence_days: [...currentDays, day.value],
+                              });
+                            } else {
+                              setFormData({
+                                ...formData,
+                                recurrence_days: currentDays.filter((d) => d !== day.value),
+                              });
+                            }
+                          }}
+                          className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+                        />
+                        <span className="text-sm text-[#0F172A]">{day.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-4 border-t border-[#E5E7EB]">
               <button
@@ -428,7 +525,7 @@ export function CreateChecklistModal({ isOpen, onClose, onSubmit }: CreateCheckl
                 disabled={isSubmitting}
                 className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
               >
-                {isSubmitting ? "Création..." : "Créer la checklist"}
+                {isSubmitting ? (initialData ? "Modification..." : "Création...") : (initialData ? "Modifier" : "Créer la checklist")}
               </button>
             </div>
           </form>

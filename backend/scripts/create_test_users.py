@@ -11,6 +11,7 @@ from app.db.session import SessionLocal, init_db
 from app.db.models.user import User
 from app.db.models.company import Company
 from app.core.security import get_password_hash
+import random
 
 
 def create_test_users():
@@ -39,8 +40,15 @@ def create_test_users():
         # 2. Owner avec une entreprise
         existing_owner = db.query(User).filter(User.email == "owner@example.com").first()
         if not existing_owner:
+            # Générer un code unique à 6 chiffres
+            company_code = f"{random.randint(100000, 999999)}"
+            # Vérifier que le code n'existe pas déjà
+            while db.query(Company).filter(Company.code == company_code).first():
+                company_code = f"{random.randint(100000, 999999)}"
+            
             # Créer l'entreprise
             company = Company(
+                code=company_code,
                 name="Ma Boulangerie",
                 sector="Commerce",
                 is_active=True
@@ -67,7 +75,13 @@ def create_test_users():
             # Récupérer l'entreprise créée précédemment ou en créer une nouvelle
             company = db.query(Company).filter(Company.name == "Ma Boulangerie").first()
             if not company:
+                # Générer un code unique à 6 chiffres
+                company_code = f"{random.randint(100000, 999999)}"
+                while db.query(Company).filter(Company.code == company_code).first():
+                    company_code = f"{random.randint(100000, 999999)}"
+                
                 company = Company(
+                    code=company_code,
                     name="Ma Boulangerie",
                     sector="Commerce",
                     is_active=True

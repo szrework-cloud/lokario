@@ -4,7 +4,6 @@ import { useState } from "react";
 import { ModuleToggle } from "@/components/settings/ModuleToggle";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { useToast } from "@/hooks/useToast";
-import { Toast } from "@/components/ui/Toast";
 import { PreviewModal } from "@/components/admin/PreviewModal";
 
 type ModuleConfig = {
@@ -31,7 +30,7 @@ type PackSettings = {
 };
 
 export default function PacksPage() {
-  const { toast, showToast, hideToast } = useToast();
+  const { showToast } = useToast();
   const [showPreview, setShowPreview] = useState(false);
   const [settings, setSettings] = useState<PackSettings>({
     modules: {
@@ -243,12 +242,6 @@ export default function PacksPage() {
           </button>
         </div>
 
-        <Toast
-          message={toast.message}
-          isVisible={toast.isVisible}
-          onClose={hideToast}
-          type={toast.type}
-        />
       </div>
 
       {showPreview && (

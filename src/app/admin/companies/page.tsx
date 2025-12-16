@@ -7,158 +7,131 @@ import { apiGet } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader } from "@/components/ui/Loader";
 
-type OwnerUser = {
-  id: number;
-  email: string;
-  full_name?: string | null;
-  role: string;
-  company_id: number | null;
-  is_active: boolean;
-  created_at: string;
-};
-
 type Company = {
   id: number;
+  code: string;
   name: string;
   sector?: string | null;
   is_active: boolean;
   created_at: string;
 };
 
-type OwnerWithCompany = OwnerUser & {
-  company: Company | null;
+type CompanyWithOwner = Company & {
+  owner?: {
+    id: number;
+    email: string;
+    full_name?: string | null;
+  } | null;
 };
 
 export default function CompaniesPage() {
   const { token } = useAuth();
-  const [owners, setOwners] = useState<OwnerWithCompany[]>([]);
+  const [companies, setCompanies] = useState<CompanyWithOwner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
 
-    const loadOwners = async () => {
+    const loadCompanies = async () => {
       setLoading(true);
       setError(null);
       
       // Mock companies pour le développement
-      const mockCompanies: Record<number, Company> = {
-        1: {
+      const mockCompanies: CompanyWithOwner[] = [
+        {
           id: 1,
+          code: "123456",
           name: "Boulangerie Soleil",
           sector: "Commerce",
           is_active: true,
           created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+          owner: {
+            id: 1,
+            email: "jean.dupont@boulangerie-soleil.fr",
+            full_name: "Jean Dupont",
+          },
         },
-        2: {
+        {
           id: 2,
+          code: "234567",
           name: "Coiffure Martin",
           sector: "Beauté / Coiffure",
           is_active: true,
           created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      };
-
-      // Mock owners avec leurs entreprises
-      const mockOwners: OwnerWithCompany[] = [
-        {
-          id: 1,
-          email: "jean.dupont@boulangerie-soleil.fr",
-          full_name: "Jean Dupont",
-          role: "owner",
-          company_id: 1,
-          is_active: true,
-          created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-          company: mockCompanies[1],
-        },
-        {
-          id: 2,
-          email: "marie.martin@coiffure-martin.fr",
-          full_name: "Marie Martin",
-          role: "owner",
-          company_id: 2,
-          is_active: true,
-          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-          company: mockCompanies[2],
+          owner: {
+            id: 2,
+            email: "marie.martin@coiffure-martin.fr",
+            full_name: "Marie Martin",
+          },
         },
       ];
 
       try {
         // Si pas d'API URL, utiliser directement les données mockées
         if (!process.env.NEXT_PUBLIC_API_URL) {
-          setOwners(mockOwners);
+          setCompanies(mockCompanies);
           setLoading(false);
           return;
         }
 
-        // Récupérer tous les users depuis l'API
-        const usersResponse = await apiGet<OwnerUser[] | { users?: OwnerUser[] }>("/users", token);
+        // Récupérer toutes les entreprises depuis l'API
+        const companiesData = await apiGet<Company[]>("/companies", token);
         
-        // Gérer différents formats de réponse
-        const users = Array.isArray(usersResponse) 
-          ? usersResponse 
-          : (usersResponse?.users || []);
-        
-        // S'assurer que users est un tableau
-        if (!Array.isArray(users)) {
-          throw new Error("Format de réponse invalide : users n'est pas un tableau");
+        // S'assurer que companies est un tableau
+        if (!Array.isArray(companiesData)) {
+          throw new Error("Format de réponse invalide : companies n'est pas un tableau");
         }
         
-        // Filtrer les owners
-        let ownerUsers = users.filter((u) => u.role === "owner");
-        
-        // Si aucun owner trouvé, utiliser des données mockées
-        if (ownerUsers.length === 0) {
-          setOwners(mockOwners);
+        // Si aucune entreprise trouvée, utiliser des données mockées
+        if (companiesData.length === 0) {
+          setCompanies(mockCompanies);
           setLoading(false);
           return;
         }
         
-        // Pour chaque owner, récupérer sa company
-        const ownersWithCompanies = await Promise.all(
-          ownerUsers.map(async (owner) => {
-            let company: Company | null = null;
-            if (owner.company_id) {
-              try {
-                const companyData = await apiGet<Company>(
-                  `/companies/${owner.company_id}`,
-                  token
-                );
-                // Vérifier que la réponse contient bien un id
-                if (companyData && companyData.id) {
-                  company = companyData;
+        // Récupérer tous les users pour trouver les owners
+        const usersResponse = await apiGet<any[]>("/users", token);
+        const users = Array.isArray(usersResponse) ? usersResponse : [];
+        
+        // Filtrer les entreprises actives uniquement (double sécurité)
+        const activeCompanies = companiesData.filter((company) => company.is_active === true);
+        
+        // Pour chaque entreprise, trouver son owner
+        const companiesWithOwners = activeCompanies.map((company) => {
+          const owner = users.find(
+            (u) => u.role === "owner" && u.company_id === company.id
+          );
+          
+          return {
+            ...company,
+            owner: owner
+              ? {
+                  id: owner.id,
+                  email: owner.email,
+                  full_name: owner.full_name,
                 }
-              } catch {
-                // Si l'API échoue, utiliser des données mockées
-                company = mockCompanies[owner.company_id] || null;
-              }
-            }
-            // S'assurer que company a un id valide
-            if (company && !company.id) {
-              company = null;
-            }
-            return { ...owner, company };
-          })
-        );
+              : null,
+          };
+        });
 
-        setOwners(ownersWithCompanies);
+        setCompanies(companiesWithOwners);
       } catch (err: any) {
         // En cas d'erreur, utiliser les données mockées
-        console.error("Erreur lors du chargement des owners:", err);
-        setOwners(mockOwners);
+        console.error("Erreur lors du chargement des entreprises:", err);
+        setCompanies(mockCompanies);
       } finally {
         setLoading(false);
       }
     };
 
-    void loadOwners();
+    void loadCompanies();
   }, [token]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader text="Chargement des comptes owners..." />
+        <Loader text="Chargement des entreprises..." />
       </div>
     );
   }
@@ -180,9 +153,9 @@ export default function CompaniesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-[#0F172A]">Comptes Owners</h1>
+        <h1 className="text-3xl font-bold text-[#0F172A]">Entreprises</h1>
         <p className="mt-2 text-sm text-[#64748B]">
-          Liste de tous les comptes propriétaires d'entreprises
+          Liste de toutes les entreprises
         </p>
       </div>
 
@@ -192,10 +165,13 @@ export default function CompaniesPage() {
           <thead className="bg-[#F9FAFB]">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
-                Nom / Email
+                Nom de l'entreprise
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
-                Entreprise
+                Code
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
+                Propriétaire
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">
                 Secteur
@@ -212,63 +188,61 @@ export default function CompaniesPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E5E7EB]">
-            {owners.length === 0 ? (
+            {companies.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-sm text-[#64748B]">
-                  Aucun compte owner trouvé
+                <td colSpan={7} className="px-6 py-8 text-center text-sm text-[#64748B]">
+                  Aucune entreprise trouvée
                 </td>
               </tr>
             ) : (
-              owners.map((owner) => (
-                <tr key={owner.id} className="hover:bg-[#F9FAFB]">
+              companies.map((company) => (
+                <tr key={company.id} className="hover:bg-[#F9FAFB]">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium text-[#0F172A]">
-                        {owner.full_name || "Sans nom"}
-                      </span>
-                      <span className="text-xs text-[#64748B]">{owner.email}</span>
-                    </div>
+                    <span className="text-sm font-medium text-[#0F172A]">
+                      {company.name}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-[#0F172A]">
-                    {owner.company && owner.company.id ? (
-                      <Link
-                        href={`/admin/companies/${owner.company.id}`}
-                        className="font-medium hover:text-[#F97316]"
-                      >
-                        {owner.company.name}
-                      </Link>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-[#64748B] font-mono font-bold">
+                      {company.code}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {company.owner ? (
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-[#0F172A]">
+                          {company.owner.full_name || "Sans nom"}
+                        </span>
+                        <span className="text-xs text-[#64748B]">{company.owner.email}</span>
+                      </div>
                     ) : (
-                      <span className="text-[#64748B]">Aucune entreprise</span>
+                      <span className="text-sm text-[#64748B]">—</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748B]">
-                    {owner.company?.sector || "—"}
+                    {company.sector || "—"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        owner.is_active
+                        company.is_active
                           ? "bg-green-100 text-green-800"
                           : "bg-red-100 text-red-800"
                       }`}
                     >
-                      {owner.is_active ? "Actif" : "Inactif"}
+                      {company.is_active ? "Actif" : "Inactif"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-[#64748B]">
-                    {new Date(owner.created_at).toLocaleDateString("fr-FR")}
+                    {new Date(company.created_at).toLocaleDateString("fr-FR")}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {owner.company && owner.company.id ? (
-                      <Link
-                        href={`/admin/companies/${owner.company.id}`}
-                        className="text-sm font-medium text-[#F97316] hover:text-[#EA580C]"
-                      >
-                        Voir
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-[#64748B]">—</span>
-                    )}
+                    <Link
+                      href={`/admin/companies/${company.id}`}
+                      className="text-sm font-medium text-[#F97316] hover:text-[#EA580C]"
+                    >
+                      Voir
+                    </Link>
                   </td>
                 </tr>
               ))

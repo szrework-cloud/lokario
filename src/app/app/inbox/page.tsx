@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { PageTitle } from "@/components/layout/PageTitle";
 import { InboxList } from "@/components/inbox/InboxList";
-import { InboxItem, InboxStatus, MessageSource, ClientInfo, InternalNote, Attachment, InboxFolder } from "@/components/inbox/types";
+import { InboxItem, InboxStatus, MessageSource, ClientInfo, InternalNote, Attachment, InboxFolder, Message } from "@/components/inbox/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Loader } from "@/components/ui/Loader";
 import { InboxFoldersSidebar } from "@/components/inbox/InboxFoldersSidebar";
 import { ClassificationStatusBadge } from "@/components/inbox/ClassificationStatusBadge";
-import { AutoReplyPreviewModal } from "@/components/inbox/AutoReplyPreviewModal";
 import { InboxHeader } from "@/components/inbox/InboxHeader";
 import { InboxSearchAndFilters } from "@/components/inbox/InboxSearchAndFilters";
 import { ChatMessage } from "@/components/inbox/ChatMessage";
@@ -19,12 +19,38 @@ import { AttachmentUpload } from "@/components/inbox/AttachmentUpload";
 import { AiActionsMenu } from "@/components/inbox/AiActionsMenu";
 import { CreateTaskFromInboxModal } from "@/components/inbox/CreateTaskFromInboxModal";
 import { CreateFollowupFromInboxModal } from "@/components/inbox/CreateFollowupFromInboxModal";
+import { CreateConversationModal } from "@/components/inbox/CreateConversationModal";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/hooks/useAuth";
+import { PageTransition } from "@/components/ui/PageTransition";
+import { AnimatedButton } from "@/components/ui/AnimatedButton";
+import { useToast } from "@/components/ui/Toast";
+import { logger } from "@/lib/logger";
+import {
+  getConversations,
+  getConversation,
+  addMessage,
+  updateConversation,
+  deleteConversation,
+  getFolders,
+} from "@/services/inboxService";
 import Link from "next/link";
 
 export default function InboxPage() {
-  const [selectedId, setSelectedId] = useState<number | undefined>(undefined);
+  const { token, user } = useAuth();
+  const { showToast } = useToast();
+  const searchParams = useSearchParams();
+  const conversationIdFromUrl = searchParams?.get("conversationId");
+  const clientIdFromUrl = searchParams?.get("clientId");
+  const [selectedId, setSelectedId] = useState<number | undefined>(
+    conversationIdFromUrl ? Number(conversationIdFromUrl) : undefined
+  );
   const [replyText, setReplyText] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [conversations, setConversations] = useState<InboxItem[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<InboxItem | null>(null);
+  const [folders, setFolders] = useState<InboxFolder[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<number | "all" | "pending">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -34,344 +60,213 @@ export default function InboxPage() {
   const [showNotesPanel, setShowNotesPanel] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isFollowupModalOpen, setIsFollowupModalOpen] = useState(false);
+  const [isNewConversationModalOpen, setIsNewConversationModalOpen] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isConversationMinimized, setIsConversationMinimized] = useState(false);
   const [isReplyMinimized, setIsReplyMinimized] = useState(false);
-  const [pendingReplyConversation, setPendingReplyConversation] = useState<InboxItem | null>(null);
-  const [pendingReplyText, setPendingReplyText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
+  // Charger les conversations et dossiers
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Ne pas charger si pas de token
+    if (!token) {
       setIsLoading(false);
-      // Sélectionner automatiquement la première conversation si disponible
-      if (mockConversations.length > 0 && !selectedId) {
-        setSelectedId(mockConversations[0].id);
+      return;
+    }
+
+    const loadData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const [conversationsData, foldersData] = await Promise.all([
+          getConversations(token, {
+            folderId: activeFolderId === "all" ? undefined : activeFolderId === "pending" ? undefined : activeFolderId,
+            status: statusFilter === "all" ? undefined : statusFilter,
+            source: sourceFilter === "all" ? undefined : sourceFilter,
+            search: searchQuery || undefined,
+          }),
+          getFolders(token),
+        ]);
+        setConversations(conversationsData);
+        setFolders(foldersData);
+        
+        // Sélectionner automatiquement la conversation depuis l'URL si disponible
+        if (conversationIdFromUrl) {
+          const conversationId = Number(conversationIdFromUrl);
+          const conversation = conversationsData.find(c => c.id === conversationId);
+          if (conversation) {
+            setSelectedId(conversationId);
+          }
+        } else if (clientIdFromUrl) {
+          // Si clientId est fourni, sélectionner la première conversation de ce client
+          const clientId = Number(clientIdFromUrl);
+          const clientConversation = conversationsData.find(c => c.clientId === clientId);
+          if (clientConversation) {
+            setSelectedId(clientConversation.id);
+          }
+        } else if (conversationsData.length > 0 && !selectedId) {
+          // Sinon, sélectionner automatiquement la première conversation si disponible
+          setSelectedId(conversationsData[0].id);
+        }
+      } catch (err: any) {
+        console.error("Erreur lors du chargement:", err);
+        
+        // Détecter les erreurs d'authentification
+        if (err.isAuthError || err.status === 401 || err.message?.includes("Could not validate credentials") || err.message?.includes("session a expiré")) {
+          // Rediriger vers la page de login
+          if (typeof window !== "undefined") {
+            // Nettoyer le token invalide
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("auth_user");
+            setTimeout(() => {
+              window.location.href = "/login";
+            }, 1000);
+          }
+          setError("Votre session a expiré. Redirection vers la page de connexion...");
+        } else {
+          setError(err.message || "Erreur lors du chargement des conversations");
+        }
+      } finally {
+        setIsLoading(false);
       }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, []);
+    };
 
-  // Mock dossiers
-  const [mockFolders, setMockFolders] = useState<InboxFolder[]>([
-    {
-      id: 1,
-      name: "Archivé",
-      type: "general",
-      isSystem: true,
-      conversationIds: [],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      name: "Spam",
-      type: "general",
-      isSystem: true,
-      conversationIds: [],
-      createdAt: new Date().toISOString(),
-    },
-    // Dossiers personnalisés (avec bouton d'édition)
-    {
-      id: 3,
-      name: "Demande d'info/question",
-      type: "info",
-      color: "#3B82F6",
-      isSystem: false,
-      aiRules: {
-        autoClassify: true,
-        context: "Messages concernant des questions ou demandes d'information",
-      },
-      autoReply: {
-        enabled: true,
-        mode: "approval",
-        template: "Bonjour, merci pour votre message. Nous vous répondrons dans les plus brefs délais.",
-        aiGenerate: true,
-        useCompanyKnowledge: true,
-      },
-      conversationIds: [],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 4,
-      name: "Prise de RDV",
-      type: "rdv",
-      color: "#10B981",
-      isSystem: false,
-      aiRules: {
-        autoClassify: true,
-        context: "Messages pour planifier un rendez-vous",
-      },
-      autoReply: {
-        enabled: true,
-        mode: "auto",
-        template: "Bonjour, nous avons bien reçu votre demande de rendez-vous. Nous vous contacterons sous peu pour confirmer.",
-        aiGenerate: true,
-        delay: 5,
-      },
-      conversationIds: [],
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+    // Debounce de la recherche
+    const timeoutId = setTimeout(() => {
+      loadData();
+    }, searchQuery ? 300 : 0);
 
-  // Mock data avec toutes les nouvelles fonctionnalités
-  const mockConversations: InboxItem[] = [
-    {
-      id: 1,
-      client: "Boulangerie Soleil",
-      clientId: 1,
-      clientInfo: {
-        id: 1,
-        name: "Boulangerie Soleil",
-        email: "contact@boulangerie-soleil.fr",
-        phone: "01 23 45 67 89",
-        address: "123 Rue de la Paix, 75001 Paris",
-        status: "récurrent",
-        totalPurchases: 12500,
-        lastPurchaseDate: "2025-01-15",
-        invoicesCount: 5,
-        quotesCount: 2,
-        projectsCount: 1,
-        conversationsCount: 8,
-      },
-      subject: "Question sur la facture #2025-014",
-      lastMessage: "Bonjour, j'aimerais avoir des précisions sur la facture...",
-      status: "À répondre",
-      date: "2025-01-20T10:00:00",
-      source: "email",
-      isUrgent: false,
-      unreadCount: 1,
-      messages: [
-        {
-          id: 1,
-          from: "Boulangerie Soleil",
-          fromEmail: "contact@boulangerie-soleil.fr",
-          content: "Bonjour, j'aimerais avoir des précisions sur la facture #2025-014.",
-          date: "2025-01-20T10:00:00",
-          isFromClient: true,
-          source: "email",
-          read: false,
-        },
-      ],
-      internalNotes: [],
-    },
-    {
-      id: 2,
-      client: "Mme Dupont",
-      clientId: 3,
-      clientInfo: {
-        id: 3,
-        name: "Mme Dupont",
-        email: "dupont.marie@email.com",
-        phone: "06 12 34 56 78",
-        status: "nouveau",
-        totalPurchases: 450,
-        lastPurchaseDate: "2025-01-10",
-        invoicesCount: 2,
-        quotesCount: 1,
-        projectsCount: 0,
-        conversationsCount: 3,
-      },
-      subject: "Devis pour rénovation",
-      lastMessage: "Merci pour le devis, je vais y réfléchir...",
-      status: "En attente",
-      date: "2025-01-19T14:30:00",
-      source: "whatsapp",
-      isUrgent: false,
-      unreadCount: 0,
-      messages: [
-        {
-          id: 1,
-          from: "Mme Dupont",
-          content: "Merci pour le devis, je vais y réfléchir et vous recontacter.",
-          date: "2025-01-19T14:30:00",
-          isFromClient: true,
-          source: "whatsapp",
-          read: true,
-        },
-        {
-          id: 2,
-          from: "Vous",
-          content: "Parfait, n'hésitez pas si vous avez des questions !",
-          date: "2025-01-19T14:35:00",
-          isFromClient: false,
-          source: "whatsapp",
-          read: true,
-        },
-      ],
-      internalNotes: [
-        {
-          id: 1,
-          content: "Cette cliente est compliquée, attention 🧐",
-          author: "Jean Dupont",
-          createdAt: "2025-01-19T15:00:00",
-        },
-      ],
-    },
-    {
-      id: 3,
-      client: "M. Martin",
-      clientId: 2,
-      clientInfo: {
-        id: 2,
-        name: "M. Martin",
-        email: "martin@example.com",
-        phone: "06 98 76 54 32",
-        status: "VIP",
-        totalPurchases: 45000,
-        lastPurchaseDate: "2025-01-18",
-        invoicesCount: 12,
-        quotesCount: 5,
-        projectsCount: 3,
-        conversationsCount: 15,
-      },
-      subject: "Confirmation RDV",
-      lastMessage: "Parfait, je confirme le rendez-vous...",
-      status: "Répondu",
-      date: "2025-01-18T16:00:00",
-      source: "messenger",
-      isUrgent: false,
-      unreadCount: 0,
-      messages: [
-        {
-          id: 1,
-          from: "M. Martin",
-          content: "Parfait, je confirme le rendez-vous pour demain.",
-          date: "2025-01-18T16:00:00",
-          isFromClient: true,
-          source: "messenger",
-          read: true,
-        },
-        {
-          id: 2,
-          from: "Vous",
-          content: "Parfait, à demain !",
-          date: "2025-01-18T16:15:00",
-          isFromClient: false,
-          source: "messenger",
-          read: true,
-        },
-      ],
-      internalNotes: [],
-    },
-    {
-      id: 4,
-      client: "Nouveau Client",
-      subject: "Demande de devis urgent",
-      lastMessage: "Besoin urgent d'un devis pour...",
-      status: "Urgent",
-      date: "2025-01-20T09:00:00",
-      source: "formulaire",
-      isUrgent: true,
-      unreadCount: 1,
-      messages: [
-        {
-          id: 1,
-          from: "Nouveau Client",
-          content: "Besoin urgent d'un devis pour rénovation complète.",
-          date: "2025-01-20T09:00:00",
-          isFromClient: true,
-          source: "formulaire",
-          read: false,
-          attachments: [
-            {
-              id: 1,
-              name: "plan.pdf",
-              type: "pdf",
-              url: "#",
-              size: 1024000,
-              uploadedAt: "2025-01-20T09:00:00",
-            },
-          ],
-        },
-      ],
-      internalNotes: [],
-    },
-  ];
+    return () => clearTimeout(timeoutId);
+  }, [token, activeFolderId, statusFilter, sourceFilter, searchQuery]);
 
+  // Charger la conversation sélectionnée
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedConversation(null);
+      return;
+    }
+
+    const loadConversation = async () => {
+      try {
+        const conversation = await getConversation(selectedId, token);
+        setSelectedConversation(conversation);
+        
+        // Si la conversation a une réponse en attente, l'afficher dans le textarea
+        logger.debug("[DEBUG] Conversation chargée:", {
+          id: conversation.id,
+          autoReplyPending: conversation.autoReplyPending,
+          autoReplyMode: conversation.autoReplyMode,
+          pendingReplyContent: conversation.pendingReplyContent || null,
+          fullPendingReplyContent: conversation.pendingReplyContent || null
+        });
+        
+        // Afficher la réponse en attente dans le textarea si mode approval
+        if (conversation.autoReplyPending && conversation.autoReplyMode === "approval" && conversation.pendingReplyContent) {
+          logger.debug("[DEBUG] Affichage de la réponse dans le textarea:", conversation.pendingReplyContent);
+          setReplyText(conversation.pendingReplyContent);
+        } else {
+          logger.debug("[DEBUG] Pas de réponse en attente ou conditions non remplies");
+          setReplyText("");
+        }
+      } catch (err: any) {
+        console.error("Erreur lors du chargement de la conversation:", err);
+        setError(err.message || "Erreur lors du chargement de la conversation");
+      }
+    };
+
+    loadConversation();
+  }, [selectedId, token]);
+
+  // Mettre à jour le textarea quand selectedConversation change
+  useEffect(() => {
+    if (selectedConversation?.autoReplyPending && selectedConversation?.autoReplyMode === "approval" && selectedConversation?.pendingReplyContent) {
+      logger.debug("[DEBUG] useEffect: Affichage de la réponse dans le textarea:", selectedConversation.pendingReplyContent);
+      setReplyText(selectedConversation.pendingReplyContent);
+    } else if (!selectedConversation?.autoReplyPending) {
+      // Si pas de réponse en attente, vider le textarea
+      setReplyText("");
+    }
+  }, [selectedConversation]);
+
+  // Calculer les stats
+  const stats = useMemo(() => {
+    const pending = conversations.filter((c) => c.status === "À répondre").length;
+    const urgent = conversations.filter((c) => c.status === "Urgent" || c.isUrgent).length;
+    const waiting = conversations.filter((c) => c.status === "En attente").length;
+    return {
+      pending,
+      urgent,
+      waiting,
+      total: conversations.length,
+    };
+  }, [conversations]);
+
+  // Calculer les counts pour la sidebar (par dossier)
+  const folderCounts = useMemo(() => {
+    const result: Record<number | "all" | "pending", number> = {
+      all: conversations.length,
+      pending: conversations.filter(
+        (c) => c.autoReplyPending && c.autoReplyMode === "approval"
+      ).length,
+    };
+
+    // Counts par dossier
+    folders.forEach((folder) => {
+      result[folder.id] = conversations.filter(
+        (c) => c.folderId === folder.id
+      ).length;
+    });
+
+    return result;
+  }, [conversations, folders]);
+
+  // Filtrer les conversations (déjà fait côté API, mais on peut ajouter des filtres frontend si nécessaire)
+  const filteredConversations = useMemo(() => {
+    let filtered = [...conversations];
+
+    // Filtre par dossier (déjà fait côté API, mais on garde pour compatibilité)
+    if (activeFolderId === "pending") {
+      filtered = filtered.filter(
+        (c) => c.autoReplyPending && c.autoReplyMode === "approval"
+      );
+    } else if (activeFolderId === "all") {
+      // Inbox principal : afficher uniquement les conversations SANS dossier
+      filtered = filtered.filter((c) => !c.folderId);
+    } else if (typeof activeFolderId === "number") {
+      filtered = filtered.filter((c) => c.folderId === activeFolderId);
+    }
+
+    // Filtre par statut (déjà fait côté API)
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((c) => c.status === statusFilter);
+    }
+
+    // Filtre par source (déjà fait côté API)
+    if (sourceFilter !== "all") {
+      filtered = filtered.filter((c) => c.source === sourceFilter);
+    }
+
+    // Filtre par employé (à faire côté frontend pour l'instant)
+    if (employeeFilter !== "all") {
+      filtered = filtered.filter(
+        (c) => c.assignedToId?.toString() === employeeFilter
+      );
+    }
+
+    return filtered;
+  }, [conversations, activeFolderId, statusFilter, sourceFilter, employeeFilter]);
+
+  // TODO: Charger les employés depuis l'API
   const mockEmployees = [
     { id: 1, name: "Jean Dupont" },
     { id: 2, name: "Marie Martin" },
     { id: 3, name: "Sophie Durand" },
   ];
 
-  // Calculer les stats
-  const stats = useMemo(() => {
-    const pending = mockConversations.filter((c) => c.status === "À répondre").length;
-    const urgent = mockConversations.filter((c) => c.status === "Urgent" || c.isUrgent).length;
-    const waiting = mockConversations.filter((c) => c.status === "En attente").length;
-    return {
-      pending,
-      urgent,
-      waiting,
-      total: mockConversations.length,
-    };
-  }, []);
-
-  // Calculer les counts pour la sidebar (par dossier)
-  const folderCounts = useMemo(() => {
-    const result: Record<number | "all" | "pending", number> = {
-      all: mockConversations.length,
-      pending: mockConversations.filter(
-        (c) => c.autoReplyPending && c.autoReplyMode === "approval"
-      ).length,
-    };
-
-    // Counts par dossier
-    mockFolders.forEach((folder) => {
-      result[folder.id] = mockConversations.filter(
-        (c) => c.folderId === folder.id
-      ).length;
-    });
-
-    return result;
-  }, [mockConversations, mockFolders]);
-
-  // Filtrer les conversations
-  const filteredConversations = useMemo(() => {
-    let filtered = [...mockConversations];
-
-    // Filtre par dossier
-    if (activeFolderId === "pending") {
-      filtered = filtered.filter(
-        (c) => c.autoReplyPending && c.autoReplyMode === "approval"
-      );
-    } else if (activeFolderId !== "all") {
-      filtered = filtered.filter((c) => c.folderId === activeFolderId);
-    }
-
-    // Recherche
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (c) =>
-          c.client.toLowerCase().includes(query) ||
-          c.subject.toLowerCase().includes(query) ||
-          c.lastMessage.toLowerCase().includes(query) ||
-          c.clientInfo?.email?.toLowerCase().includes(query) ||
-          c.clientInfo?.phone?.includes(query)
-      );
-    }
-
-    // Filtre statut
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((c) => c.status === statusFilter);
-    }
-
-    // Filtre source
-    if (sourceFilter !== "all") {
-      filtered = filtered.filter((c) => c.source === sourceFilter);
-    }
-
-    // Filtre employé
-    if (employeeFilter !== "all") {
-      filtered = filtered.filter((c) => c.assignedTo === employeeFilter);
-    }
-
-    return filtered;
-  }, [activeFolderId, searchQuery, statusFilter, sourceFilter, employeeFilter]);
-
-  const selectedConversation = useMemo(() => {
-    return mockConversations.find((c) => c.id === selectedId);
-  }, [selectedId]);
+  // selectedConversation est maintenant chargé depuis l'API dans useEffect
 
   // Grouper les messages par jour pour l'affichage chat
   const groupedMessages = useMemo(() => {
@@ -405,82 +300,200 @@ export default function InboxPage() {
     return groups;
   }, [selectedConversation]);
 
-  const handleGenerateReply = () => {
-    setReplyText(
-      "(IA) Bonjour,\n\nMerci pour votre message concernant la facture #2025-014. Je vous envoie les détails demandés en pièce jointe.\n\nN'hésitez pas si vous avez d'autres questions.\n\nCordialement"
-    );
+  const handleGenerateReply = async () => {
+    if (!selectedConversation || !token) return;
+    try {
+      const { generateAIReply } = await import("@/services/inboxService");
+      setReplyText("Génération en cours...");
+      const response = await generateAIReply(selectedConversation.id, token);
+      setReplyText(response);
+    } catch (err: any) {
+      console.error("Erreur lors de la génération de la réponse:", err);
+      setError(err.message || "Erreur lors de la génération de la réponse");
+      setReplyText("");
+    }
   };
 
-  const handleGenerateShort = () => {
-    setReplyText("(IA - Courte) Merci pour votre message. Je reviens vers vous rapidement.");
+  const handleSummarize = async () => {
+    if (!selectedConversation || !token) return;
+    try {
+      const { summarizeConversation } = await import("@/services/inboxService");
+      const summary = await summarizeConversation(selectedConversation.id, token);
+      showToast(`Résumé : ${summary}`, "info", 10000);
+    } catch (err: any) {
+      console.error("Erreur lors du résumé:", err);
+      setError(err.message || "Erreur lors du résumé");
+    }
   };
 
-  const handleGenerateDetailed = () => {
-    setReplyText(
-      "(IA - Détaillée) Bonjour,\n\nMerci pour votre message concernant la facture #2025-014.\n\nVoici les détails que vous avez demandés :\n- Montant : XXX €\n- Date d'échéance : XX/XX/XXXX\n- Services : ...\n\nJe reste à votre disposition pour toute question supplémentaire.\n\nCordialement"
-    );
+  const handleAddNote = async (content: string) => {
+    if (!selectedConversation || !token) return;
+    try {
+      const { addInternalNote } = await import("@/services/inboxService");
+      const note = await addInternalNote(selectedConversation.id, content, token);
+      // Recharger la conversation pour avoir la note
+      const updated = await getConversation(selectedConversation.id, token);
+      setSelectedConversation(updated);
+    } catch (err: any) {
+      console.error("Erreur lors de l'ajout de la note:", err);
+      setError(err.message || "Erreur lors de l'ajout de la note");
+    }
   };
 
-  const handleSummarize = () => {
-    alert("Résumé du message : Le client demande des précisions sur la facture #2025-014.");
-  };
-
-  const handleIdentifyRequest = () => {
-    alert("Demande identifiée : Question facture");
-  };
-
-  const handleAddNote = (content: string) => {
-    if (!selectedConversation) return;
-    // TODO: Appel API
-    console.log("Add note:", content);
-  };
-
-  const handleAddAttachment = (file: File) => {
-    const newAttachment: Attachment = {
-      id: Date.now(),
-      name: file.name,
-      type: file.type.startsWith("image/") ? "image" : file.type === "application/pdf" ? "pdf" : "document",
-      url: URL.createObjectURL(file),
-      size: file.size,
-      uploadedAt: new Date().toISOString(),
-    };
-    setAttachments([...attachments, newAttachment]);
+  const handleAddAttachment = async (file: File) => {
+    if (!selectedConversation || !token) return;
+    
+    try {
+      const { uploadAttachment } = await import("@/services/inboxService");
+      const uploadedFile = await uploadAttachment(selectedConversation.id, file, token);
+      
+      const newAttachment: Attachment = {
+        id: Date.now(),
+        name: uploadedFile.filename,
+        type: uploadedFile.file_type as "image" | "pdf" | "document" | "other",
+        url: uploadedFile.file_path, // Sera utilisé pour récupérer le fichier
+        size: uploadedFile.file_size,
+        uploadedAt: new Date().toISOString(),
+        // Stocker les infos pour l'envoi
+        filePath: uploadedFile.file_path,
+        mimeType: uploadedFile.mime_type || undefined,
+      };
+      setAttachments([...attachments, newAttachment]);
+    } catch (err: any) {
+      console.error("Erreur lors de l'upload du fichier:", err);
+      setError(err.message || "Erreur lors de l'upload du fichier");
+    }
   };
 
   const handleRemoveAttachment = (id: number) => {
     setAttachments(attachments.filter((a) => a.id !== id));
   };
 
-  const handleStatusChange = (newStatus: InboxStatus) => {
+  const handleDeleteConversation = () => {
     if (!selectedConversation) return;
-    // TODO: Appel API
-    console.log("Change status:", newStatus);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteConversation = async () => {
+    if (!selectedConversation || !token) return;
+    
+    setIsDeleting(true);
+    setError(null);
+    
+    try {
+      await deleteConversation(selectedConversation.id, token);
+      
+      // Retirer de la liste des conversations
+      setConversations((prev) => prev.filter((c) => c.id !== selectedConversation.id));
+      
+      // Fermer la conversation sélectionnée
+      setSelectedId(undefined);
+      setSelectedConversation(null);
+      
+      // Fermer le modal et afficher un message de succès
+      setShowDeleteConfirm(false);
+      setDeleteSuccess("Email supprimé");
+      
+      // Cacher le message de succès après 3 secondes
+      setTimeout(() => setDeleteSuccess(null), 3000);
+    } catch (err: any) {
+      console.error("Erreur lors de la suppression:", err);
+      setError(err.message || "Erreur lors de la suppression de la conversation");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: InboxStatus) => {
+    if (!selectedConversation || !token) return;
+    try {
+      const updated = await updateConversation(
+        selectedConversation.id,
+        { status: newStatus },
+        token
+      );
+      setSelectedConversation(updated);
+      // Mettre à jour aussi dans la liste
+      setConversations((prev) =>
+        prev.map((c) => (c.id === selectedConversation.id ? updated : c))
+      );
+    } catch (err: any) {
+      console.error("Erreur lors du changement de statut:", err);
+      setError(err.message || "Erreur lors du changement de statut");
+    }
   };
 
   return (
-    <>
+    <PageTransition>
       <PageTitle title="Boîte de réception" />
+      
+      {/* Message de succès */}
+      {deleteSuccess && (
+        <div className="fixed top-20 right-4 z-50 bg-green-500 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm">
+          <span>✅</span>
+          <span>{deleteSuccess}</span>
+          <button
+            onClick={() => setDeleteSuccess(null)}
+            className="ml-2 hover:text-gray-200 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      
       <div className="flex h-[calc(100vh-6rem)] bg-[#F9FAFB]">
         {/* Sidebar de dossiers */}
         <InboxFoldersSidebar
-          folders={mockFolders}
+          folders={folders}
           activeFolderId={activeFolderId}
           onFolderChange={setActiveFolderId}
-          onFolderSave={(folder) => {
-            // Mettre à jour le dossier dans mockFolders
-            setMockFolders((prev) =>
-              prev.map((f) => (f.id === folder.id ? folder : f))
-            );
-            console.log("Save folder:", folder);
-          }}
-          onFolderDelete={(folderId) => {
-            // Supprimer le dossier de mockFolders
-            setMockFolders((prev) => prev.filter((f) => f.id !== folderId));
-            // Si le dossier supprimé était actif, revenir à "all"
-            if (activeFolderId === folderId) {
-              setActiveFolderId("all");
+          onFolderSave={async (folder) => {
+            if (!token) return;
+            try {
+              logger.debug("[InboxPage] Saving folder:", folder);
+              const { updateFolder, createFolder } = await import("@/services/inboxService");
+              const updated = "id" in folder && folder.id
+                ? await updateFolder(folder.id, folder, token)
+                : await createFolder(folder, token);
+              logger.debug("[InboxPage] Folder saved:", updated);
+              // Recharger les dossiers
+              const foldersData = await getFolders(token);
+              logger.debug("[InboxPage] Reloaded folders:", foldersData.length, foldersData);
+              setFolders(foldersData);
+            } catch (err: any) {
+              console.error("Erreur lors de la sauvegarde du dossier:", err);
+              const errorMessage = err.message || "Erreur lors de la sauvegarde du dossier";
+              
+              // Détecter l'erreur d'authentification
+              if (errorMessage.includes("Could not validate credentials") || 
+                  errorMessage.includes("credentials") || 
+                  err.message?.includes("401")) {
+                setError("Votre session a expiré. Veuillez vous reconnecter.");
+                // Rediriger vers la page de login après 2 secondes
+                setTimeout(() => {
+                  window.location.href = "/login";
+                }, 2000);
+              } else {
+                setError(errorMessage);
+              }
             }
-            console.log("Delete folder:", folderId);
+          }}
+          onFolderDelete={async (folderId) => {
+            if (!token) return;
+            try {
+              const { deleteFolder } = await import("@/services/inboxService");
+              await deleteFolder(folderId, token);
+              // Recharger les dossiers
+              const foldersData = await getFolders(token);
+              setFolders(foldersData);
+              // Si le dossier supprimé était actif, revenir à "all"
+              if (activeFolderId === folderId) {
+                setActiveFolderId("all");
+              }
+            } catch (err: any) {
+              console.error("Erreur lors de la suppression du dossier:", err);
+              setError(err.message || "Erreur lors de la suppression du dossier");
+            }
           }}
           counts={folderCounts}
         />
@@ -490,7 +503,7 @@ export default function InboxPage() {
           {/* Header avec résumé */}
           <InboxHeader
             stats={stats}
-            onNewMessage={() => console.log("New message")}
+            onNewMessage={() => setIsNewConversationModalOpen(true)}
           />
 
           {/* Recherche et filtres */}
@@ -556,14 +569,6 @@ export default function InboxPage() {
                             </button>
                           </div>
                           <div className="flex items-center gap-2">
-                            {/* Bouton minimiser */}
-                            <button
-                              onClick={() => setIsConversationMinimized(true)}
-                              className="p-2 rounded-lg border border-[#E5E7EB] hover:bg-[#F9FAFB]"
-                              title="Minimiser"
-                            >
-                              ↓
-                            </button>
                             {/* Statut */}
                             <select
                               value={selectedConversation.status}
@@ -585,6 +590,14 @@ export default function InboxPage() {
                               title="Notes internes"
                             >
                               📝
+                            </button>
+                            {/* Bouton supprimer */}
+                            <button
+                              onClick={handleDeleteConversation}
+                              className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                              title="Supprimer la conversation"
+                            >
+                              🗑️
                             </button>
                           </div>
                     </div>
@@ -627,17 +640,42 @@ export default function InboxPage() {
                         </div>
                         {replyText.trim() && (
                           <button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              if (replyText.trim()) {
-                                console.log("Send message:", {
-                                  to: selectedConversation?.client,
-                                  subject: selectedConversation?.subject,
-                                  content: replyText,
-                                  attachments,
-                                });
+                              if (!replyText.trim() || !selectedConversation || !token) return;
+                              try {
+                                // Préparer les attachments pour l'envoi
+                                const messageAttachments = attachments
+                                  .filter((att) => att.filePath)
+                                  .map((att) => ({
+                                    name: att.name,
+                                    file_path: att.filePath!,
+                                    file_type: att.type,
+                                    file_size: att.size,
+                                    mime_type: att.mimeType,
+                                  }));
+
+                                const message = await addMessage(
+                                  selectedConversation.id,
+                                  {
+                                    fromName: user?.full_name || user?.email || "Vous",
+                                    content: replyText,
+                                    source: selectedConversation.source,
+                                    isFromClient: false,
+                                    attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
+                                  },
+                                  token
+                                );
+                                const updated = await getConversation(selectedConversation.id, token);
+                                setSelectedConversation(updated);
+                                setConversations((prev) =>
+                                  prev.map((c) => (c.id === selectedConversation.id ? updated : c))
+                                );
                                 setReplyText("");
                                 setAttachments([]);
+                              } catch (err: any) {
+                                console.error("Erreur lors de l'envoi du message:", err);
+                                setError(err.message || "Erreur lors de l'envoi du message");
                               }
                             }}
                             className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110"
@@ -656,13 +694,19 @@ export default function InboxPage() {
                         </label>
                         <div className="flex items-center gap-2">
                           <AiActionsMenu
-                            onGenerateShort={handleGenerateShort}
-                            onGenerateDetailed={handleGenerateDetailed}
+                            onGenerateReply={handleGenerateReply}
                             onSummarize={handleSummarize}
-                            onIdentifyRequest={handleIdentifyRequest}
                           />
                         </div>
                       </div>
+                      {/* Badge si réponse automatique en attente */}
+                      {selectedConversation?.autoReplyPending && selectedConversation?.autoReplyMode === "approval" && replyText && (
+                        <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-xs text-yellow-800">
+                            ⏳ Réponse automatique générée - Vous pouvez la modifier avant d'envoyer
+                          </p>
+                        </div>
+                      )}
                       <textarea
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
@@ -678,46 +722,56 @@ export default function InboxPage() {
                         />
                       </div>
                       <div className="mt-3 flex items-center justify-between">
-                        <div className="flex gap-2 flex-wrap">
+                        {/* Bouton pour ignorer la réponse auto si elle est en attente */}
+                        {selectedConversation?.autoReplyPending && selectedConversation?.autoReplyMode === "approval" && replyText && (
                           <button
-                            onClick={() => setIsTaskModalOpen(true)}
-                            className="text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
+                            onClick={() => {
+                              // Ignorer la réponse = vider le texte
+                              setReplyText("");
+                            }}
+                            className="px-4 py-2 text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
                           >
-                            📋 Créer une tâche
+                            Ignorer
                           </button>
-                          <span className="text-slate-300">|</span>
-                          <button
-                            onClick={() => setIsFollowupModalOpen(true)}
-                            className="text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
-                          >
-                            🔔 Créer une relance
-                          </button>
-                          <span className="text-slate-300">|</span>
-                          <Link
-                            href={`/app/projects?client=${encodeURIComponent(selectedConversation.client)}`}
-                            className="text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
-                          >
-                            📁 Associer à un projet
-                          </Link>
-                          <span className="text-slate-300">|</span>
-                          <button
-                            onClick={() => setShowClientPanel(true)}
-                            className="text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
-                          >
-                            👤 Fiche client
-                          </button>
-                        </div>
+                        )}
                         <button
                           onClick={async () => {
-                            if (replyText.trim()) {
-                              console.log("Send message:", {
-                                to: selectedConversation?.client,
-                                subject: selectedConversation?.subject,
-                                content: replyText,
-                                attachments,
-                              });
+                            if (!replyText.trim() || !selectedConversation || !token) return;
+                            try {
+                              // Préparer les attachments pour l'envoi
+                              const messageAttachments = attachments
+                                .filter((att) => att.filePath)
+                                .map((att) => ({
+                                  name: att.name,
+                                  file_path: att.filePath!,
+                                  file_type: att.type,
+                                  file_size: att.size,
+                                  mime_type: att.mimeType,
+                                }));
+
+                              const message = await addMessage(
+                                selectedConversation.id,
+                                {
+                                  fromName: user?.full_name || user?.email || "Vous",
+                                  content: replyText,
+                                  source: selectedConversation.source,
+                                  isFromClient: false,
+                                  attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
+                                },
+                                token
+                              );
+                              // Recharger la conversation pour avoir le nouveau message
+                              const updated = await getConversation(selectedConversation.id, token);
+                              setSelectedConversation(updated);
+                              // Mettre à jour aussi dans la liste
+                              setConversations((prev) =>
+                                prev.map((c) => (c.id === selectedConversation.id ? updated : c))
+                              );
                               setReplyText("");
                               setAttachments([]);
+                            } catch (err: any) {
+                              console.error("Erreur lors de l'envoi du message:", err);
+                              setError(err.message || "Erreur lors de l'envoi du message");
                             }
                           }}
                           disabled={!replyText.trim()}
@@ -808,12 +862,36 @@ export default function InboxPage() {
         />
       )}
 
+      {/* Modal de création de conversation */}
+      <CreateConversationModal
+        isOpen={isNewConversationModalOpen}
+        onClose={() => setIsNewConversationModalOpen(false)}
+        onSuccess={async () => {
+          // Recharger les conversations
+          try {
+            const [conversationsData, foldersData] = await Promise.all([
+              getConversations(token, {
+                folderId: activeFolderId === "all" ? undefined : activeFolderId === "pending" ? undefined : activeFolderId,
+                status: statusFilter === "all" ? undefined : statusFilter,
+                source: sourceFilter === "all" ? undefined : sourceFilter,
+                search: searchQuery || undefined,
+              }),
+              getFolders(token),
+            ]);
+            setConversations(conversationsData);
+            setFolders(foldersData);
+          } catch (err: any) {
+            console.error("Erreur lors du rechargement:", err);
+          }
+        }}
+      />
+
       {/* Modals */}
       <CreateTaskFromInboxModal
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
         onSubmit={(data) => {
-          console.log("Create task:", data);
+          logger.debug("Create task:", data);
           setIsTaskModalOpen(false);
         }}
         defaultSubject={selectedConversation?.subject}
@@ -824,43 +902,64 @@ export default function InboxPage() {
         isOpen={isFollowupModalOpen}
         onClose={() => setIsFollowupModalOpen(false)}
         onSubmit={(data) => {
-          console.log("Create followup:", data);
+          logger.debug("Create followup:", data);
           setIsFollowupModalOpen(false);
         }}
         defaultClient={selectedConversation?.client}
       />
 
-      {/* Modal de réponse en attente */}
-      {pendingReplyConversation && (
-        <AutoReplyPreviewModal
-          isOpen={!!pendingReplyConversation}
-          onClose={() => {
-            setPendingReplyConversation(null);
-            setPendingReplyText("");
-          }}
-          conversation={pendingReplyConversation}
-          folder={mockFolders.find((f) => f.id === pendingReplyConversation.folderId) || mockFolders[0]}
-          generatedReply={pendingReplyText}
-          onApprove={() => {
-            // TODO: Appel API pour envoyer la réponse
-            console.log("Approve and send reply:", pendingReplyText);
-            setPendingReplyConversation(null);
-            setPendingReplyText("");
-          }}
-          onEdit={(editedText) => {
-            // TODO: Appel API pour envoyer la réponse modifiée
-            console.log("Send edited reply:", editedText);
-            setPendingReplyConversation(null);
-            setPendingReplyText("");
-          }}
-          onReject={() => {
-            // TODO: Appel API pour rejeter la réponse
-            console.log("Reject reply");
-            setPendingReplyConversation(null);
-            setPendingReplyText("");
-          }}
-        />
+
+      {/* Modal de confirmation de suppression */}
+      {showDeleteConfirm && (
+        <>
+          {/* Overlay noir */}
+          <div 
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => !isDeleting && setShowDeleteConfirm(false)}
+          />
+          {/* Modal centré au milieu de l'écran */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className="bg-white rounded-lg shadow-xl p-4 text-center pointer-events-auto w-64"
+            >
+              <p className="text-xs text-[#64748B] mb-3">
+                Supprimer cet email ?
+              </p>
+              
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded-lg text-xs mb-3">
+                  {error}
+                </div>
+              )}
+              
+              <div className="flex justify-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setError(null);
+                  }}
+                  disabled={isDeleting}
+                  className="text-xs px-3 py-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={confirmDeleteConversation}
+                  disabled={isDeleting}
+                  className="text-xs px-3 py-1"
+                >
+                  {isDeleting ? "Suppression..." : "Supprimer"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
-    </>
+    </PageTransition>
   );
 }

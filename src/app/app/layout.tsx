@@ -9,6 +9,7 @@ import { PageProvider, usePage } from "@/contexts/PageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import { FloatingChatWidget } from "@/components/chatbot/FloatingChatWidget";
+import { logger } from "@/lib/logger";
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { title, subtitle, rightContent } = usePage();
@@ -35,26 +36,31 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, token, isLoading } = useAuth();
+  const { user, token, isLoading, logout } = useAuth();
   
   // Charger les settings automatiquement après login (une seule fois)
   useSettings(true);
 
   useEffect(() => {
     if (!isLoading) {
+      logger.log("🔍 Vérification auth dans AppLayout:", { isLoading, hasToken: !!token, hasUser: !!user, userRole: user?.role });
       if (!token) {
+        logger.log("❌ Pas de token, redirection vers /login");
         router.replace("/login");
       } else if (user?.role === "super_admin") {
         // Rediriger les super_admin vers la page admin par défaut
         const currentPath = window.location.pathname;
         if (currentPath === "/app" || currentPath === "/app/") {
+          logger.log("🔄 Super admin, redirection vers /admin/companies");
           router.replace("/admin/companies");
         }
+      } else {
+        logger.log("✅ Authentification valide, accès autorisé");
       }
     }
   }, [isLoading, token, router, user]);
 
-  if (isLoading || !token) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
         <div className="text-center">
@@ -65,10 +71,23 @@ export default function AppLayout({
     );
   }
 
+  if (!token) {
+    logger.log("❌ Pas de token, affichage du loader de redirection");
+    // Ne pas afficher de contenu si pas de token, la redirection va se faire
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F97316] mx-auto mb-3"></div>
+          <p className="text-sm text-[#64748B]">Redirection vers la connexion...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <PageProvider>
-      <AppLayoutContent>{children}</AppLayoutContent>
-      <FloatingChatWidget />
+        <AppLayoutContent>{children}</AppLayoutContent>
+        <FloatingChatWidget />
     </PageProvider>
   );
 }

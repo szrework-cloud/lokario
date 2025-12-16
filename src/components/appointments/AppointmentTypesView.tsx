@@ -1,15 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppointmentType } from "./types";
-import { mockAppointmentTypes, mockEmployees } from "./mockData";
 import { AppointmentTypeModal } from "./AppointmentTypeModal";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  getAppointmentTypes,
+  createAppointmentType as createAppointmentTypeAPI,
+  updateAppointmentType as updateAppointmentTypeAPI,
+  deleteAppointmentType as deleteAppointmentTypeAPI,
+} from "@/services/appointmentsService";
+import { getCompanyUsers } from "@/services/usersService";
 
 export function AppointmentTypesView() {
-  const [types, setTypes] = useState<AppointmentType[]>(mockAppointmentTypes);
+  const { token } = useAuth();
+  const [types, setTypes] = useState<AppointmentType[]>([]);
+  const [employees, setEmployees] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedType, setSelectedType] = useState<AppointmentType | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Charger les données
+  useEffect(() => {
+    const loadData = async () => {
+      if (!token) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const [typesData, usersData] = await Promise.all([
+          getAppointmentTypes(token),
+          getCompanyUsers(token),
+        ]);
+        
+        setTypes(typesData);
+        setEmployees(usersData.map((u) => ({ id: u.id, name: u.fullName })));
+      } catch (err: any) {
+        console.error("Erreur lors du chargement des types de rendez-vous:", err);
+        setError(err.message || "Erreur lors du chargement des types de rendez-vous");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [token]);
 
   const handleCreate = () => {
     setSelectedType(null);
@@ -21,28 +59,44 @@ export function AppointmentTypesView() {
     setIsModalOpen(true);
   };
 
-  const handleSave = (typeData: Omit<AppointmentType, "id">) => {
-    if (selectedType) {
-      // Modifier
-      setTypes((prev) =>
-        prev.map((t) => (t.id === selectedType.id ? { ...selectedType, ...typeData } : t))
-      );
-    } else {
-      // Créer
-      const newType: AppointmentType = {
-        id: Math.max(...types.map((t) => t.id), 0) + 1,
-        ...typeData,
-      };
-      setTypes((prev) => [...prev, newType]);
+  const handleSave = async (typeData: Omit<AppointmentType, "id">) => {
+    if (!token) return;
+    
+    try {
+      if (selectedType) {
+        // Modifier
+        const updated = await updateAppointmentTypeAPI(token, selectedType.id, typeData);
+        setTypes((prev) =>
+          prev.map((t) => (t.id === selectedType.id ? updated : t))
+        );
+      } else {
+        // Créer
+        const newType = await createAppointmentTypeAPI(token, typeData);
+        setTypes((prev) => [...prev, newType]);
+      }
+      setIsModalOpen(false);
+      setSelectedType(null);
+    } catch (err: any) {
+      console.error("Erreur lors de la sauvegarde du type:", err);
+      setError(err.message || "Erreur lors de la sauvegarde du type");
     }
-    setIsModalOpen(false);
-    setSelectedType(null);
   };
 
-  const handleToggleActive = (typeId: number) => {
-    setTypes((prev) =>
-      prev.map((t) => (t.id === typeId ? { ...t, isActive: !t.isActive } : t))
-    );
+  const handleToggleActive = async (typeId: number) => {
+    if (!token) return;
+    
+    const type = types.find((t) => t.id === typeId);
+    if (!type) return;
+    
+    try {
+      const updated = await updateAppointmentTypeAPI(token, typeId, { isActive: !type.isActive });
+      setTypes((prev) =>
+        prev.map((t) => (t.id === typeId ? updated : t))
+      );
+    } catch (err: any) {
+      console.error("Erreur lors de la mise à jour du type:", err);
+      setError(err.message || "Erreur lors de la mise à jour du type");
+    }
   };
 
   const getEmployeeNames = (employeeIds?: number[]) => {
@@ -50,10 +104,26 @@ export function AppointmentTypesView() {
       return "Tous les employés";
     }
     return employeeIds
-      .map((id) => mockEmployees.find((e) => e.id === id)?.name)
+      .map((id) => employees.find((e) => e.id === id)?.name)
       .filter(Boolean)
       .join(", ");
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-[#64748B]">Chargement des types de rendez-vous...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+        <p className="text-sm text-red-700">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <>

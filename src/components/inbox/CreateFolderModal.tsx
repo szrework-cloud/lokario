@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { InboxFolder, FolderType } from "./types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
+import { FolderFiltersConfig } from "./FolderFiltersConfig";
 
 interface CreateFolderModalProps {
   isOpen: boolean;
@@ -30,7 +31,15 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
   const [type, setType] = useState<FolderType>("general");
   const [color, setColor] = useState(colorOptions[0]);
   const [autoClassify, setAutoClassify] = useState(false);
-  const [context, setContext] = useState("");
+  const [priority, setPriority] = useState<number>(10);
+  const [filters, setFilters] = useState({
+    keywords: undefined as string[] | undefined,
+    keywords_location: "any" as "subject" | "content" | "any",
+    sender_email: undefined as string[] | undefined,
+    sender_domain: undefined as string[] | undefined,
+    sender_phone: undefined as string[] | undefined,
+    match_type: "any" as "all" | "any",
+  });
 
   // Guard de permission
   useEffect(() => {
@@ -50,6 +59,23 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
     e.preventDefault();
     if (!name.trim()) return;
 
+    // Construire les règles de filtrage
+    const filterRules: any = {};
+    if (filters.keywords && filters.keywords.length > 0) {
+      filterRules.keywords = filters.keywords;
+      filterRules.keywords_location = filters.keywords_location;
+    }
+    if (filters.sender_email && filters.sender_email.length > 0) {
+      filterRules.sender_email = filters.sender_email;
+    }
+    if (filters.sender_domain && filters.sender_domain.length > 0) {
+      filterRules.sender_domain = filters.sender_domain;
+    }
+    if (filters.sender_phone && filters.sender_phone.length > 0) {
+      filterRules.sender_phone = filters.sender_phone;
+    }
+    filterRules.match_type = filters.match_type;
+
     onSave({
       name: name.trim(),
       type,
@@ -57,7 +83,10 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
       isSystem: false,
       aiRules: {
         autoClassify,
-        context: context.trim() || undefined,
+        priority: autoClassify ? priority : undefined,
+        filters: Object.keys(filterRules).length > 1 || filterRules.keywords || filterRules.sender_email || filterRules.sender_domain || filterRules.sender_phone
+          ? filterRules
+          : undefined,
       },
     });
 
@@ -66,13 +95,21 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
     setType("general");
     setColor(colorOptions[0]);
     setAutoClassify(false);
-    setContext("");
+    setPriority(10);
+    setFilters({
+      keywords: undefined,
+      keywords_location: "any",
+      sender_email: undefined,
+      sender_domain: undefined,
+      sender_phone: undefined,
+      match_type: "any",
+    });
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <CardHeader>
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-[#0F172A]">
@@ -143,8 +180,8 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
               </div>
             </div>
 
-            {/* Classification IA */}
-            <div className="space-y-2">
+            {/* Classification automatique avec filtres */}
+            <div className="space-y-4 pt-4 border-t border-[#E5E7EB]">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -156,14 +193,40 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
                   Classer automatiquement les messages dans ce dossier
                 </span>
               </label>
+
               {autoClassify && (
-                <input
-                  type="text"
-                  value={context}
-                  onChange={(e) => setContext(e.target.value)}
-                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                  placeholder="Contexte de classification (optionnel)"
-                />
+                <div className="space-y-4 pl-6 border-l-2 border-[#E5E7EB]">
+                  <div>
+                    <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                      Priorité
+                    </label>
+                    <input
+                      type="number"
+                      value={priority}
+                      onChange={(e) => setPriority(parseInt(e.target.value) || 10)}
+                      min="1"
+                      className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      placeholder="10"
+                    />
+                    <p className="text-xs text-[#64748B] mt-1">
+                      Priorité du dossier (plus petit = plus prioritaire). Si un message correspond à plusieurs dossiers, il sera classé dans celui avec la plus haute priorité.
+                    </p>
+                  </div>
+
+                  <FolderFiltersConfig
+                    filters={filters}
+                    onChange={(newFilters) => {
+                      setFilters({
+                        keywords: newFilters.keywords,
+                        keywords_location: newFilters.keywords_location || "any",
+                        sender_email: newFilters.sender_email,
+                        sender_domain: newFilters.sender_domain,
+                        sender_phone: newFilters.sender_phone,
+                        match_type: newFilters.match_type || "any",
+                      });
+                    }}
+                  />
+                </div>
               )}
             </div>
 

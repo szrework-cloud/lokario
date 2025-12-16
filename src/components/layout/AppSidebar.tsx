@@ -15,17 +15,18 @@ interface NavItem {
 
 // Mapping des moduleKey de la sidebar vers les clés dans settings.modules
 const moduleKeyMapping: Record<string, string> = {
+  dashboard: "dashboard",
   tasks: "tasks",
   inbox: "inbox",
   followups: "relances",
+  clients: "clients",
   projects: "projects",
   billing: "billing",
-  reporting: "reporting",
-  chatbot: "chatbot_internal",
   appointments: "appointments",
 };
 
 const navItems: NavItem[] = [
+  { label: "Dashboard", href: "/app/dashboard", moduleKey: "dashboard" },
   { label: "Tâches", href: "/app/tasks", moduleKey: "tasks" },
   { label: "Inbox", href: "/app/inbox", moduleKey: "inbox" },
   { label: "Relances", href: "/app/relances", moduleKey: "followups" },
@@ -33,8 +34,6 @@ const navItems: NavItem[] = [
   { label: "Projets", href: "/app/projects", moduleKey: "projects" },
   { label: "Devis & Factures", href: "/app/billing/quotes", moduleKey: "billing" },
   { label: "Rendez-vous", href: "/app/appointments", moduleKey: "appointments" },
-  { label: "Reporting", href: "/app/reporting", moduleKey: "reporting" },
-  { label: "Chatbot", href: "/app/chatbot", moduleKey: "chatbot" },
   { label: "Paramètres", href: "/app/settings" },
 ];
 
@@ -46,7 +45,7 @@ export function AppSidebar() {
 
   // Filtrer les items selon les modules activés
   const visibleItems = navItems.filter((item) => {
-    // Si pas de moduleKey, toujours visible
+    // Si pas de moduleKey, toujours visible (ex: Paramètres)
     if (!item.moduleKey) return true;
     
     // Si settings pas encore chargés, afficher tout (fallback)
@@ -59,15 +58,6 @@ export function AppSidebar() {
     const moduleConfig = activeModules[settingsKey as keyof typeof activeModules];
     const isEnabled = moduleConfig?.enabled ?? true; // Par défaut activé si pas défini
     
-    // Debug pour appointments
-    if (settingsKey === "appointments") {
-      console.log("[AppSidebar] Appointments module:", {
-        moduleConfig,
-        isEnabled,
-        activeModules,
-      });
-    }
-    
     return isEnabled;
   });
 
@@ -76,9 +66,17 @@ export function AppSidebar() {
       <div className="flex h-full flex-col">
         {/* Logo */}
         <div className="border-b border-[#1F2933] px-6 py-5">
-          <h1 className="text-xl font-semibold text-slate-200">
-            Local Assistant
-          </h1>
+          <Link href="/app/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <img 
+              src="/lokario-logo.png" 
+              alt="Lokario" 
+              className="h-8 w-8 object-contain flex-shrink-0"
+              style={{ minWidth: '32px', minHeight: '32px' }}
+            />
+            <span className="text-xl font-semibold text-slate-200">
+              LOKARIO
+            </span>
+          </Link>
         </div>
 
         {/* Navigation */}
@@ -90,13 +88,16 @@ export function AppSidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors relative",
+                  "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 relative group",
                   isActive
                     ? "bg-slate-800 text-slate-50 border-l-4 border-[#F97316] pl-2.5"
-                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-50"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-50 hover:translate-x-1"
                 )}
               >
-                {item.label}
+                <span className="relative z-10">{item.label}</span>
+                {isActive && (
+                  <span className="absolute left-0 top-0 bottom-0 w-1 bg-[#F97316] rounded-r-full animate-slide-down" />
+                )}
               </Link>
             );
           })}

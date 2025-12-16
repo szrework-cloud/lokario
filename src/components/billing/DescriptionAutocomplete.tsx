@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { getBillingLineTemplates, createBillingLineTemplate, BillingLineTemplate } from "@/services/billingLineTemplatesService";
 
 interface SavedLine {
   id: number;
   description: string;
+  unit?: string;
   unitPrice: number;
   taxRate: number;
 }
@@ -13,31 +16,12 @@ interface DescriptionAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
   onSelectLine?: (line: SavedLine) => void;
-  onSaveNewLine?: (description: string, unitPrice: number, taxRate: number) => void;
+  onSaveNewLine?: (description: string, unit: string | undefined, unitPrice: number, taxRate: number) => void;
   placeholder?: string;
   className?: string;
   defaultUnitPrice?: number;
   defaultTaxRate?: number;
 }
-
-// TODO: Récupérer depuis le backend
-const mockSavedLines: SavedLine[] = [
-  { id: 1, description: "Prestation de service - Installation", unitPrice: 1250, taxRate: 20 },
-  { id: 2, description: "Matériel supplémentaire", unitPrice: 150, taxRate: 20 },
-  { id: 3, description: "Main d'œuvre", unitPrice: 50, taxRate: 20 },
-  { id: 4, description: "Déplacement", unitPrice: 80, taxRate: 20 },
-  { id: 5, description: "Forfait installation complète", unitPrice: 2000, taxRate: 20 },
-  { id: 6, description: "Service de maintenance", unitPrice: 300, taxRate: 20 },
-  { id: 7, description: "Fourniture électrique", unitPrice: 120, taxRate: 20 },
-  { id: 8, description: "Fourniture plomberie", unitPrice: 200, taxRate: 20 },
-  { id: 9, description: "Peinture", unitPrice: 25, taxRate: 10 },
-  { id: 10, description: "Carrelage", unitPrice: 45, taxRate: 20 },
-  { id: 11, description: "Pose de carrelage", unitPrice: 35, taxRate: 20 },
-  { id: 12, description: "Rénovation complète", unitPrice: 5000, taxRate: 20 },
-  { id: 13, description: "Service beauté - Coupe", unitPrice: 35, taxRate: 20 },
-  { id: 14, description: "Service beauté - Coloration", unitPrice: 80, taxRate: 20 },
-  { id: 15, description: "Service beauté - Soin", unitPrice: 60, taxRate: 20 },
-];
 
 export function DescriptionAutocomplete({
   value,
@@ -49,23 +33,48 @@ export function DescriptionAutocomplete({
   defaultUnitPrice = 0,
   defaultTaxRate = 20,
 }: DescriptionAutocompleteProps) {
+  const { token } = useAuth();
+  const [savedLines, setSavedLines] = useState<SavedLine[]>([]);
   const [suggestions, setSuggestions] = useState<SavedLine[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
+  // Charger les lignes sauvegardées depuis l'API
+  useEffect(() => {
+    const loadSavedLines = async () => {
+      if (!token) return;
+      
+      try {
+        const templates = await getBillingLineTemplates(token);
+        const adaptedLines: SavedLine[] = templates.map((template: BillingLineTemplate) => ({
+          id: template.id,
+          description: template.description,
+          unit: template.unit || undefined,
+          unitPrice: typeof template.unit_price_ht === 'string' ? parseFloat(template.unit_price_ht) : template.unit_price_ht,
+          taxRate: typeof template.tax_rate === 'string' ? parseFloat(template.tax_rate) : template.tax_rate,
+        }));
+        setSavedLines(adaptedLines);
+      } catch (err) {
+        console.error("Erreur lors du chargement des lignes sauvegardées:", err);
+      }
+    };
+    
+    loadSavedLines();
+  }, [token]);
+
   // Fonction pour mettre à jour les suggestions
   const updateSuggestions = (searchValue: string) => {
     if (searchValue.length >= 1) {
       // Filtrer les lignes enregistrées qui correspondent
-      const filtered = mockSavedLines.filter((line) =>
+      const filtered = savedLines.filter((line) =>
         line.description.toLowerCase().includes(searchValue.toLowerCase())
       );
       setSuggestions(filtered);
     } else {
       // Si le champ est vide, afficher toutes les suggestions
-      setSuggestions(mockSavedLines);
+      setSuggestions(savedLines);
     }
   };
 
@@ -73,31 +82,42 @@ export function DescriptionAutocomplete({
     if (showSuggestions) {
       updateSuggestions(value);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, showSuggestions]);
+  }, [value, showSuggestions, savedLines]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const isInsideSuggestions = suggestionsRef.current?.contains(target);
+      const isInsideInput = inputRef.current?.contains(target);
+      
       if (
         suggestionsRef.current &&
-        !suggestionsRef.current.contains(event.target as Node) &&
+        !isInsideSuggestions &&
         inputRef.current &&
-        !inputRef.current.contains(event.target as Node)
+        !isInsideInput
       ) {
         setShowSuggestions(false);
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    // Utiliser 'click' au lieu de 'mousedown' pour éviter de fermer avant le clic sur le bouton
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
   const handleSelect = (line: SavedLine) => {
+    // S'assurer que unitPrice et taxRate sont des numbers
+    const lineWithNumbers: SavedLine = {
+      ...line,
+      unitPrice: typeof line.unitPrice === 'string' ? parseFloat(line.unitPrice) : line.unitPrice,
+      taxRate: typeof line.taxRate === 'string' ? parseFloat(line.taxRate) : line.taxRate,
+    };
     onChange(line.description);
     if (onSelectLine) {
-      onSelectLine(line);
+      onSelectLine(lineWithNumbers);
     }
     setShowSuggestions(false);
+    setSelectedIndex(-1);
     inputRef.current?.focus();
   };
 
@@ -122,7 +142,7 @@ export function DescriptionAutocomplete({
       } else if (selectedIndex === suggestions.length) {
         // Option "Créer une description" sélectionnée
         if (onSaveNewLine && value.trim().length > 0) {
-          onSaveNewLine(value.trim(), defaultUnitPrice, defaultTaxRate);
+          onSaveNewLine(value.trim(), undefined, defaultUnitPrice, defaultTaxRate);
         }
         setShowSuggestions(false);
         inputRef.current?.blur();
@@ -147,7 +167,7 @@ export function DescriptionAutocomplete({
         onFocus={() => {
           // Afficher toutes les suggestions disponibles quand on clique dans le champ
           // Même si le champ est vide, on affiche toutes les lignes enregistrées
-          setSuggestions(mockSavedLines);
+          setSuggestions(savedLines);
           setShowSuggestions(true);
           setSelectedIndex(-1);
         }}
@@ -167,7 +187,15 @@ export function DescriptionAutocomplete({
                 <button
                   key={line.id}
                   type="button"
-                  onClick={() => handleSelect(line)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSelect(line);
+                  }}
+                  onMouseDown={(e) => {
+                    // Empêcher la fermeture des suggestions lors du mousedown
+                    e.preventDefault();
+                  }}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-[#F9FAFB] transition-colors ${
                     index === selectedIndex ? "bg-[#F9FAFB]" : ""
                   }`}
@@ -195,13 +223,60 @@ export function DescriptionAutocomplete({
           {value.length > 0 && (
             <button
               type="button"
-              onClick={() => {
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 // Si on a une fonction onSaveNewLine, enregistrer la nouvelle ligne
                 if (onSaveNewLine && value.trim().length > 0) {
-                  onSaveNewLine(value.trim(), defaultUnitPrice, defaultTaxRate);
+                  // Sauvegarder dans la base de données
+                  if (token) {
+                    try {
+                      await createBillingLineTemplate(token, {
+                        description: value.trim(),
+                        unit: undefined,
+                        unit_price_ht: defaultUnitPrice,
+                        tax_rate: defaultTaxRate,
+                      });
+                      // Recharger les lignes sauvegardées
+                      const templates = await getBillingLineTemplates(token);
+                      const adaptedLines: SavedLine[] = templates.map((template: BillingLineTemplate) => ({
+                        id: template.id,
+                        description: template.description,
+                        unit: template.unit || undefined,
+                        unitPrice: typeof template.unit_price_ht === 'string' ? parseFloat(template.unit_price_ht) : template.unit_price_ht,
+                        taxRate: typeof template.tax_rate === 'string' ? parseFloat(template.tax_rate) : template.tax_rate,
+                      }));
+                      setSavedLines(adaptedLines);
+                      
+                      // Sélectionner automatiquement la ligne créée
+                      const newTemplate = templates.find(t => t.description === value.trim() && t.unit_price_ht === defaultUnitPrice && t.tax_rate === defaultTaxRate);
+                      if (newTemplate) {
+                        const newLine: SavedLine = {
+                          id: newTemplate.id,
+                          description: newTemplate.description,
+                          unit: newTemplate.unit || undefined,
+                          unitPrice: typeof newTemplate.unit_price_ht === 'string' ? parseFloat(newTemplate.unit_price_ht) : newTemplate.unit_price_ht,
+                          taxRate: typeof newTemplate.tax_rate === 'string' ? parseFloat(newTemplate.tax_rate) : newTemplate.tax_rate,
+                        };
+                        // Sélectionner automatiquement la ligne créée
+                        handleSelect(newLine);
+                      } else {
+                        // Si on ne trouve pas la ligne, juste mettre à jour le formulaire
+                        onSaveNewLine(value.trim(), undefined, defaultUnitPrice, defaultTaxRate);
+                        setShowSuggestions(false);
+                      }
+                    } catch (err) {
+                      console.error("Erreur lors de la sauvegarde de la ligne:", err);
+                      // Même en cas d'erreur, appeler onSaveNewLine pour mettre à jour le formulaire
+                      onSaveNewLine(value.trim(), undefined, defaultUnitPrice, defaultTaxRate);
+                      setShowSuggestions(false);
+                    }
+                  } else {
+                    // Pas de token, juste appeler onSaveNewLine
+                    onSaveNewLine(value.trim(), undefined, defaultUnitPrice, defaultTaxRate);
+                    setShowSuggestions(false);
+                  }
                 }
-                setShowSuggestions(false);
-                inputRef.current?.blur();
               }}
               className={`w-full text-left px-3 py-2 text-sm font-medium text-[#F97316] hover:bg-orange-50 transition-colors border-t border-[#E5E7EB] ${
                 selectedIndex === suggestions.length ? "bg-orange-50" : ""
