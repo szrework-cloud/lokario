@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { useAuth } from "@/hooks/useAuth";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import { Download, Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 
