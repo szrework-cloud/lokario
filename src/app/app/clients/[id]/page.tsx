@@ -135,12 +135,15 @@ export default function ClientDetailPage() {
                 try {
                   const conversations = await getConversations(token, { limit: 50 });
                   const clientConversations = conversations.filter(conv => conv.clientId === clientId);
-                  const messages: RecentMessage[] = clientConversations.slice(0, 3).map(conv => ({
-                    id: conv.id,
-                    subject: conv.subject || "Sans objet",
-                    date: conv.date,
-                    source: conv.source,
-                  }));
+                  const messages: RecentMessage[] = clientConversations
+                    .slice(0, 3)
+                    .filter(conv => conv.source === "email" || conv.source === "whatsapp" || conv.source === "messenger")
+                    .map(conv => ({
+                      id: conv.id,
+                      subject: conv.subject || "Sans objet",
+                      date: conv.date,
+                      source: conv.source as "email" | "whatsapp" | "messenger",
+                    }));
                   setRecentMessages(messages);
                 } catch (err) {
                   console.error("Erreur lors du chargement des messages:", err);
