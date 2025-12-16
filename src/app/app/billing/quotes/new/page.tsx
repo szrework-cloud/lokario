@@ -265,10 +265,12 @@ export default function NewQuotePage() {
       // Préparer les données pour l'API
       // Si on clique sur "Créer et envoyer", créer en "brouillon" pour ouvrir le formulaire d'envoi
       const finalStatus = statusOverride === "envoyé" ? "brouillon" : (statusOverride || formData.status);
+      // S'assurer que le status est compatible avec QuoteCreate (seulement "brouillon" | "envoyé")
+      const validStatus: "brouillon" | "envoyé" = (finalStatus === "brouillon" || finalStatus === "envoyé") ? finalStatus : "brouillon";
       const quoteData: QuoteCreate = {
         client_id: formData.client_id,
         project_id: formData.project_id,
-        status: finalStatus,
+        status: validStatus,
         notes: formData.notes,
         conditions: formData.conditions,
         valid_until: formData.valid_until ? new Date(formData.valid_until) : undefined,
