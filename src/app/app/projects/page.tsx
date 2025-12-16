@@ -939,7 +939,7 @@ export default function ProjectsPage() {
                       )}
                     </div>
                     <div className="space-y-2">
-                      {selectedProjectFormatted.tasks.map((task) => (
+                      {selectedProjectFormatted.tasks.map((task: any) => (
                         <div
                           key={task.id}
                           className="flex items-center gap-2 p-2 rounded border border-slate-200"
