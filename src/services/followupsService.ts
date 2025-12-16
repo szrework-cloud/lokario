@@ -110,7 +110,6 @@ function mapFollowUpResponse(item: FollowUpReadResponse): FollowUpItem {
     autoStopOnPaid: item.auto_stop_on_paid,
     autoStopOnRefused: item.auto_stop_on_refused,
     // Informations sur les relances envoyées (optionnelles, utilisées via as any dans les composants)
-    hasBeenSent: item.has_been_sent ?? false,
   };
 }
 
