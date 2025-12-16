@@ -49,7 +49,7 @@ export function CreateAppointmentModal({
         ]);
         
         setAppointmentTypes(typesData);
-        setEmployees(usersData.map((u) => ({ id: u.id, name: u.fullName })));
+        setEmployees(usersData.map((u) => ({ id: u.id, name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email })));
         setClients(clientsData.map((c) => ({ id: c.id, name: c.name })));
       } catch (err) {
         console.error("Erreur lors du chargement des données:", err);
