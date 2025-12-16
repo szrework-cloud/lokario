@@ -126,7 +126,7 @@ export function TaskCard({
   const [editedDueDate, setEditedDueDate] = useState<string>(getDateOnly(originalDueDateISO));
   const [editedComment, setEditedComment] = useState<string>(comment || description || "");
 
-  const isCompleted = status === "Terminé" || status === "Terminée";
+  const isCompleted = status === "Terminé" || (status as string) === "Terminée";
 
   const priorityColors: Record<TaskCardProps["priority"], string> = {
     normal: "bg-blue-100 text-blue-800",
