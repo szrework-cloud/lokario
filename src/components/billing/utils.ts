@@ -86,12 +86,12 @@ export function getQuoteStatusColor(status: Quote["status"]): string {
  * Récupère la couleur du statut pour une facture
  */
 export function getInvoiceStatusColor(status: Invoice["status"]): string {
-  const colors = {
+  const colors: Record<Invoice["status"], string> = {
     brouillon: "bg-slate-100 text-slate-800",
     envoyée: "bg-blue-100 text-blue-800",
     payée: "bg-green-100 text-green-800",
     impayée: "bg-orange-100 text-orange-800",
-    en_retard: "bg-red-100 text-red-800",
+    "en retard": "bg-red-100 text-red-800",
     annulée: "bg-gray-100 text-gray-800",
   };
   return colors[status] || colors.impayée;
