@@ -310,8 +310,8 @@ export async function sendFollowUp(
 
 export async function generateFollowUpMessage(
   followupId: number,
-  context?: string,
-  token: string | null
+  token: string | null,
+  context?: string
 ): Promise<string> {
   if (!token) {
     throw new Error("Token is required");
