@@ -69,7 +69,7 @@ export function BarChart({ title, data, valueLabel }: BarChartProps) {
               fontWeight: 600,
               marginBottom: "4px",
             }}
-            formatter={(value: number) => [formatValue(value), valueLabel || "Valeur"]}
+            formatter={(value: number | undefined) => [formatValue(value || 0), valueLabel || "Valeur"]}
           />
           <Bar
             dataKey="value"
