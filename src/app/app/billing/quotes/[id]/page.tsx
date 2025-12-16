@@ -54,6 +54,7 @@ export default function QuoteDetailPage() {
         // Adapter les données du backend au format frontend
         const adaptedQuote: Quote = {
           ...data,
+          client_name: data.client_name || "",
           lines: (data.lines || []).map((line) => ({
             id: line.id || 0,
             description: line.description,

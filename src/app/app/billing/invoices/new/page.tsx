@@ -119,6 +119,14 @@ export default function NewInvoicePage() {
             total: line.total_ttc,
           }));
 
+          // Valider operation_category
+          const validOperationCategory = invoiceToDuplicate.operation_category &&
+            (invoiceToDuplicate.operation_category === "vente" ||
+             invoiceToDuplicate.operation_category === "prestation" ||
+             invoiceToDuplicate.operation_category === "les deux")
+            ? invoiceToDuplicate.operation_category as "vente" | "prestation" | "les deux"
+            : undefined;
+
           setFormData({
             client_id: invoiceToDuplicate.client_id,
             project_id: invoiceToDuplicate.project_id,
@@ -132,7 +140,7 @@ export default function NewInvoicePage() {
             recovery_fee: invoiceToDuplicate.recovery_fee,
             vat_applicable: invoiceToDuplicate.vat_applicable,
             vat_on_debit: invoiceToDuplicate.vat_on_debit,
-            operation_category: invoiceToDuplicate.operation_category,
+            operation_category: validOperationCategory,
             vat_exemption_reference: invoiceToDuplicate.vat_exemption_reference,
             seller_name: invoiceToDuplicate.seller_name,
             seller_address: invoiceToDuplicate.seller_address,
@@ -177,6 +185,27 @@ export default function NewInvoicePage() {
     conditions?: string;
     due_date: string;
     status: Invoice["status"];
+    payment_terms?: string;
+    late_penalty_rate?: number;
+    recovery_fee?: number;
+    vat_applicable?: boolean;
+    vat_on_debit?: boolean;
+    operation_category?: "vente" | "prestation" | "les deux";
+    vat_exemption_reference?: string;
+    seller_name?: string;
+    seller_address?: string;
+    seller_siren?: string;
+    seller_siret?: string;
+    seller_vat_number?: string;
+    seller_rcs?: string;
+    seller_legal_form?: string;
+    seller_capital?: number;
+    client_name?: string;
+    client_address?: string;
+    client_siren?: string;
+    client_delivery_address?: string;
+    issue_date?: string;
+    sale_date?: string;
   }>({
     client_id: 0,
     lines: [
