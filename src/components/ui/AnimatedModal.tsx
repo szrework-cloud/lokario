@@ -18,7 +18,7 @@ const backdropVariants = {
   exit: { opacity: 0 },
 };
 
-const modalVariants = {
+const modalVariants: any = {
   hidden: {
     opacity: 0,
     scale: 0.9,
