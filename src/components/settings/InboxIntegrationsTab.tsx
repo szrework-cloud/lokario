@@ -504,12 +504,13 @@ function InboxIntegrationsTabComponent() {
               <Select
                 id="integration_type"
                 value={formData.integration_type}
-                onValueChange={(value: "imap" | "sms") => {
+                onValueChange={(value: string) => {
+                  const typedValue = value as "imap" | "sms";
                   setFormData({
                     ...formData,
-                    integration_type: value,
+                    integration_type: typedValue,
                     // Réinitialiser les champs spécifiques au type
-                    email_address: value === "sms" ? "" : formData.email_address,
+                    email_address: typedValue === "sms" ? "" : formData.email_address,
                     phone_number: value === "imap" ? "" : formData.phone_number,
                   });
                 }}
