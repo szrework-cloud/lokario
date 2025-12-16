@@ -9,7 +9,7 @@ import { calculateSubtotal, calculateTax, calculateTotal, calculateLineTotal, fo
 import { DescriptionAutocomplete } from "@/components/billing/DescriptionAutocomplete";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
-import { getInvoice, updateInvoice, Invoice as InvoiceAPI } from "@/services/invoicesService";
+import { getInvoice, updateInvoice, validateInvoice, Invoice as InvoiceAPI } from "@/services/invoicesService";
 import { createBillingLineTemplate } from "@/services/billingLineTemplatesService";
 
 export default function EditInvoicePage() {
