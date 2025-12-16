@@ -63,7 +63,7 @@ export function CreditNoteModal({
         // Pré-remplir le montant avec le total de la facture
         setFormData((prev) => ({
           ...prev,
-          credit_amount: invoice.total || invoice.amount || 0,
+          credit_amount: (invoice as any).total_ttc || invoice.amount || 0,
         }));
       } catch (err: any) {
         console.error("Erreur lors du chargement de la facture:", err);
@@ -126,7 +126,7 @@ export function CreditNoteModal({
     setFormData((prev) => ({ ...prev, credit_amount: newTotal }));
   };
 
-  const handleSaveNewLine = async (description: string, unitPrice: number, taxRate: number) => {
+  const handleSaveNewLine = async (description: string, unit: string | undefined, unitPrice: number, taxRate: number) => {
     // TODO: Appel API pour sauvegarder la nouvelle ligne
     logger.log("Sauvegarder nouvelle ligne:", { description, unitPrice, taxRate });
   };
