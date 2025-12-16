@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+import os
 from app.api.routes import auth, users, companies, clients, inbox, inbox_webhooks, inbox_integrations, tasks, checklists, projects, appointments, followups, invoices, quotes, billing_line_templates, notifications, chatbot, dashboard, stripe, contact
 from app.db.session import init_db
 from app.core.log_sanitizer import setup_sanitized_logging
@@ -41,6 +42,10 @@ if settings.ENVIRONMENT.lower() in ["production", "prod"]:
         "https://lokario.fr",
         "https://www.lokario.fr",
     ]
+    # Ajouter l'URL Railway si définie dans les variables d'environnement
+    railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL")
+    if railway_url:
+        origins.append(f"https://{railway_url}")
 else:
     origins = [
         "http://localhost:3000",
@@ -48,6 +53,10 @@ else:
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
     ]
+    # En développement, aussi autoriser l'URL Railway si elle existe
+    railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL")
+    if railway_url:
+        origins.append(f"https://{railway_url}")
 
 app.add_middleware(
     CORSMiddleware,
