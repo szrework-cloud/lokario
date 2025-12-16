@@ -448,6 +448,7 @@ export default function BillingPage() {
 
   const invoiceStatusLabels: Record<InvoiceStatus | "all", string> = {
     all: "Tous",
+    brouillon: "Brouillon",
     envoyée: "Envoyée",
     payée: "Payée",
     impayée: "Impayée",
@@ -1124,7 +1125,7 @@ export default function BillingPage() {
                                 >
                                   {invoiceStatusLabels[invoice.status]}
                                 </span>
-                                {invoice.invoice_type && invoice.invoice_type !== "avoir" && isInvoiceOverdue(invoice) && (
+                                {(invoice.invoice_type === "facture" || !invoice.invoice_type) && isInvoiceOverdue(invoice) && (
                                   <span className="ml-2 text-xs text-red-600">
                                     ({Math.floor((new Date().getTime() - new Date(invoice.due_date).getTime()) / (1000 * 60 * 60 * 24))} jours)
                                   </span>

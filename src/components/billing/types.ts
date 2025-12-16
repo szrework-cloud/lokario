@@ -1,6 +1,6 @@
 // Types pour le module Devis & Factures
 
-export type QuoteStatus = "brouillon" | "envoyé" | "accepté" | "refusé";
+export type QuoteStatus = "brouillon" | "envoyé" | "accepté" | "refusé" | "vu";
 export type InvoiceStatus = "brouillon" | "envoyée" | "payée" | "impayée" | "en retard" | "annulée";
 export type InvoiceType = "facture" | "avoir";
 
