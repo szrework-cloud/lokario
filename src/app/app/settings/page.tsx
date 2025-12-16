@@ -531,7 +531,7 @@ export default function SettingsPage() {
               
               // Vérifier que logo_path existe dans les settings
               const currentSettings = settings?.settings || {};
-              const companyInfo = (currentSettings.company_info || {});
+              const companyInfo = ((currentSettings as any).company_info || {});
               
               if (companyInfo.logo_path) {
                 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
