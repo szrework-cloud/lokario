@@ -225,7 +225,7 @@ export default function RelancesPage() {
     // Générer automatiquement le message de base selon le type de relance
     if (token) {
       try {
-        const generatedMessage = await generateFollowUpMessage(item.id, undefined, token);
+        const generatedMessage = await generateFollowUpMessage(item.id, token);
         setMessageText(generatedMessage);
       } catch (error) {
         console.error("Erreur lors de la génération du message:", error);
