@@ -77,10 +77,10 @@ export default function InvoiceDetailPage() {
           })),
           // S'assurer que les champs optionnels sont présents
           amount_paid: data.amount_paid || 0,
-          amount_remaining: data.amount_remaining ?? (data.total_ttc || data.total || data.amount || 0),
+          amount_remaining: data.amount_remaining ?? (data.total_ttc || data.amount || 0),
           subtotal: data.subtotal_ht || 0,
           tax: data.total_tax || 0,
-          total: data.total_ttc || data.total || data.amount || 0,
+          total: data.total_ttc || data.amount || 0,
           timeline: [], // TODO: Récupérer depuis l'API
           history: [], // TODO: Récupérer depuis l'API
           payments: [], // TODO: Récupérer depuis l'API
@@ -235,7 +235,7 @@ export default function InvoiceDetailPage() {
         operation_category: validOperationCategory,
         vat_on_debit: reloadedInvoice.vat_on_debit ?? false,
         vat_applicable: reloadedInvoice.vat_applicable ?? true,
-        amount: reloadedInvoice.amount || reloadedInvoice.total_ttc || reloadedInvoice.total || 0,
+        amount: reloadedInvoice.amount || reloadedInvoice.total_ttc || 0,
         lines: (reloadedInvoice.lines || []).map((line) => ({
           id: line.id || 0,
           description: line.description,
@@ -246,10 +246,10 @@ export default function InvoiceDetailPage() {
           total: line.total_ttc,
         })),
         amount_paid: Number(reloadedInvoice.amount_paid || 0),
-        amount_remaining: Number(reloadedInvoice.amount_remaining ?? (reloadedInvoice.total_ttc || reloadedInvoice.total || reloadedInvoice.amount || 0)),
+        amount_remaining: Number(reloadedInvoice.amount_remaining ?? (reloadedInvoice.total_ttc || reloadedInvoice.amount || 0)),
         subtotal: reloadedInvoice.subtotal_ht || 0,
         tax: reloadedInvoice.total_tax || 0,
-        total: reloadedInvoice.total_ttc || reloadedInvoice.total || reloadedInvoice.amount || 0,
+        total: reloadedInvoice.total_ttc || reloadedInvoice.amount || 0,
         timeline: [],
         history: [],
         payments: [
