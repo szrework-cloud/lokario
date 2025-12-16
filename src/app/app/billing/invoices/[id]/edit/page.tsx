@@ -18,8 +18,8 @@ export default function EditInvoicePage() {
   const { user, token } = useAuth();
   const { settings } = useSettings(false); // Ne pas auto-load, déjà chargé dans AppLayout
 
-  // Récupérer les taux de TVA depuis les settings
-  const taxRates = settings?.settings?.billing?.tax_rates || [0, 2.1, 5.5, 10, 20];
+  // Taux de TVA par défaut (les settings n'ont pas encore de section billing)
+  const taxRates = [0, 2.1, 5.5, 10, 20];
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [isLoading, setIsLoading] = useState(true);

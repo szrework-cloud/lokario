@@ -29,11 +29,11 @@ export default function NewInvoicePage() {
                              isAutoEntrepreneurValue === "true" ||
                              String(isAutoEntrepreneurValue).toLowerCase() === "true";
 
-  // Récupérer les taux de TVA depuis les settings
+  // Taux de TVA par défaut (les settings n'ont pas encore de section billing)
   // Si auto-entrepreneur, forcer à [0] uniquement
   const taxRates = isAutoEntrepreneur 
     ? [0] 
-    : (settings?.settings?.billing?.tax_rates || [0, 2.1, 5.5, 10, 20]);
+    : [0, 2.1, 5.5, 10, 20];
 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
