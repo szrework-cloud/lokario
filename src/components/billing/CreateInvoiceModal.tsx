@@ -101,7 +101,6 @@ export function CreateInvoiceModal({ isOpen, onClose, onSubmit }: CreateInvoiceM
         quantity: 1,
         unitPrice: 0,
         taxRate: getInitialTaxRate(),
-        order: 0,
       },
     ],
     vat_applicable: !isAutoEntrepreneur, // Désactiver TVA si auto-entrepreneur
@@ -214,7 +213,6 @@ export function CreateInvoiceModal({ isOpen, onClose, onSubmit }: CreateInvoiceM
       quantity: 1,
       unitPrice: 0,
       taxRate: isAutoEntrepreneur ? 0 : 20, // Forcer à 0% si auto-entrepreneur
-      order: formData.lines.length,
     };
     setFormData({
       ...formData,
@@ -315,7 +313,6 @@ export function CreateInvoiceModal({ isOpen, onClose, onSubmit }: CreateInvoiceM
             quantity: 1,
             unitPrice: 0,
             taxRate: getInitialTaxRate(),
-            order: 0,
           },
         ],
         vat_applicable: !isAutoEntrepreneur,
