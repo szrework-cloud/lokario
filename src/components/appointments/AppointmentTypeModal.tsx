@@ -36,7 +36,7 @@ export function AppointmentTypeModal({
       
       try {
         const users = await getCompanyUsers(token);
-        setEmployees(users.map((u) => ({ id: u.id, name: u.fullName })));
+        setEmployees(users.map((u) => ({ id: u.id, name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email })));
       } catch (err) {
         console.error("Erreur lors du chargement des employés:", err);
       }
