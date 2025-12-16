@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { PageTitle } from "@/components/layout/PageTitle";
 import { Invoice, BillingLine } from "@/components/billing/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+import { calculateSubtotal, calculateTax, calculateTotal, calculateLineTotal, formatAmount } from "@/components/billing/utils";
 import { DescriptionAutocomplete } from "@/components/billing/DescriptionAutocomplete";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
