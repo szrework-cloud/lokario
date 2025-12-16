@@ -33,7 +33,7 @@ export function useAuth() {
     } catch (error) {
       console.error("Erreur lors du rafraîchissement des infos utilisateur:", error);
     }
-  }, [token, refreshUser]);
+  }, [token, setAuth]);
 
   return { user, token, isLoading, logout: clearAuth, setAuth, refreshUserFromAPI };
 }
