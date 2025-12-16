@@ -6,7 +6,7 @@ import { apiGet } from "@/lib/api";
 import { logger } from "@/lib/logger";
 
 export function useAuth() {
-  const { user, token, isLoading, hydrateFromStorage, clearAuth, setAuth, refreshUser } =
+  const { user, token, isLoading, hydrateFromStorage, clearAuth, setAuth } =
     useAuthStore();
 
   useEffect(() => {
