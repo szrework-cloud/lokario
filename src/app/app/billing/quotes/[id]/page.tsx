@@ -207,6 +207,7 @@ export default function QuoteDetailPage() {
     envoyé: "Envoyé",
     accepté: "Accepté",
     refusé: "Refusé",
+    vu: "Vu",
   };
 
   return (
