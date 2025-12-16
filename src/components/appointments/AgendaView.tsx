@@ -50,7 +50,10 @@ export function AgendaView() {
         // Charger les settings avec gestion d'erreur séparée
         try {
           const settingsData = await getAppointmentSettings(token);
-          setAppointmentSettings(settingsData);
+          setAppointmentSettings({
+            ...settingsData,
+            rescheduleBaseUrl: settingsData.rescheduleBaseUrl || (typeof window !== "undefined" ? `${window.location.origin}/r/{slugEntreprise}` : "https://lokario.fr/r/{slugEntreprise}"),
+          });
         } catch (settingsError: any) {
           console.warn("Erreur lors du chargement des paramètres de rendez-vous, utilisation des valeurs par défaut:", settingsError);
           // Utiliser les valeurs par défaut si les settings ne peuvent pas être chargés

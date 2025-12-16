@@ -53,7 +53,10 @@ export function AppointmentsListView() {
         ]);
         
         setAppointments(appointmentsData);
-        setAppointmentSettings(settingsData);
+        setAppointmentSettings({
+          ...settingsData,
+          rescheduleBaseUrl: settingsData.rescheduleBaseUrl || (typeof window !== "undefined" ? `${window.location.origin}/r/{slugEntreprise}` : "https://lokario.fr/r/{slugEntreprise}"),
+        });
       } catch (err: any) {
         console.error("Erreur lors du chargement des rendez-vous:", err);
         setError(err.message || "Erreur lors du chargement des rendez-vous");
