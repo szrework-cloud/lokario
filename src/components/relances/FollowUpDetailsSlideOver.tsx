@@ -258,7 +258,7 @@ export function FollowUpDetailsSlideOver({
               <div>
                 <span className="text-[#64748B]">Statut:</span>
                 <span className="ml-2">
-                  {followUp.autoEnabled && followUp.status !== "Fait" ? (() => {
+                  {(followUp as any).autoEnabled && followUp.status !== "Fait" ? (() => {
                     // Pour les relances automatiques, dueDate contient déjà la date ISO complète
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
