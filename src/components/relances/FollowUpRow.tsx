@@ -84,9 +84,9 @@ export function FollowUpRow({
         )}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-        {!(item.autoEnabled && item.status === "Fait") ? (
+        {!((item as any).autoEnabled && item.status === "Fait") ? (
           <div className="flex items-center gap-2">
-            {item.autoEnabled && item.status !== "Fait" ? (() => {
+            {(item as any).autoEnabled && item.status !== "Fait" ? (() => {
               // Pour les relances automatiques, dueDate contient déjà la date ISO complète
               const today = new Date();
               today.setHours(0, 0, 0, 0);
