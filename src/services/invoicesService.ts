@@ -87,6 +87,11 @@ export interface Invoice {
   
   // Relations
   lines: InvoiceLine[];
+  
+  // Calculés côté backend
+  amount_paid?: number;
+  amount_remaining?: number;
+  credit_remaining?: number;
 }
 
 export interface InvoiceCreate {
