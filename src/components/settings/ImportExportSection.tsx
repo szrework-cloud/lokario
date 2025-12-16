@@ -56,10 +56,10 @@ export function ImportExportSection() {
           `"${(client as any).phone || ""}"`,
           `"${(client as any).address || ""}"`,
           `"${(client as any).city || ""}"`,
-          `"${client.postal_code || ""}"`,
-          `"${client.country || ""}"`,
-          `"${client.siret || ""}"`,
-          `"${client.vat_number || ""}"`
+          `"${(client as any).postal_code || ""}"`,
+          `"${(client as any).country || ""}"`,
+          `"${(client as any).siret || ""}"`,
+          `"${(client as any).vat_number || ""}"`
         ].join(","))
       ];
       
