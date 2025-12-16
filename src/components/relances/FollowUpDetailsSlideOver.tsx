@@ -48,7 +48,7 @@ export function FollowUpDetailsSlideOver({
   const { showToast } = useToast();
   
   // État pour l'automatisation de la relance
-  const [isAutoEnabled, setIsAutoEnabled] = useState(followUp?.autoEnabled || false);
+  const [isAutoEnabled, setIsAutoEnabled] = useState((followUp as any)?.autoEnabled || false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -128,7 +128,7 @@ export function FollowUpDetailsSlideOver({
   // Détecter les changements
   useEffect(() => {
     if (followUp) {
-      const changed = isAutoEnabled !== (followUp.autoEnabled || false);
+      const changed = isAutoEnabled !== ((followUp as any).autoEnabled || false);
       setHasChanges(changed);
     }
   }, [isAutoEnabled, followUp]);
@@ -219,7 +219,7 @@ export function FollowUpDetailsSlideOver({
                 <span className="text-[#64748B]">Source:</span>
                 <span className="ml-2 font-medium text-[#0F172A]">{followUp.source}</span>
               </div>
-              {!(followUp.autoEnabled && followUp.status === "Fait") && (
+              {!((followUp as any).autoEnabled && followUp.status === "Fait") && (
                 <div>
                   <span className="text-[#64748B]">Date limite:</span>
                   <span className="ml-2 font-medium text-[#0F172A]">
@@ -247,7 +247,7 @@ export function FollowUpDetailsSlideOver({
                   <span className="text-[#64748B]">Relances envoyées:</span>
                   <span className="ml-2 font-medium text-[#0F172A]">
                     {followUp.totalSent} relance{followUp.totalSent > 1 ? "s" : ""}
-                    {followUp.autoEnabled && followUp.remainingRelances !== null && followUp.remainingRelances > 0 && (
+                    {(followUp as any).autoEnabled && followUp.remainingRelances !== null && followUp.remainingRelances > 0 && (
                       <span className="text-[#64748B]">
                         {" "}({followUp.remainingRelances} restante{followUp.remainingRelances > 1 ? "s" : ""})
                       </span>
