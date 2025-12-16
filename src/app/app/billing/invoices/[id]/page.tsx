@@ -64,7 +64,7 @@ export default function InvoiceDetailPage() {
           operation_category: validOperationCategory,
           vat_on_debit: data.vat_on_debit ?? false,
           vat_applicable: data.vat_applicable ?? true,
-          amount: data.amount || data.total_ttc || data.total || 0,
+          amount: data.amount || data.total_ttc || 0,
           // Adapter les lignes (unit_price_ht -> unitPrice, tax_rate -> taxRate)
           lines: (data.lines || []).map((line) => ({
             id: line.id || 0,
