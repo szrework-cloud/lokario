@@ -56,6 +56,8 @@ export interface Quote {
   refused_at?: string;
   client_signature_path?: string;
   client_email?: string; // Email du client pour le formulaire d'envoi
+  public_token?: string; // Token pour la signature publique
+  public_token_expires_at?: string; // Date d'expiration du token
   timeline: BillingTimelineEvent[];
   history: BillingHistoryEvent[];
   linked_followups?: number[]; // IDs des relances associées
