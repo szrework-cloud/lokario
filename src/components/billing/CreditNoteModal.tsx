@@ -32,7 +32,7 @@ export function CreditNoteModal({
 
   // Récupérer les taux de TVA depuis les settings
   const VALID_TVA_RATES = DEFAULT_TVA_RATES;
-  const [originalInvoice, setOriginalInvoice] = useState<Invoice | null>(null);
+  const [originalInvoice, setOriginalInvoice] = useState<any>(null);
   const [formData, setFormData] = useState<CreditNoteCreate>({
     original_invoice_id: originalInvoiceId,
     credit_amount: 0,
