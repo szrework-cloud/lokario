@@ -463,7 +463,7 @@ export default function SettingsPage() {
         // Préserver le logo_path existant pour ne pas l'écraser
         // IMPORTANT: Recharger les settings après reloadSettings() pour avoir les dernières valeurs
         const refreshedSettings = settings?.settings || {};
-        const existingCompanyInfo = (refreshedSettings.company_info || {});
+        const existingCompanyInfo = ((refreshedSettings as any).company_info || {});
         
         // Log pour debug
         logger.debug("Sauvegarde settings - logo_path existant:", existingCompanyInfo.logo_path);
