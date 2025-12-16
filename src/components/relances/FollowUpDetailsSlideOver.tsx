@@ -247,9 +247,9 @@ export function FollowUpDetailsSlideOver({
                   <span className="text-[#64748B]">Relances envoyées:</span>
                   <span className="ml-2 font-medium text-[#0F172A]">
                     {followUp.totalSent} relance{followUp.totalSent > 1 ? "s" : ""}
-                    {(followUp as any).autoEnabled && followUp.remainingRelances !== null && followUp.remainingRelances > 0 && (
+                    {(followUp as any).autoEnabled && (followUp as any).remainingRelances !== null && (followUp as any).remainingRelances > 0 && (
                       <span className="text-[#64748B]">
-                        {" "}({followUp.remainingRelances} restante{followUp.remainingRelances > 1 ? "s" : ""})
+                        {" "}({(followUp as any).remainingRelances} restante{(followUp as any).remainingRelances > 1 ? "s" : ""})
                       </span>
                     )}
                   </span>
@@ -268,9 +268,9 @@ export function FollowUpDetailsSlideOver({
                     
                     // Afficher le statut professionnel avec le numéro de relance
                     const statusText = followUp.nextRelanceNumber 
-                      ? `Relance ${followUp.nextRelanceNumber}${followUp.remainingRelances !== null ? `/${followUp.totalSent + (followUp.remainingRelances || 0)}` : ''}`
-                      : followUp.hasBeenSent 
-                        ? `${followUp.totalSent} relance${followUp.totalSent > 1 ? 's' : ''} envoyée${followUp.totalSent > 1 ? 's' : ''}`
+                      ? `Relance ${followUp.nextRelanceNumber}${(followUp as any).remainingRelances !== null ? `/${(followUp.totalSent || 0) + ((followUp as any).remainingRelances || 0)}` : ''}`
+                      : followUp.hasBeenSent
+                        ? `${followUp.totalSent || 0} relance${(followUp.totalSent || 0) > 1 ? 's' : ''} envoyée${(followUp.totalSent || 0) > 1 ? 's' : ''}`
                         : 'Relance initiale';
                     
                     if (diffDays > 0) {
