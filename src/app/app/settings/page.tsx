@@ -221,7 +221,10 @@ export default function SettingsPage() {
             content: "Bonjour {client_name},\n\nNous vous rappelons votre rendez-vous prévu le {appointment_date} à {appointment_time}.\n\nÀ bientôt,\n{company_name}",
           }];
         }
-        setAppointmentSettings(settingsData);
+        setAppointmentSettings({
+          ...settingsData,
+          rescheduleBaseUrl: settingsData.rescheduleBaseUrl || (typeof window !== "undefined" ? `${window.location.origin}/r/{slugEntreprise}` : "https://lokario.fr/r/{slugEntreprise}"),
+        });
       } catch (err) {
         console.error("Erreur lors du chargement des paramètres de rendez-vous:", err);
       } finally {
