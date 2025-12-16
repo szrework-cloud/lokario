@@ -141,7 +141,7 @@ export function CreditNoteModal({
     }
     
     // Vérifier que le montant de l'avoir ne dépasse pas le montant de la facture
-    const invoiceTotal = originalInvoice.total || originalInvoice.amount || 0;
+    const invoiceTotal = (originalInvoice as any)?.total_ttc || originalInvoice?.amount || 0;
     const creditTotal = calculateTotal(formData.lines);
     
     if (creditTotal > invoiceTotal) {
