@@ -1,7 +1,5 @@
 "use client";
 
-import { LandingFooter } from "@/components/landing/Footer";
-import { LandingHeader } from "@/components/landing/Header";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 

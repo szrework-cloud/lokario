@@ -1,14 +1,12 @@
 "use client";
 
-import { LandingFooter } from "@/components/landing/Footer";
-import { LandingHeader } from "@/components/landing/Header";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 export default function MentionsLegalesPage() {
   return (
     <div className="flex min-h-screen flex-col bg-black">
-      {/* Header removed */}
+      {/* Header removed - using simple layout */}
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <Link 
           href="/" 
@@ -111,7 +109,7 @@ export default function MentionsLegalesPage() {
           </div>
         </div>
       </div>
-      {/* Footer removed */}
+      <LandingFooter />
     </div>
   );
 }
