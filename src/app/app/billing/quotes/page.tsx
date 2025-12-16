@@ -442,6 +442,7 @@ export default function BillingPage() {
     all: "Tous",
     brouillon: "Brouillon",
     envoyé: "Envoyé",
+    vu: "Vu",
     accepté: "Accepté",
     refusé: "Refusé",
   };
