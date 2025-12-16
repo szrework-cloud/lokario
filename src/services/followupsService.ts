@@ -110,8 +110,7 @@ function mapFollowUpResponse(item: FollowUpReadResponse): FollowUpItem {
     autoStopOnPaid: item.auto_stop_on_paid,
     autoStopOnRefused: item.auto_stop_on_refused,
     // Informations sur les relances envoyées
-    totalSent: item.total_sent ?? 0,
-    remainingRelances: item.remaining_relances ?? null,
+    ...((item.total_sent !== undefined || item.remaining_relances !== undefined || item.next_relance_number !== undefined) ? { totalSent: item.total_sent ?? 0, remainingRelances: item.remaining_relances ?? null, nextRelanceNumber: item.next_relance_number ?? null } : {}),
     nextRelanceNumber: item.next_relance_number ?? null,
     hasBeenSent: item.has_been_sent ?? false,
   };
