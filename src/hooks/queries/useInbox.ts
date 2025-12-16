@@ -7,9 +7,8 @@ import {
   updateConversation,
   deleteConversation,
   getFolders,
-  MessageSource,
 } from "@/services/inboxService";
-import type { InboxItem, InboxFolder } from "@/components/inbox/types";
+import type { InboxItem, InboxFolder, MessageSource } from "@/components/inbox/types";
 
 interface ConversationFilters {
   folderId?: number | "all" | "pending";
