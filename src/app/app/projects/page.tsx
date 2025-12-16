@@ -147,7 +147,6 @@ function PDFPreview({ documentId, getImageUrl }: { documentId: number; getImageU
       src={pdfUrl + "#toolbar=0"}
       className="w-full h-64 rounded-lg border border-slate-200"
       title="Aperçu PDF"
-      type="application/pdf"
     />
   );
 }
@@ -1174,7 +1173,6 @@ export default function ProjectsPage() {
                 src={previewImage.url + "#toolbar=0"}
                 className="w-full h-full max-w-full max-h-full rounded-lg border-0"
                 title={previewImage.name}
-                type="application/pdf"
                 onClick={(e) => e.stopPropagation()}
               />
             )}
