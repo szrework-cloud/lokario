@@ -68,7 +68,7 @@ export function FollowUpDetailsSlideOver({
   // Mettre à jour les valeurs locales quand followUp change
   useEffect(() => {
     if (followUp) {
-      setIsAutoEnabled(followUp.autoEnabled || false);
+      setIsAutoEnabled((followUp as any).autoEnabled || false);
       setHasChanges(false);
     }
   }, [followUp]);
@@ -223,7 +223,7 @@ export function FollowUpDetailsSlideOver({
                 <div>
                   <span className="text-[#64748B]">Date limite:</span>
                   <span className="ml-2 font-medium text-[#0F172A]">
-                    {followUp.autoEnabled && followUp.status !== "Fait" ? (() => {
+                    {(followUp as any).autoEnabled && followUp.status !== "Fait" ? (() => {
                       // Pour les relances automatiques, dueDate contient déjà la date ISO complète
                       const today = new Date();
                       today.setHours(0, 0, 0, 0);
