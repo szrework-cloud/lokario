@@ -1302,7 +1302,7 @@ export default function SettingsPage() {
                     Base de connaissances de l'entreprise
                   </label>
                   <textarea
-                    value={settings.settings.ia?.inbox?.knowledge_base || ""}
+                    value={(settings.settings.ia?.inbox as any)?.knowledge_base || ""}
                     onChange={(e) => {
                       updateSettingsLocal({
                         ia: {
