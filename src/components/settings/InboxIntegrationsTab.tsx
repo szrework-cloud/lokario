@@ -511,7 +511,7 @@ function InboxIntegrationsTabComponent() {
                     integration_type: typedValue,
                     // Réinitialiser les champs spécifiques au type
                     email_address: typedValue === "sms" ? "" : formData.email_address,
-                    phone_number: value === "imap" ? "" : formData.phone_number,
+                    phone_number: typedValue === "imap" ? "" : formData.phone_number,
                   });
                 }}
                 disabled={isSubmitting || !!editingIntegration}
