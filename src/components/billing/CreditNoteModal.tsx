@@ -43,7 +43,6 @@ export function CreditNoteModal({
         quantity: 1,
         unitPrice: 0,
         taxRate: 20,
-        order: 0,
       },
     ],
   });
@@ -110,7 +109,6 @@ export function CreditNoteModal({
       quantity: 1,
       unitPrice: 0,
       taxRate: 20,
-      order: formData.lines.length,
     };
     setFormData({
       ...formData,
@@ -194,7 +192,6 @@ export function CreditNoteModal({
             quantity: 1,
             unitPrice: 0,
             taxRate: 20,
-            order: 0,
           },
         ],
       });
