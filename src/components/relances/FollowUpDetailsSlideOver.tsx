@@ -246,7 +246,7 @@ export function FollowUpDetailsSlideOver({
                 <div>
                   <span className="text-[#64748B]">Relances envoyées:</span>
                   <span className="ml-2 font-medium text-[#0F172A]">
-                    {followUp.totalSent} relance{followUp.totalSent > 1 ? "s" : ""}
+                    {followUp.totalSent || 0} relance{followUp.totalSent || 0 > 1 ? "s" : ""}
                     {(followUp as any).autoEnabled && (followUp as any).remainingRelances !== null && (followUp as any).remainingRelances > 0 && (
                       <span className="text-[#64748B]">
                         {" "}({(followUp as any).remainingRelances} restante{(followUp as any).remainingRelances > 1 ? "s" : ""})
@@ -268,9 +268,9 @@ export function FollowUpDetailsSlideOver({
                     
                     // Afficher le statut professionnel avec le numéro de relance
                     const statusText = followUp.nextRelanceNumber 
-                      ? `Relance ${followUp.nextRelanceNumber}${(followUp as any).remainingRelances !== null ? `/${(followUp.totalSent || 0) + ((followUp as any).remainingRelances || 0)}` : ''}`
+                      ? `Relance ${followUp.nextRelanceNumber}${(followUp as any).remainingRelances !== null ? `/${(followUp.totalSent || 0 || 0) + ((followUp as any).remainingRelances || 0)}` : ''}`
                       : followUp.hasBeenSent
-                        ? `${followUp.totalSent || 0} relance${(followUp.totalSent || 0) > 1 ? 's' : ''} envoyée${(followUp.totalSent || 0) > 1 ? 's' : ''}`
+                        ? `${followUp.totalSent || 0 || 0} relance${(followUp.totalSent || 0 || 0) > 1 ? 's' : ''} envoyée${(followUp.totalSent || 0 || 0) > 1 ? 's' : ''}`
                         : 'Relance initiale';
                     
                     if (diffDays > 0) {
@@ -295,7 +295,7 @@ export function FollowUpDetailsSlideOver({
                   })() : (
                     <Tag variant={statusVariant[followUp.status]}>
                       {followUp.status}
-                      {followUp.hasBeenSent && ` (${followUp.totalSent} envoyée${followUp.totalSent > 1 ? 's' : ''})`}
+                      {followUp.hasBeenSent && ` (${followUp.totalSent || 0} envoyée${followUp.totalSent || 0 > 1 ? 's' : ''})`}
                     </Tag>
                   )}
                 </span>
