@@ -1309,8 +1309,8 @@ export default function SettingsPage() {
                           ...settings.settings.ia,
                           inbox: {
                             ...(settings.settings.ia?.inbox || {}),
-                            knowledge_base: e.target.value,
-                          },
+                            ...({ knowledge_base: e.target.value } as any),
+                          } as any,
                         },
                       });
                     }}
