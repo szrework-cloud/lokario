@@ -8,7 +8,7 @@ import { ArrowLeft } from "lucide-react";
 export default function MentionsLegalesPage() {
   return (
     <div className="flex min-h-screen flex-col bg-black">
-      <LandingHeader />
+      {/* Header removed */}
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <Link 
           href="/" 
@@ -111,7 +111,7 @@ export default function MentionsLegalesPage() {
           </div>
         </div>
       </div>
-      <LandingFooter />
+      {/* Footer removed */}
     </div>
   );
 }
