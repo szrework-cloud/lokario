@@ -1377,7 +1377,7 @@ export default function SettingsPage() {
                                 const value = Math.max(1, Math.min(3, parseInt(e.target.value) || 1));
                                 const currentRelances = appointmentSettings.reminderRelances || [];
                                 // Ajuster le nombre de templates
-                                const newRelances = [];
+                                const newRelances: any[] = [];
                                 for (let i = 1; i <= value; i++) {
                                   const existing = currentRelances.find(r => r.relance_number === i);
                                   if (existing) {
