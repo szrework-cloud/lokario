@@ -29,7 +29,7 @@ export function useAuth() {
     
     try {
       const updatedUser = await apiGet<CurrentUser>("/auth/me", token);
-      refreshUser(updatedUser);
+      setAuth(token || "", updatedUser);
     } catch (error) {
       console.error("Erreur lors du rafraîchissement des infos utilisateur:", error);
     }
