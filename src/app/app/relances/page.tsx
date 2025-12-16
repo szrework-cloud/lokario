@@ -147,7 +147,7 @@ export default function RelancesPage() {
     if (automationFilter === "auto") {
       filtered = filtered.filter((f) => f.autoEnabled === true);
     } else if (automationFilter === "manual") {
-      filtered = filtered.filter((f) => !f.autoEnabled || f.autoEnabled === false);
+      filtered = filtered.filter((f) => !f.autoEnabled);
     }
     // "all" = pas de filtre sur l'automatisation
     
