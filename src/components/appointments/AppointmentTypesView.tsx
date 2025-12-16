@@ -37,7 +37,7 @@ export function AppointmentTypesView() {
         ]);
         
         setTypes(typesData);
-        setEmployees(usersData.map((u) => ({ id: u.id, name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email })));
+        setEmployees(usersData.map((u) => ({ id: u.id, name: u.full_name || u.email })));
       } catch (err: any) {
         console.error("Erreur lors du chargement des types de rendez-vous:", err);
         setError(err.message || "Erreur lors du chargement des types de rendez-vous");
