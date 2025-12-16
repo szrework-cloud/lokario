@@ -109,7 +109,7 @@ export default function MentionsLegalesPage() {
           </div>
         </div>
       </div>
-      <LandingFooter />
+      {/* Footer removed */}
     </div>
   );
 }
