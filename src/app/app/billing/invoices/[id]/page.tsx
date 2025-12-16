@@ -173,7 +173,7 @@ export default function InvoiceDetailPage() {
     envoyée: "Envoyée",
     payée: "Payée",
     impayée: "Impayée",
-    en_retard: "En retard",
+    "en retard": "En retard",
     annulée: "Annulée",
   };
 
