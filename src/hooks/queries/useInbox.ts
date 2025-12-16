@@ -8,7 +8,7 @@ import {
   deleteConversation,
   getFolders,
 } from "@/services/inboxService";
-import type { InboxItem, InboxFolder, MessageSource } from "@/components/inbox/types";
+import type { InboxItem, InboxFolder, MessageSource, Message } from "@/components/inbox/types";
 
 interface ConversationFilters {
   folderId?: number | "all" | "pending";
@@ -124,10 +124,12 @@ export function useAddMessage() {
               {
                 id: Date.now(), // ID temporaire
                 content,
-                sender: "user",
-                timestamp: new Date().toISOString(),
+                from: "Vous",
+                date: new Date().toISOString(),
+                isFromClient: false,
                 source: previousConversation.source,
-              },
+                read: false,
+              } as Message,
             ],
           }
         );
