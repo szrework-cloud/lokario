@@ -98,7 +98,7 @@ export function FollowUpRow({
               const statusText = item.nextRelanceNumber 
                 ? `Relance ${item.nextRelanceNumber}${item.remainingRelances !== null ? `/${item.totalSent + (item.remainingRelances || 0)}` : ''}`
                 : item.hasBeenSent 
-                  ? `${item.totalSent} relance${item.totalSent > 1 ? 's' : ''} envoyée${item.totalSent > 1 ? 's' : ''}`
+                  ? `${item.totalSent || 0} relance${(item.totalSent || 0) > 1 ? 's' : ''} envoyée${(item.totalSent || 0) > 1 ? 's' : ''}`
                   : 'Relance initiale';
               
               if (diffDays > 0) {
@@ -139,12 +139,12 @@ export function FollowUpRow({
           </div>
         ) : (
           <span className="text-slate-400">
-            {item.autoEnabled && item.totalSent ? `${item.totalSent} relance${item.totalSent > 1 ? 's' : ''} envoyée${item.totalSent > 1 ? 's' : ''}` : '—'}
+            {(item as any).autoEnabled && item.totalSent ? `${item.totalSent || 0} relance${(item.totalSent || 0) > 1 ? 's' : ''} envoyée${(item.totalSent || 0) > 1 ? 's' : ''}` : '—'}
           </span>
         )}
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
-        {item.autoEnabled ? (
+        {(item as any).autoEnabled ? (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
             <span>🤖</span>
             <span>Automatique</span>
