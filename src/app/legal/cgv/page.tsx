@@ -1,7 +1,5 @@
 "use client";
 
-import { PublicFooter } from "@/components/layout/PublicFooter";
-import { PublicHeader } from "@/components/layout/PublicHeader";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
