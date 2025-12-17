@@ -20,5 +20,5 @@ COPY backend/ .
 # Exposer le port (Railway définit $PORT automatiquement)
 EXPOSE $PORT
 
-# Commande de démarrage
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "${PORT}"]
+# Commande de démarrage (utiliser shell form pour que $PORT soit évalué)
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
