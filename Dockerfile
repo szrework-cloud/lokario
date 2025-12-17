@@ -17,10 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier tout le code backend
 COPY backend/ .
 
-# Exposer le port (Railway définit $PORT automatiquement)
-EXPOSE $PORT
-
-# Commande de démarrage
-# Utiliser la forme exec pour éviter les problèmes avec le shell
+# Variable d'environnement par défaut pour le port
 ENV PORT=8000
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+
+# Commande de démarrage - utiliser directement uvicorn
+# Railway définira $PORT automatiquement
+CMD exec uvicorn app.main:app --host 0.0.0.0 --port $PORT
