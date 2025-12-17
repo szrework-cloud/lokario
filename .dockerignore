@@ -12,3 +12,8 @@ yarn-error.log*
 src
 frontend
 public
+Procfile
+*.sh
+railway.json
+railway.toml
+nixpacks.toml
