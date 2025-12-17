@@ -20,6 +20,5 @@ COPY backend/ .
 # Variable d'environnement par défaut pour le port
 ENV PORT=8000
 
-# Commande de démarrage - utiliser directement uvicorn
-# Railway définira $PORT automatiquement
-CMD exec uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Commande de démarrage - forme shell simple
+CMD ["/bin/sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
