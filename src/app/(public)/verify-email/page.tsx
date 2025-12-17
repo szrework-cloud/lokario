@@ -179,3 +179,11 @@ function VerifyEmailForm() {
   );
 }
 
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]"><div className="text-[#64748B]">Chargement...</div></div>}>
+      <VerifyEmailForm />
+    </Suspense>
+  );
+}
+
