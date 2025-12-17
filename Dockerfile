@@ -20,5 +20,5 @@ COPY backend/ .
 # Variable d'environnement par défaut (Railway écrasera $PORT)
 ENV PORT=8000
 
-# Utiliser un script Python pour démarrer - évite les problèmes de shell
-CMD ["python", "start.py"]
+# Utiliser ENTRYPOINT pour éviter que Railway override la commande
+ENTRYPOINT ["python", "start.py"]
