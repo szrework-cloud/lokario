@@ -1,5 +1,5 @@
 # Dockerfile pour le backend FastAPI
-# Configuration éprouvée pour Railway (approche entreprise)
+# Configuration éprouvée pour Railway
 
 FROM python:3.12-slim
 
@@ -17,12 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier tout le code backend
 COPY backend/ .
 
-# Copier et rendre exécutable le script d'entrée
-COPY backend/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
 # Variable d'environnement par défaut
 ENV PORT=8000
 
-# Utiliser le script d'entrée (approche entreprise)
-ENTRYPOINT ["docker-entrypoint.sh"]
+# Commande de démarrage - utiliser directement uvicorn avec exec
+# Railway injecte $PORT automatiquement
+CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
