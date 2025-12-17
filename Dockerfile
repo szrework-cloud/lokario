@@ -17,9 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier tout le code backend
 COPY backend/ .
 
-# Variable d'environnement par défaut
+# Variable d'environnement par défaut (Railway écrasera $PORT)
 ENV PORT=8000
 
-# Commande de démarrage - utiliser directement uvicorn avec exec
-# Railway injecte $PORT automatiquement
-CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Commande de démarrage - forme shell pour évaluer $PORT
+# Railway injecte automatiquement la variable $PORT
+CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
