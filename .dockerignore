@@ -17,6 +17,5 @@ railway.json
 railway.toml
 nixpacks.toml
 
-# Exclure les scripts shell sauf docker-entrypoint.sh
+# Exclure les scripts shell
 backend/*.sh
-!backend/docker-entrypoint.sh
