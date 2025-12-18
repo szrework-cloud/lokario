@@ -1,8 +1,11 @@
 from datetime import timedelta, datetime
 import random
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 from app.core.security import verify_password, get_password_hash, create_access_token, validate_password_strength
 from app.core.defaults import get_default_settings
 from app.core.email import (
@@ -58,6 +61,8 @@ def register(
     - Ajouter validation email
     - Ajouter validation mot de passe (force, etc.)
     """
+    logger.info(f"📝 Début de l'inscription pour l'email: {user_data.email}")
+    
     # Super admin creation is reserved
     if user_data.role == "super_admin":
         raise HTTPException(
@@ -78,31 +83,39 @@ def register(
     
     # Si company_code fourni, chercher l'entreprise par code
     if user_data.company_code:
+        logger.info(f"🔍 Recherche de l'entreprise par code: {user_data.company_code}")
         company = db.query(Company).filter(Company.code == user_data.company_code).first()
         if not company:
+            logger.warning(f"❌ Entreprise introuvable avec le code: {user_data.company_code}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Entreprise avec le code {user_data.company_code} introuvable"
             )
         company_id = company.id
+        logger.info(f"✅ Entreprise trouvée: {company.name} (ID: {company_id})")
         # Si code fourni, créer un user (pas un owner)
         if user_data.role == "owner":
             # Forcer le rôle à user si un code est fourni
+            logger.info(f"⚠️  Rôle 'owner' changé en 'user' car un company_code a été fourni")
             user_data.role = "user"
     
     # Valider la force du mot de passe
     is_valid, error_message = validate_password_strength(user_data.password)
     if not is_valid:
+        logger.warning(f"❌ Mot de passe trop faible pour: {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=error_message
         )
+    logger.info(f"✅ Validation du mot de passe réussie pour: {user_data.email}")
     
     # Si owner et company_name fourni, créer la company
     elif user_data.role == "owner" and user_data.company_name:
+        logger.info(f"🏢 Création d'une nouvelle entreprise: {user_data.company_name}")
         import re
         # Générer un code unique à 6 chiffres
         company_code = generate_unique_company_code(db)
+        logger.info(f"   Code généré pour l'entreprise: {company_code}")
         # Générer un slug à partir du nom
         base_slug = re.sub(r'[^a-z0-9]+', '-', user_data.company_name.lower()).strip('-')
         # Vérifier l'unicité du slug
@@ -121,6 +134,7 @@ def register(
         db.add(company)
         db.flush()  # Pour obtenir l'ID sans commit
         company_id = company.id
+        logger.info(f"   Entreprise créée avec ID: {company_id}, slug: {slug}")
         
         # Créer les settings par défaut pour la nouvelle entreprise
         company_settings = CompanySettings(
@@ -128,6 +142,7 @@ def register(
             settings=get_default_settings()
         )
         db.add(company_settings)
+        logger.info(f"   Settings par défaut créés pour l'entreprise {company_id}")
     
     # Si user et company_id fourni directement, vérifier que l'entreprise existe
     elif user_data.role == "user" and user_data.company_id:
@@ -158,31 +173,14 @@ def register(
     db.commit()
     db.refresh(user)
     
-    # Envoyer l'email de vérification automatiquement
-    print(f"\n{'='*80}")
-    print(f"📧 Tentative d'envoi d'email de vérification")
-    print(f"{'='*80}")
-    print(f"Destinataire: {user.email}")
-    print(f"Token: {verification_token}")
-    print(f"Lien: {settings.FRONTEND_URL}/verify-email/{verification_token}")
-    print(f"{'='*80}\n")
-    
-    try:
-        email_sent = send_verification_email(
-            email=user.email,
-            token=verification_token,
-            full_name=user.full_name
-        )
-        if email_sent:
-            print(f"✅ Email de vérification envoyé avec succès à {user.email}")
-        else:
-            print(f"⚠️  Échec de l'envoi de l'email de vérification à {user.email}")
-    except Exception as e:
-        # Ne pas faire échouer l'inscription si l'email ne peut pas être envoyé
-        # L'utilisateur pourra demander un renvoi plus tard
-        print(f"❌ Erreur lors de l'envoi de l'email de vérification: {e}")
-        import traceback
-        traceback.print_exc()
+    # Envoyer l'email de vérification en arrière-plan (NON-BLOQUANT)
+    # Cela permet de répondre immédiatement à l'utilisateur sans attendre l'envoi SMTP
+    background_tasks.add_task(
+        send_verification_email,
+        email=user.email,
+        token=verification_token,
+        full_name=user.full_name
+    )
     
     return user
 
