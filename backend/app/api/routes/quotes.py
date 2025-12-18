@@ -80,11 +80,31 @@ def generate_quote_number(db: Session, company_id: int) -> str:
 def create_automatic_followup_for_quote(db: Session, quote: Quote, user_id: int):
     """
     Crée automatiquement une relance pour un devis envoyé.
+    Vérifie d'abord si les relances automatiques sont activées dans les settings.
     """
     import logging
     logger = logging.getLogger(__name__)
     
     try:
+        # Vérifier si les relances automatiques sont activées
+        from app.db.models.company_settings import CompanySettings
+        company_settings = db.query(CompanySettings).filter(
+            CompanySettings.company_id == quote.company_id
+        ).first()
+        
+        # Par défaut, activer les relances automatiques
+        should_create = True
+        if company_settings and company_settings.settings:
+            modules = company_settings.settings.get("modules", {})
+            relances_module = modules.get("relances", {})
+            # Si le module relances est désactivé, ne pas créer de relance
+            if relances_module.get("enabled") is False:
+                should_create = False
+                logger.info(f"[FOLLOWUP AUTO] Relances automatiques désactivées (module relances désactivé)")
+        
+        if not should_create:
+            return
+        
         # Vérifier si une relance existe déjà pour ce devis
         from app.db.models.followup import FollowUp, FollowUpType, FollowUpStatus
         existing_followup = db.query(FollowUp).filter(
@@ -96,12 +116,6 @@ def create_automatic_followup_for_quote(db: Session, quote: Quote, user_id: int)
         if existing_followup:
             logger.info(f"[FOLLOWUP AUTO] Relance déjà existante pour le devis {quote.number} (ID: {quote.id})")
             return
-        
-        # Récupérer les paramètres de relance automatique
-        from app.db.models.company_settings import CompanySettings
-        company_settings = db.query(CompanySettings).filter(
-            CompanySettings.company_id == quote.company_id
-        ).first()
         
         initial_delay_days = 7  # Valeur par défaut
         if company_settings and company_settings.settings:
@@ -1866,18 +1880,16 @@ async def send_quote_email(
             # Récupérer l'intégration inbox principale pour obtenir l'email expéditeur
             # Utiliser l'integration déjà récupérée plus haut (primary_integration)
             from_email = primary_integration.email_address if primary_integration else current_user.email or "noreply@lokario.fr"
+            from_name = current_user.full_name or company.name or "Équipe"
             
             # Créer un message dans la conversation pour enregistrer l'envoi
             message = InboxMessage(
                 conversation_id=conversation.id,
-                company_id=current_user.company_id,
+                from_name=from_name,
                 from_email=from_email,
-                to_email=client.email,
-                subject=subject or f"Devis {quote.number}",
                 content=email_content_text,
                 is_from_client=False,  # Message envoyé par l'entreprise
                 source="email",
-                created_at=datetime.now(timezone.utc)
             )
             db.add(message)
             db.flush()  # Flush pour obtenir l'ID du message
@@ -1885,16 +1897,29 @@ async def send_quote_email(
             # Ajouter le PDF en pièce jointe si disponible
             if attachments and len(attachments) > 0:
                 pdf_attachment = attachments[0]  # Le premier est normalement le PDF du devis
-                if pdf_attachment.get("path") and Path(pdf_attachment["path"]).exists():
+                pdf_path = Path(pdf_attachment.get("path", ""))
+                if pdf_path.exists():
+                    # Extraire le nom de fichier depuis le chemin ou utiliser celui fourni
+                    filename = pdf_attachment.get("filename", pdf_path.name)
+                    # Le file_path doit être relatif au répertoire d'upload pour être cohérent avec le reste
+                    try:
+                        relative_path = str(pdf_path.relative_to(Path(settings.UPLOAD_DIR)))
+                    except ValueError:
+                        # Si le chemin n'est pas relatif à UPLOAD_DIR, utiliser le chemin complet
+                        relative_path = str(pdf_path)
+                    
                     attachment = MessageAttachment(
                         message_id=message.id,
-                        company_id=current_user.company_id,
-                        filename=pdf_attachment.get("filename", "Devis.pdf"),
-                        file_path=pdf_attachment["path"],
-                        file_size=Path(pdf_attachment["path"]).stat().st_size if Path(pdf_attachment["path"]).exists() else 0,
+                        name=filename,
+                        file_type="pdf",
+                        file_path=relative_path,
+                        file_size=pdf_path.stat().st_size,
                         mime_type="application/pdf"
                     )
                     db.add(attachment)
+                    logger.info(f"[SEND EMAIL] ✅ Pièce jointe ajoutée: {filename}")
+                else:
+                    logger.warning(f"[SEND EMAIL] ⚠️ Fichier PDF non trouvé: {pdf_path}")
             
             db.commit()
             logger.info(f"[SEND EMAIL] ✅ Message enregistré dans la conversation {conversation.id}")
@@ -1907,10 +1932,28 @@ async def send_quote_email(
             except:
                 pass
         
-        # Créer une relance automatique pour le devis envoyé
+        # Créer une relance automatique pour le devis envoyé (seulement si le module relances est activé)
         try:
-            create_automatic_followup_for_quote(db, quote, current_user.id)
-            logger.info(f"[SEND EMAIL] ✅ Relance automatique créée pour le devis {quote.number}")
+            # Vérifier si le module relances est activé dans les settings
+            company_settings_obj = db.query(CompanySettings).filter(
+                CompanySettings.company_id == current_user.company_id
+            ).first()
+            
+            # Par défaut, activer les relances automatiques si le module relances est activé
+            should_create_followup = True
+            if company_settings_obj and company_settings_obj.settings:
+                modules = company_settings_obj.settings.get("modules", {})
+                relances_module = modules.get("relances", {})
+                # Si le module relances est désactivé, ne pas créer de relance automatique
+                if relances_module.get("enabled") is False:
+                    should_create_followup = False
+                    logger.info(f"[SEND EMAIL] ⏭️ Relances automatiques désactivées (module relances désactivé)")
+            
+            if should_create_followup:
+                create_automatic_followup_for_quote(db, quote, current_user.id)
+                logger.info(f"[SEND EMAIL] ✅ Relance automatique créée pour le devis {quote.number}")
+            else:
+                logger.info(f"[SEND EMAIL] ⏭️ Relance automatique non créée (désactivée dans les paramètres)")
         except Exception as e:
             logger.error(f"[SEND EMAIL] ⚠️ Erreur lors de la création de la relance automatique: {e}", exc_info=True)
             # Ne pas faire échouer l'envoi si la relance échoue

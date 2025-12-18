@@ -67,8 +67,27 @@ def populate_client_info(invoice: Invoice, client: Client):
 def create_automatic_followup_for_invoice(db: Session, invoice: Invoice, user_id: int):
     """
     Crée automatiquement une relance pour une facture impayée.
+    Vérifie d'abord si les relances automatiques sont activées dans les settings.
     """
     try:
+        # Vérifier si les relances automatiques sont activées
+        from app.db.models.company_settings import CompanySettings
+        company_settings = db.query(CompanySettings).filter(
+            CompanySettings.company_id == invoice.company_id
+        ).first()
+        
+        # Par défaut, activer les relances automatiques
+        should_create = True
+        if company_settings and company_settings.settings:
+            modules = company_settings.settings.get("modules", {})
+            relances_module = modules.get("relances", {})
+            # Si le module relances est désactivé, ne pas créer de relance
+            if relances_module.get("enabled") is False:
+                should_create = False
+                logger.info(f"[FOLLOWUP AUTO] Relances automatiques désactivées (module relances désactivé)")
+        
+        if not should_create:
+            return
         # Vérifier si une relance existe déjà pour cette facture
         from app.db.models.followup import FollowUp, FollowUpType, FollowUpStatus
         from datetime import timedelta
