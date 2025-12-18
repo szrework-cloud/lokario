@@ -22,9 +22,11 @@ class ChatbotMessageRead(BaseModel):
     context_snapshot: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
-    class Config:
-        from_attributes = True
+
+    model_config = {
+        "from_attributes": True,
+        "protected_namespaces": ()  # Désactive la protection des namespaces pour permettre "model_used"
+    }
 
 
 class ChatbotConversationBase(BaseModel):
