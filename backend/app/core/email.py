@@ -272,13 +272,23 @@ L'équipe Lokario
         msg.attach(MIMEText(html_content, 'html', 'utf-8'))
         
         # Envoyer l'email
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            if settings.SMTP_USE_TLS:
-                server.starttls()
-            if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
-                password_clean = settings.SMTP_PASSWORD.replace(" ", "")
-                server.login(settings.SMTP_USERNAME, password_clean)
-            server.send_message(msg)
+        # Utiliser SMTP_SSL pour le port 465 (SSL direct) ou SMTP pour le port 587 (TLS)
+        if settings.SMTP_PORT == 465:
+            # Port 465 : utiliser SSL directement
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
+                if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+                    password_clean = settings.SMTP_PASSWORD.replace(" ", "")
+                    server.login(settings.SMTP_USERNAME, password_clean)
+                server.send_message(msg)
+        else:
+            # Port 587 ou autres : utiliser STARTTLS
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
+                if settings.SMTP_USE_TLS:
+                    server.starttls()
+                if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+                    password_clean = settings.SMTP_PASSWORD.replace(" ", "")
+                    server.login(settings.SMTP_USERNAME, password_clean)
+                server.send_message(msg)
         
         logger.info(f"✅ Email de réinitialisation envoyé avec succès à {email}")
         return True
