@@ -130,7 +130,7 @@ class AIClassifierService:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Tu es un assistant expert qui classe les messages dans les bons dossiers. Tu détectes particulièrement bien les messages importants comme les demandes de rendez-vous (rdv), les demandes urgentes, et les messages nécessitant une action rapide."
+                        "content": "Tu es un assistant expert qui classe les messages dans les bons dossiers. Tu détectes particulièrement bien les messages importants comme les demandes de rendez-vous (rdv), les demandes urgentes, et les messages nécessitant une action rapide. Sois TRÈS PRUDENT avec la classification spam/newsletter - ne classe comme spam que si c'est vraiment évident, en cas de doute laisse le message non classé."
                     },
                     {
                         "role": "user",
@@ -255,6 +255,10 @@ class AIClassifierService:
         prompt_parts.append("\n⚠️  ATTENTION: Si un dossier a un nom qui contient 'rdv' ou 'rendez-vous' ou 'appointment',")
         prompt_parts.append("et que le message contient des mots comme 'rdv', 'rendez-vous', 'disponible', 'réserver', 'prendre rdv', etc.,")
         prompt_parts.append("choisis ce dossier même si le message est actuellement dans un autre dossier.")
+        prompt_parts.append("\n🔍 IMPORTANT pour les dossiers Spam/Newsletter:")
+        prompt_parts.append("Sois TRÈS PRUDENT avant de classer un message comme spam ou newsletter.")
+        prompt_parts.append("Ne classe comme spam/newsletter QUE si c'est vraiment évident (publicités massives, emails promotionnels clairs, etc.).")
+        prompt_parts.append("En cas de doute, NE classe PAS comme spam - laisse le message non classé plutôt que de risquer de perdre un message important.")
         prompt_parts.append("\nRéponds au format JSON suivant:")
         prompt_parts.append('{"results": [{"conversation_id": 123, "folder_id": 5}, {"conversation_id": 124, "folder_id": null}]}')
         prompt_parts.append("Si aucun dossier ne correspond, utilise null pour folder_id.")
@@ -378,7 +382,7 @@ class AIClassifierService:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Tu es un assistant expert qui classe les messages dans les bons dossiers. Tu détectes particulièrement bien les messages importants comme les demandes de rendez-vous (rdv), les demandes urgentes, et les messages nécessitant une action rapide."
+                        "content": "Tu es un assistant expert qui classe les messages dans les bons dossiers. Tu détectes particulièrement bien les messages importants comme les demandes de rendez-vous (rdv), les demandes urgentes, et les messages nécessitant une action rapide. Sois TRÈS PRUDENT avec la classification spam/newsletter - ne classe comme spam que si c'est vraiment évident, en cas de doute laisse le message non classé."
                     },
                     {
                         "role": "user",
@@ -463,6 +467,10 @@ class AIClassifierService:
         prompt_parts.append("\n⚠️  ATTENTION: Si un dossier a un nom qui contient 'rdv' ou 'rendez-vous' ou 'appointment',")
         prompt_parts.append("et que le message contient des mots comme 'rdv', 'rendez-vous', 'disponible', 'réserver', 'prendre rdv', etc.,")
         prompt_parts.append("choisis ce dossier même si le message est actuellement dans un autre dossier.")
+        prompt_parts.append("\n🔍 IMPORTANT pour les dossiers Spam/Newsletter:")
+        prompt_parts.append("Sois TRÈS PRUDENT avant de classer un message comme spam ou newsletter.")
+        prompt_parts.append("Ne classe comme spam/newsletter QUE si c'est vraiment évident (publicités massives, emails promotionnels clairs, etc.).")
+        prompt_parts.append("En cas de doute, NE classe PAS comme spam - laisse le message non classé plutôt que de risquer de perdre un message important.")
         prompt_parts.append("\nRéponds UNIQUEMENT avec l'ID du dossier (exemple: 5).")
         prompt_parts.append("Si aucun dossier ne correspond, réponds: NONE")
         

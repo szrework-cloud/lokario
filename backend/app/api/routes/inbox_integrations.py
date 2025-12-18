@@ -260,10 +260,10 @@ def get_or_create_spam_folder(db: Session, company_id: int) -> InboxFolder:
     return spam_folder
 
 
-def cleanup_old_spam_messages(db: Session, company_id: int, days_old: int = 7):
+def cleanup_old_spam_messages(db: Session, company_id: int, days_old: int = 15):
     """
     Supprime automatiquement les messages spam/newsletter plus anciens que X jours.
-    Par défaut, supprime les spams de plus de 7 jours.
+    Par défaut, supprime les spams de plus de 15 jours.
     """
     cutoff_date = datetime.utcnow() - timedelta(days=days_old)
     
