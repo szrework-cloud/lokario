@@ -128,17 +128,23 @@ def send_email_smtp(
         try:
             sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
             
+            # Utiliser SMTP_FROM_EMAIL comme expéditeur principal (doit être vérifié dans SendGrid)
+            # Sinon utiliser email_address
+            from_email_for_sendgrid = settings.SMTP_FROM_EMAIL if hasattr(settings, 'SMTP_FROM_EMAIL') and settings.SMTP_FROM_EMAIL else email_address
+            
             # Construire le message SendGrid
             message = Mail(
-                from_email=Email(email_address, from_name or email_address),
+                from_email=Email(from_email_for_sendgrid, from_name or email_address),
                 to_emails=to_email,
                 subject=subject,
                 plain_text_content=Content("text/plain", content)
             )
             
-            # Ajouter Reply-To si fourni
+            # Ajouter Reply-To : utiliser reply_to si fourni, sinon utiliser email_address si différent de from_email
             if reply_to:
                 message.reply_to = Email(reply_to)
+            elif email_address != from_email_for_sendgrid:
+                message.reply_to = Email(email_address)
             
             # Ajouter les pièces jointes si fournies
             if attachments:
