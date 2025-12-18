@@ -1297,17 +1297,28 @@ def get_folders(
     """
     Récupère tous les dossiers de l'entreprise.
     """
-    if current_user.company_id is None:
+    try:
+        if current_user.company_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not attached to a company"
+            )
+        
+        folders = db.query(InboxFolder).filter(
+            InboxFolder.company_id == current_user.company_id
+        ).order_by(InboxFolder.is_system.desc(), InboxFolder.name.asc()).all()
+        
+        return folders
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting folders: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is not attached to a company"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting folders: {str(e)}"
         )
-    
-    folders = db.query(InboxFolder).filter(
-        InboxFolder.company_id == current_user.company_id
-    ).order_by(InboxFolder.is_system.desc(), InboxFolder.name.asc()).all()
-    
-    return folders
 
 
 @router.post("/folders", response_model=FolderRead, status_code=status.HTTP_201_CREATED)
