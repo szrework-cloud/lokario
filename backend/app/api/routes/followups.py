@@ -31,6 +31,45 @@ def _check_company_access(current_user: User):
         )
 
 
+def stop_followups_for_source(db: Session, source_type: str, source_id: int, company_id: int):
+    """
+    Arrête toutes les relances actives pour une source donnée (devis accepté ou facture payée).
+    Marque les relances comme "FAIT" pour qu'elles ne soient plus actives.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Trouver toutes les relances actives pour cette source
+        active_followups = db.query(FollowUp).filter(
+            FollowUp.source_type == source_type,
+            FollowUp.source_id == source_id,
+            FollowUp.company_id == company_id,
+            FollowUp.status == FollowUpStatus.A_FAIRE
+        ).all()
+        
+        if active_followups:
+            # Marquer toutes les relances comme "FAIT"
+            for followup in active_followups:
+                followup.status = FollowUpStatus.FAIT
+                logger.info(f"[FOLLOWUP STOP] Relance {followup.id} marquée comme FAIT (source: {source_type} {source_id})")
+            
+            db.commit()
+            logger.info(f"[FOLLOWUP STOP] ✅ {len(active_followups)} relance(s) arrêtée(s) pour {source_type} {source_id}")
+            return len(active_followups)
+        else:
+            logger.info(f"[FOLLOWUP STOP] Aucune relance active trouvée pour {source_type} {source_id}")
+            return 0
+            
+    except Exception as e:
+        logger.error(f"[FOLLOWUP STOP] ❌ Erreur lors de l'arrêt des relances pour {source_type} {source_id}: {e}", exc_info=True)
+        try:
+            db.rollback()
+        except:
+            pass
+        return 0
+
+
 def _followup_to_dict(followup: FollowUp, db: Optional[Session] = None) -> dict:
     """Convertir un objet FollowUp en dictionnaire pour FollowUpRead"""
     # Compter les relances déjà envoyées
