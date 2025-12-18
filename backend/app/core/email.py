@@ -148,7 +148,15 @@ L'équipe Lokario
         else:
             # Port 587 ou autres : utiliser STARTTLS
             logger.info(f"📧 [EMAIL] Utilisation du port {settings.SMTP_PORT} (STARTTLS)")
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
+            logger.info(f"📧 [EMAIL] Tentative de connexion SMTP (timeout: 30s)...")
+            try:
+                server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
+                logger.info(f"📧 [EMAIL] Connexion SMTP établie avec succès")
+            except Exception as conn_error:
+                logger.error(f"❌ [EMAIL] Erreur lors de la connexion SMTP: {conn_error}")
+                logger.error(f"   Type: {type(conn_error).__name__}")
+                raise
+            
                 if settings.SMTP_USE_TLS:
                     logger.info(f"📧 [EMAIL] Activation de STARTTLS...")
                     server.starttls()
@@ -162,6 +170,10 @@ L'équipe Lokario
                 logger.info(f"📧 [EMAIL] Envoi du message...")
                 server.send_message(msg)
                 logger.info(f"📧 [EMAIL] Message envoyé avec succès")
+            except Exception as send_error:
+                logger.error(f"❌ [EMAIL] Erreur lors de l'envoi/authentification: {send_error}")
+                logger.error(f"   Type: {type(send_error).__name__}")
+                raise
         
         logger.info(f"✅ Email de vérification envoyé avec succès à {email}")
         return True
