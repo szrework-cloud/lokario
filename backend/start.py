@@ -9,12 +9,12 @@ import sys
 def main():
     """Point d'entrée principal du script."""
     # Lire le port depuis l'environnement (Railway l'injecte automatiquement)
-    port_str = os.getenv("PORT", "8080")
+    port_str = os.getenv("PORT", "8000")
     try:
         port = int(port_str)
     except (ValueError, TypeError):
-        print(f"⚠️  PORT invalide: {port_str}, utilisation du port par défaut 8080", file=sys.stderr)
-        port = 8080
+        print(f"⚠️  PORT invalide: {port_str}, utilisation du port par défaut 8000", file=sys.stderr)
+        port = 8000
     
     print(f"🚀 Démarrage sur le port {port}")
     sys.stdout.flush()
