@@ -520,11 +520,7 @@ def create_quote(
         db.add(quote)
         db.flush()  # Pour obtenir l'ID
         
-        # Créer les lignes et calculer les totaux
-        subtotal_ht_total = Decimal("0")
-        total_tax_total = Decimal("0")
-        total_ttc_total = Decimal("0")
-        
+        # Créer les lignes
         for idx, line_data in enumerate(quote_data.lines):
             # Valider le taux de TVA
             if not validate_tax_rate(line_data.tax_rate, company_settings):
@@ -540,11 +536,6 @@ def create_quote(
                 line_data.unit_price_ht,
                 line_data.tax_rate
             )
-            
-            # Ajouter aux totaux
-            subtotal_ht_total += line_totals["subtotal_ht"]
-            total_tax_total += line_totals["tax_amount"]
-            total_ttc_total += line_totals["total_ttc"]
             
             quote_line = QuoteLine(
                 quote_id=quote.id,
