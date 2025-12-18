@@ -3,11 +3,14 @@ Service d'envoi d'emails pour l'application.
 """
 import smtplib
 import secrets
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from typing import Optional
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def generate_verification_token() -> str:
@@ -42,15 +45,15 @@ def send_verification_email(
     """
     # Si pas de configuration SMTP, simuler l'envoi (mode développement)
     if not hasattr(settings, 'SMTP_HOST') or not settings.SMTP_HOST:
-        print("\n" + "="*80)
-        print("📧 [MOCK EMAIL] Email de vérification")
-        print("="*80)
-        print(f"Destinataire: {email}")
+        logger.warning("="*80)
+        logger.warning("📧 [MOCK EMAIL] Email de vérification")
+        logger.warning("="*80)
+        logger.warning(f"Destinataire: {email}")
         if full_name:
-            print(f"Nom: {full_name}")
-        print(f"\nToken de vérification: {token}")
-        print(f"\nLien de vérification: {settings.FRONTEND_URL}/verify-email/{token}")
-        print("="*80 + "\n")
+            logger.warning(f"Nom: {full_name}")
+        logger.warning(f"Token de vérification: {token}")
+        logger.warning(f"Lien de vérification: {settings.FRONTEND_URL}/verify-email/{token}")
+        logger.warning("="*80)
         return True
     
     try:
@@ -134,18 +137,23 @@ L'équipe Lokario
                 server.login(settings.SMTP_USERNAME, password_clean)
             server.send_message(msg)
         
+        print(f"✅ Email de vérification envoyé avec succès à {email}")
         return True
     except smtplib.SMTPAuthenticationError as e:
-        print(f"❌ Erreur d'authentification SMTP: {e}")
+        error_msg = f"❌ Erreur d'authentification SMTP: {e}"
+        print(error_msg)
         print("\n💡 Vérifiez:")
         print("   - Que vous utilisez un 'Mot de passe d'application' Gmail (pas votre mot de passe normal)")
         print("   - Que l'authentification à 2 facteurs est activée sur le compte Gmail")
-        print("   - Que le mot de passe dans .env est correct (sans espaces)")
+        print("   - Que le mot de passe dans Railway Variables est correct (sans espaces)")
         print("   - Allez sur https://myaccount.google.com/apppasswords pour générer un nouveau mot de passe")
         return False
     except Exception as e:
-        print(f"❌ Erreur lors de l'envoi de l'email de vérification: {e}")
+        error_msg = f"❌ Erreur lors de l'envoi de l'email de vérification: {e}"
+        print(error_msg)
         print(f"   Type d'erreur: {type(e).__name__}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
         return False
 
 
