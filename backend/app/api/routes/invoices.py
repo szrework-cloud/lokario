@@ -76,18 +76,40 @@ def create_automatic_followup_for_invoice(db: Session, invoice: Invoice, user_id
             CompanySettings.company_id == invoice.company_id
         ).first()
         
-        # Par défaut, activer les relances automatiques
+        # Vérifier si les relances automatiques pour les factures sont activées
         should_create = True
         if company_settings and company_settings.settings:
+            # Vérifier d'abord si le module relances est activé
             modules = company_settings.settings.get("modules", {})
             relances_module = modules.get("relances", {})
-            # Si le module relances est désactivé, ne pas créer de relance
-            if relances_module.get("enabled") is False:
+            relances_enabled = relances_module.get("enabled", True)  # Par défaut True si non défini
+            
+            logger.info(f"[FOLLOWUP AUTO] Module relances enabled: {relances_enabled}")
+            
+            if relances_enabled is False:
                 should_create = False
                 logger.info(f"[FOLLOWUP AUTO] Relances automatiques désactivées (module relances désactivé)")
+            else:
+                # Si le module est activé, vérifier le paramètre spécifique pour les factures
+                billing_settings = company_settings.settings.get("billing", {})
+                auto_followups = billing_settings.get("auto_followups", {})
+                invoices_enabled = auto_followups.get("invoices_enabled")
+                
+                logger.info(f"[FOLLOWUP AUTO] billing.auto_followups.invoices_enabled: {invoices_enabled}")
+                
+                # Si le paramètre est explicitement défini à False, ne pas créer
+                if invoices_enabled is False:
+                    should_create = False
+                    logger.info(f"[FOLLOWUP AUTO] Relances automatiques pour les factures désactivées (paramètre billing.auto_followups.invoices_enabled = False)")
+                # Si le paramètre n'est pas défini (None) ou est True, créer la relance
+                else:
+                    logger.info(f"[FOLLOWUP AUTO] Relances automatiques activées pour les factures (paramètre: {invoices_enabled})")
         
         if not should_create:
+            logger.info(f"[FOLLOWUP AUTO] ⏭️ Relance automatique NON créée pour la facture {invoice.number} (should_create={should_create})")
             return
+        
+        logger.info(f"[FOLLOWUP AUTO] ✅ Création de la relance automatique pour la facture {invoice.number}")
         # Vérifier si une relance existe déjà pour cette facture
         from app.db.models.followup import FollowUp, FollowUpType, FollowUpStatus
         from datetime import timedelta
@@ -466,12 +488,16 @@ def create_invoice(
     log_invoice_creation(db, invoice.id, current_user.id, request)
     
     # Créer une relance automatique pour la facture impayée
+    logger.info(f"[INVOICE CREATE] Statut de la facture créée: {invoice.status}")
     if invoice.status == InvoiceStatus.IMPAYEE:
+        logger.info(f"[INVOICE CREATE] ✅ Statut IMPAYEE détecté, tentative de création de relance automatique pour la facture {invoice.number}")
         try:
             create_automatic_followup_for_invoice(db, invoice, current_user.id)
         except Exception as e:
-            logger.error(f"Erreur lors de la création de la relance automatique: {e}", exc_info=True)
+            logger.error(f"[INVOICE CREATE] ❌ Erreur lors de la création de la relance automatique: {e}", exc_info=True)
             # Ne pas faire échouer la création de la facture si la relance échoue
+    else:
+        logger.info(f"[INVOICE CREATE] ⏭️ Statut de la facture n'est pas IMPAYEE ({invoice.status}), pas de relance automatique créée")
     
     return invoice
 
