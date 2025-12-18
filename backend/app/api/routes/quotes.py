@@ -1689,8 +1689,11 @@ async def send_quote_email(
         # Envoyer l'email à tous les destinataires
         smtp_config = get_smtp_config(primary_integration.email_address)
         sent_count = 0
+        last_error = None
         
         logger.info(f"[SEND EMAIL] Envoi à {len(recipients)} destinataire(s) avec {len(attachments)} pièce(s) jointe(s)")
+        logger.info(f"[SEND EMAIL] Configuration SMTP: {smtp_config['smtp_server']}:{smtp_config['smtp_port']} (TLS: {smtp_config['use_tls']})")
+        logger.info(f"[SEND EMAIL] Email expéditeur: {primary_integration.email_address}")
         
         for recipient in recipients:
             try:
@@ -1716,15 +1719,19 @@ async def send_quote_email(
                 sent_count += 1
                 logger.info(f"[SEND EMAIL] Email envoyé avec succès à {recipient}")
             except Exception as e:
+                last_error = str(e)
                 logger.error(f"[SEND EMAIL] Erreur lors de l'envoi à {recipient}: {e}", exc_info=True)
                 # Continuer avec les autres destinataires
         
         logger.info(f"[SEND EMAIL] Résultat: {sent_count}/{len(recipients)} emails envoyés")
         
         if sent_count == 0:
+            error_detail = "Aucun email n'a pu être envoyé. Vérifiez la configuration SMTP et les logs."
+            if last_error:
+                error_detail += f" Dernière erreur: {last_error}"
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Aucun email n'a pu être envoyé. Vérifiez la configuration SMTP et les logs."
+                detail=error_detail
             )
         
         return {
