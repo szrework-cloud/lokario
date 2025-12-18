@@ -148,6 +148,7 @@ def send_email_smtp(
             
             # Ajouter les pièces jointes si fournies
             if attachments:
+                import base64
                 for att in attachments:
                     file_path = att.get("path")
                     filename = att.get("filename", Path(file_path).name if file_path else "attachment")
@@ -156,11 +157,15 @@ def send_email_smtp(
                         with open(file_path, "rb") as f:
                             file_data = f.read()
                         
+                        # SendGrid nécessite que file_content soit encodé en base64
+                        file_content_base64 = base64.b64encode(file_data).decode('utf-8')
+                        
                         attachment = Attachment()
-                        attachment.file_content = file_data
+                        attachment.file_content = file_content_base64
                         attachment.file_name = filename
                         attachment.disposition = "attachment"
                         message.add_attachment(attachment)
+                        logger.info(f"📎 [SENDGRID API] Pièce jointe ajoutée: {filename} ({len(file_data)} bytes)")
             
             logger.info(f"📧 [SENDGRID API] Envoi du message depuis {email_address} à {to_email}...")
             response = sg.send(message)
