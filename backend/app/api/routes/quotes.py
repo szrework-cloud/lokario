@@ -2234,9 +2234,18 @@ async def upload_client_signature(
     
     # Si le devis n'était pas encore accepté, le marquer comme accepté
     signed_at = datetime.now(timezone.utc)
+    was_accepted = quote.status == QuoteStatus.ACCEPTE
     if quote.status != QuoteStatus.ACCEPTE:
         quote.status = QuoteStatus.ACCEPTE
         quote.accepted_at = signed_at
+        
+        # Arrêter les relances automatiques pour ce devis
+        try:
+            from app.api.routes.followups import stop_followups_for_source
+            stop_followups_for_source(db, "quote", quote_id, current_user.company_id)
+        except Exception as e:
+            convert_logger = logging.getLogger(__name__)
+            convert_logger.error(f"Erreur lors de l'arrêt des relances pour le devis {quote_id}: {e}", exc_info=True)
     
     # Créer l'enregistrement de signature avec toutes les métadonnées
     quote_signature = QuoteSignature(
@@ -2919,9 +2928,18 @@ async def sign_public_quote(
     
     # Si le devis n'était pas encore accepté, le marquer comme accepté
     signed_at = datetime.now(timezone.utc)
+    was_accepted = quote.status == QuoteStatus.ACCEPTE
     if quote.status != QuoteStatus.ACCEPTE:
         quote.status = QuoteStatus.ACCEPTE
         quote.accepted_at = signed_at
+        
+        # Arrêter les relances automatiques pour ce devis
+        try:
+            from app.api.routes.followups import stop_followups_for_source
+            stop_followups_for_source(db, "quote", quote.id, current_user.company_id)
+        except Exception as e:
+            convert_logger = logging.getLogger(__name__)
+            convert_logger.error(f"Erreur lors de l'arrêt des relances pour le devis {quote.id}: {e}", exc_info=True)
     
     # Créer l'enregistrement de signature avec toutes les métadonnées
     quote_signature = QuoteSignature(

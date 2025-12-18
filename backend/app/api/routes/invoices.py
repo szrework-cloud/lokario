@@ -733,6 +733,14 @@ def validate_invoice(
     if new_status_enum == InvoiceStatus.PAYEE:
         invoice.paid_at = datetime.now(timezone.utc)
         
+        # Arrêter les relances automatiques pour cette facture
+        if not was_paid:
+            try:
+                from app.api.routes.followups import stop_followups_for_source
+                stop_followups_for_source(db, "invoice", invoice_id, current_user.company_id)
+            except Exception as e:
+                logger.error(f"Erreur lors de l'arrêt des relances pour la facture {invoice_id}: {e}", exc_info=True)
+        
         # Créer une notification si la facture vient d'être payée
         if not was_paid:
             try:
@@ -999,6 +1007,14 @@ def add_payment_to_invoice(
     if new_total_paid >= total_invoice:
         invoice.status = InvoiceStatus.PAYEE
         invoice.paid_at = datetime.now(timezone.utc)
+        
+        # Arrêter les relances automatiques pour cette facture
+        if not was_paid:
+            try:
+                from app.api.routes.followups import stop_followups_for_source
+                stop_followups_for_source(db, "invoice", invoice_id, current_user.company_id)
+            except Exception as e:
+                logger.error(f"Erreur lors de l'arrêt des relances pour la facture {invoice_id}: {e}", exc_info=True)
         
         # Créer une notification si la facture vient d'être payée
         if not was_paid:
