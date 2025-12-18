@@ -80,6 +80,7 @@ def calculate_line_totals(quantity: Decimal, unit_price: Decimal, tax_rate: Deci
 def validate_invoice_totals(invoice: Invoice, tolerance: Decimal = Decimal('0.01')) -> Tuple[bool, Optional[str]]:
     """
     Valide la cohérence des totaux d'une facture.
+    Prend en compte les réductions dans le calcul du total TTC.
     
     Args:
         invoice: Facture à valider
@@ -91,10 +92,24 @@ def validate_invoice_totals(invoice: Invoice, tolerance: Decimal = Decimal('0.01
     if not invoice.lines:
         return False, "La facture doit contenir au moins une ligne"
     
-    # Calculer les totaux depuis les lignes
+    # Calculer les totaux depuis les lignes (avant réduction)
     calculated_subtotal = sum(Decimal(str(line.subtotal_ht)) for line in invoice.lines)
     calculated_tax = sum(Decimal(str(line.tax_amount)) for line in invoice.lines)
-    calculated_total = sum(Decimal(str(line.total_ttc)) for line in invoice.lines)
+    calculated_total_before_discount = sum(Decimal(str(line.total_ttc)) for line in invoice.lines)
+    
+    # Appliquer la réduction si présente pour obtenir le total TTC attendu
+    discount_amount = Decimal('0')
+    if invoice.discount_type and invoice.discount_value is not None:
+        if invoice.discount_type == "percentage":
+            discount_amount = (calculated_total_before_discount * Decimal(str(invoice.discount_value))) / Decimal('100')
+            discount_amount = discount_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif invoice.discount_type == "fixed":
+            discount_amount = Decimal(str(invoice.discount_value))
+    
+    calculated_total = calculated_total_before_discount - discount_amount
+    if calculated_total < 0:
+        calculated_total = Decimal('0')
+    calculated_total = calculated_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     
     # Récupérer les totaux de la facture
     invoice_subtotal = Decimal(str(invoice.subtotal_ht)) if invoice.subtotal_ht else Decimal('0')
@@ -112,7 +127,7 @@ def validate_invoice_totals(invoice: Invoice, tolerance: Decimal = Decimal('0.01
     if tax_diff > tolerance:
         errors.append(f"TVA incohérente: calculée {calculated_tax}, facture {invoice_tax} (diff: {tax_diff})")
     if total_diff > tolerance:
-        errors.append(f"Total TTC incohérent: calculé {calculated_total}, facture {invoice_total} (diff: {total_diff})")
+        errors.append(f"Total TTC incohérent: calculé {calculated_total} (après réduction de {discount_amount}), facture {invoice_total} (diff: {total_diff})")
     
     if errors:
         return False, "; ".join(errors)
