@@ -137,23 +137,23 @@ L'équipe Lokario
                 server.login(settings.SMTP_USERNAME, password_clean)
             server.send_message(msg)
         
-        print(f"✅ Email de vérification envoyé avec succès à {email}")
+        logger.info(f"✅ Email de vérification envoyé avec succès à {email}")
         return True
     except smtplib.SMTPAuthenticationError as e:
         error_msg = f"❌ Erreur d'authentification SMTP: {e}"
-        print(error_msg)
-        print("\n💡 Vérifiez:")
-        print("   - Que vous utilisez un 'Mot de passe d'application' Gmail (pas votre mot de passe normal)")
-        print("   - Que l'authentification à 2 facteurs est activée sur le compte Gmail")
-        print("   - Que le mot de passe dans Railway Variables est correct (sans espaces)")
-        print("   - Allez sur https://myaccount.google.com/apppasswords pour générer un nouveau mot de passe")
+        logger.error(error_msg)
+        logger.error("💡 Vérifiez:")
+        logger.error("   - Que vous utilisez un 'Mot de passe d'application' Gmail (pas votre mot de passe normal)")
+        logger.error("   - Que l'authentification à 2 facteurs est activée sur le compte Gmail")
+        logger.error("   - Que le mot de passe dans Railway Variables est correct (sans espaces)")
+        logger.error("   - Allez sur https://myaccount.google.com/apppasswords pour générer un nouveau mot de passe")
         return False
     except Exception as e:
         error_msg = f"❌ Erreur lors de l'envoi de l'email de vérification: {e}"
-        print(error_msg)
-        print(f"   Type d'erreur: {type(e).__name__}")
+        logger.error(error_msg)
+        logger.error(f"   Type d'erreur: {type(e).__name__}")
         import traceback
-        print(f"   Traceback: {traceback.format_exc()}")
+        logger.error(f"   Traceback: {traceback.format_exc()}")
         return False
 
 
@@ -175,15 +175,15 @@ def send_password_reset_email(
     """
     # Si pas de configuration SMTP, simuler l'envoi (mode développement)
     if not hasattr(settings, 'SMTP_HOST') or not settings.SMTP_HOST:
-        print("\n" + "="*80)
-        print("📧 [MOCK EMAIL] Email de réinitialisation de mot de passe")
-        print("="*80)
-        print(f"Destinataire: {email}")
+        logger.warning("="*80)
+        logger.warning("📧 [MOCK EMAIL] Email de réinitialisation de mot de passe")
+        logger.warning("="*80)
+        logger.warning(f"Destinataire: {email}")
         if full_name:
-            print(f"Nom: {full_name}")
-        print(f"\nToken de réinitialisation: {token}")
-        print(f"\nLien de réinitialisation: {settings.FRONTEND_URL}/reset-password/{token}")
-        print("="*80 + "\n")
+            logger.warning(f"Nom: {full_name}")
+        logger.warning(f"Token de réinitialisation: {token}")
+        logger.warning(f"Lien de réinitialisation: {settings.FRONTEND_URL}/reset-password/{token}")
+        logger.warning("="*80)
         return True
     
     try:
@@ -269,8 +269,18 @@ L'équipe Lokario
                 server.login(settings.SMTP_USERNAME, password_clean)
             server.send_message(msg)
         
+        logger.info(f"✅ Email de réinitialisation envoyé avec succès à {email}")
         return True
+    except smtplib.SMTPAuthenticationError as e:
+        error_msg = f"❌ Erreur d'authentification SMTP lors de l'envoi de réinitialisation: {e}"
+        logger.error(error_msg)
+        logger.error("💡 Vérifiez la configuration SMTP dans Railway Variables")
+        return False
     except Exception as e:
-        print(f"❌ Erreur lors de l'envoi de l'email de réinitialisation: {e}")
+        error_msg = f"❌ Erreur lors de l'envoi de l'email de réinitialisation: {e}"
+        logger.error(error_msg)
+        logger.error(f"   Type d'erreur: {type(e).__name__}")
+        import traceback
+        logger.error(f"   Traceback: {traceback.format_exc()}")
         return False
 
