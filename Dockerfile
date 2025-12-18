@@ -20,6 +20,6 @@ COPY backend/ .
 # Variable d'environnement par défaut (Railway écrasera $PORT)
 ENV PORT=8080
 
-# Utiliser directement uvicorn avec la syntaxe exec
-# Railway injectera $PORT automatiquement dans l'environnement
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# Utiliser directement uvicorn - Railway injectera $PORT dans l'environnement
+# uvicorn lit automatiquement $PORT depuis l'environnement si --port n'est pas spécifié
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
