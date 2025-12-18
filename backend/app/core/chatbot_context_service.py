@@ -9,7 +9,7 @@ from app.db.models.company import Company
 from app.db.models.client import Client
 from app.db.models.billing import Quote, Invoice, InvoiceStatus, QuoteStatus
 from app.db.models.task import Task
-from app.db.models.project import Project
+from app.db.models.project import Project, ProjectStatus
 from app.db.models.appointment import Appointment
 from app.db.models.followup import FollowUp, FollowUpStatus
 from app.db.models.conversation import Conversation
@@ -323,11 +323,12 @@ async def _get_projects_summary(db: Session, company_id: int, limit: int) -> Dic
     """Récupère un résumé des projets."""
     total_projects = db.query(Project).filter(Project.company_id == company_id).count()
     
+    # Utiliser .in_() pour éviter les problèmes avec les enums PostgreSQL
     active_projects = (
         db.query(Project)
         .filter(
             Project.company_id == company_id,
-            Project.status != "completed"
+            Project.status.in_([ProjectStatus.NOUVEAU, ProjectStatus.EN_COURS])
         )
         .count()
     )
