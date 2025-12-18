@@ -17,9 +17,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier tout le code backend
 COPY backend/ .
 
+# Rendre start.py exécutable
+RUN chmod +x start.py
+
 # Variable d'environnement par défaut (Railway écrasera $PORT)
 ENV PORT=8080
 
 # Utiliser le script start.py qui gère correctement le port
-# Railway peut override avec startCommand dans railway.json si nécessaire
-CMD ["python", "start.py"]
+# Utiliser la syntaxe exec pour éviter les problèmes de shell
+CMD ["python", "-u", "start.py"]
