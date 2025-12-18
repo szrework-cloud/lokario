@@ -92,15 +92,23 @@ def create_automatic_followup_for_quote(db: Session, quote: Quote, user_id: int)
             CompanySettings.company_id == quote.company_id
         ).first()
         
-        # Par défaut, activer les relances automatiques
+        # Vérifier si les relances automatiques pour les devis sont activées
         should_create = True
         if company_settings and company_settings.settings:
+            # Vérifier d'abord si le module relances est activé
             modules = company_settings.settings.get("modules", {})
             relances_module = modules.get("relances", {})
-            # Si le module relances est désactivé, ne pas créer de relance
             if relances_module.get("enabled") is False:
                 should_create = False
                 logger.info(f"[FOLLOWUP AUTO] Relances automatiques désactivées (module relances désactivé)")
+            else:
+                # Si le module est activé, vérifier le paramètre spécifique pour les devis
+                billing_settings = company_settings.settings.get("billing", {})
+                auto_followups = billing_settings.get("auto_followups", {})
+                quotes_enabled = auto_followups.get("quotes_enabled")
+                if quotes_enabled is False:
+                    should_create = False
+                    logger.info(f"[FOLLOWUP AUTO] Relances automatiques pour les devis désactivées (paramètre billing.auto_followups.quotes_enabled = False)")
         
         if not should_create:
             return
@@ -1939,15 +1947,23 @@ async def send_quote_email(
                 CompanySettings.company_id == current_user.company_id
             ).first()
             
-            # Par défaut, activer les relances automatiques si le module relances est activé
+            # Vérifier si les relances automatiques pour les devis sont activées
             should_create_followup = True
             if company_settings_obj and company_settings_obj.settings:
+                # Vérifier d'abord si le module relances est activé
                 modules = company_settings_obj.settings.get("modules", {})
                 relances_module = modules.get("relances", {})
-                # Si le module relances est désactivé, ne pas créer de relance automatique
                 if relances_module.get("enabled") is False:
                     should_create_followup = False
                     logger.info(f"[SEND EMAIL] ⏭️ Relances automatiques désactivées (module relances désactivé)")
+                else:
+                    # Si le module est activé, vérifier le paramètre spécifique pour les devis
+                    billing_settings = company_settings_obj.settings.get("billing", {})
+                    auto_followups = billing_settings.get("auto_followups", {})
+                    quotes_enabled = auto_followups.get("quotes_enabled")
+                    if quotes_enabled is False:
+                        should_create_followup = False
+                        logger.info(f"[SEND EMAIL] ⏭️ Relances automatiques pour les devis désactivées (paramètre billing.auto_followups.quotes_enabled = False)")
             
             if should_create_followup:
                 create_automatic_followup_for_quote(db, quote, current_user.id)
