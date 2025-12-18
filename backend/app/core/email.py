@@ -43,6 +43,8 @@ def send_verification_email(
     Returns:
         True si l'email a été envoyé avec succès, False sinon
     """
+    logger.info(f"📧 [EMAIL] Début de l'envoi d'email de vérification à {email}")
+    
     # Si pas de configuration SMTP, simuler l'envoi (mode développement)
     if not hasattr(settings, 'SMTP_HOST') or not settings.SMTP_HOST:
         logger.warning("="*80)
@@ -128,25 +130,38 @@ L'équipe Lokario
         msg.attach(MIMEText(html_content, 'html', 'utf-8'))
         
         # Envoyer l'email
+        logger.info(f"📧 [EMAIL] Connexion à {settings.SMTP_HOST}:{settings.SMTP_PORT}...")
         # Utiliser SMTP_SSL pour le port 465 (SSL direct) ou SMTP pour le port 587 (TLS)
         if settings.SMTP_PORT == 465:
             # Port 465 : utiliser SSL directement
+            logger.info(f"📧 [EMAIL] Utilisation du port 465 (SSL direct)")
             with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
                 if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+                    logger.info(f"📧 [EMAIL] Authentification avec {settings.SMTP_USERNAME}...")
                     # Supprimer les espaces du mot de passe (Gmail génère avec espaces)
                     password_clean = settings.SMTP_PASSWORD.replace(" ", "")
                     server.login(settings.SMTP_USERNAME, password_clean)
+                    logger.info(f"📧 [EMAIL] Authentification réussie")
+                logger.info(f"📧 [EMAIL] Envoi du message...")
                 server.send_message(msg)
+                logger.info(f"📧 [EMAIL] Message envoyé avec succès")
         else:
             # Port 587 ou autres : utiliser STARTTLS
+            logger.info(f"📧 [EMAIL] Utilisation du port {settings.SMTP_PORT} (STARTTLS)")
             with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
                 if settings.SMTP_USE_TLS:
+                    logger.info(f"📧 [EMAIL] Activation de STARTTLS...")
                     server.starttls()
+                    logger.info(f"📧 [EMAIL] STARTTLS activé")
                 if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+                    logger.info(f"📧 [EMAIL] Authentification avec {settings.SMTP_USERNAME}...")
                     # Supprimer les espaces du mot de passe (Gmail génère avec espaces)
                     password_clean = settings.SMTP_PASSWORD.replace(" ", "")
                     server.login(settings.SMTP_USERNAME, password_clean)
+                    logger.info(f"📧 [EMAIL] Authentification réussie")
+                logger.info(f"📧 [EMAIL] Envoi du message...")
                 server.send_message(msg)
+                logger.info(f"📧 [EMAIL] Message envoyé avec succès")
         
         logger.info(f"✅ Email de vérification envoyé avec succès à {email}")
         return True
