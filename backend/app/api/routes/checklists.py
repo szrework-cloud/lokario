@@ -258,13 +258,34 @@ def delete_checklist_template(
         
         logger.info(f"Suppression du template {template_id}: {instances_count} instances, {tasks_count} tâches associées")
         
-        # Supprimer les instances associées d'abord (si nécessaire)
+        # D'abord, mettre à jour les tâches qui référencent des instances de checklist
+        # pour retirer la référence à checklist_instance_id
         if instances_count > 0:
-            db.query(ChecklistInstance).filter(
+            # Récupérer les IDs des instances à supprimer
+            instance_ids = db.query(ChecklistInstance.id).filter(
+                ChecklistInstance.template_id == template_id,
+                ChecklistInstance.company_id == current_user.company_id
+            ).all()
+            instance_ids = [id_tuple[0] for id_tuple in instance_ids]
+            
+            # Mettre à jour les tâches qui référencent ces instances
+            tasks_with_instances_count = db.query(Task).filter(
+                Task.checklist_instance_id.in_(instance_ids),
+                Task.company_id == current_user.company_id
+            ).update(
+                {Task.checklist_instance_id: None},
+                synchronize_session=False
+            )
+            if tasks_with_instances_count > 0:
+                logger.info(f"Mis à jour {tasks_with_instances_count} tâche(s) pour retirer la référence aux instances de checklist")
+        
+        # Maintenant, supprimer les instances associées (les tâches ne les référencent plus)
+        if instances_count > 0:
+            deleted_count = db.query(ChecklistInstance).filter(
                 ChecklistInstance.template_id == template_id,
                 ChecklistInstance.company_id == current_user.company_id
             ).delete(synchronize_session=False)
-            logger.info(f"Supprimé {instances_count} instances associées au template {template_id}")
+            logger.info(f"Supprimé {deleted_count} instance(s) associée(s) au template {template_id}")
         
         # Mettre à jour les tâches pour retirer la référence au template (au lieu de les supprimer)
         if tasks_count > 0:
@@ -275,7 +296,7 @@ def delete_checklist_template(
                 {Task.checklist_template_id: None},
                 synchronize_session=False
             )
-            logger.info(f"Mis à jour {tasks_count} tâches pour retirer la référence au template {template_id}")
+            logger.info(f"Mis à jour {tasks_count} tâche(s) pour retirer la référence au template {template_id}")
         
         # Supprimer le template
         db.delete(template)
