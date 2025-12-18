@@ -12,7 +12,7 @@ from reportlab.platypus.doctemplate import PageTemplate, BaseDocTemplate
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT, TA_CENTER
 from reportlab.lib.utils import ImageReader
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Dict, Any
 from pathlib import Path
 from app.db.models.billing import Quote, QuoteLine
