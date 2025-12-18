@@ -110,7 +110,7 @@ def register(
     logger.info(f"✅ Validation du mot de passe réussie pour: {user_data.email}")
     
     # Si owner et company_name fourni, créer la company
-    elif user_data.role == "owner" and user_data.company_name:
+    if user_data.role == "owner" and user_data.company_name:
         logger.info(f"🏢 Création d'une nouvelle entreprise: {user_data.company_name}")
         import re
         # Générer un code unique à 6 chiffres
@@ -145,14 +145,17 @@ def register(
         logger.info(f"   Settings par défaut créés pour l'entreprise {company_id}")
     
     # Si user et company_id fourni directement, vérifier que l'entreprise existe
-    elif user_data.role == "user" and user_data.company_id:
+    if user_data.role == "user" and user_data.company_id and not user_data.company_code:
+        logger.info(f"🔍 Vérification de l'entreprise avec ID: {user_data.company_id}")
         company = db.query(Company).filter(Company.id == user_data.company_id).first()
         if not company:
+            logger.warning(f"❌ Entreprise introuvable avec l'ID: {user_data.company_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Company with id {user_data.company_id} not found"
             )
         company_id = user_data.company_id
+        logger.info(f"✅ Entreprise trouvée: {company.name} (ID: {company_id})")
     
     # Générer un token de vérification
     verification_token = generate_verification_token()
