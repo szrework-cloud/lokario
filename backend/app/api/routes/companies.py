@@ -834,13 +834,30 @@ async def get_company_logo(
                     flag_modified(company_settings, "settings")
                     db.commit()
                 else:
-                    # Lister les fichiers dans le répertoire parent pour debug
-                    existing_files = list(company_upload_dir.glob("*"))
-                    logger.error(f"Logo file not found: {file_path}. Existing files in {company_upload_dir}: {[f.name for f in existing_files]}")
-                    raise HTTPException(status_code=404, detail=f"Logo file not found at {file_path}")
+                    # Le fichier n'existe pas et aucun logo alternatif trouvé
+                    # Nettoyer le logo_path dans la base de données pour éviter des erreurs répétées
+                    logger.warning(f"Logo file not found: {file_path}. Cleaning logo_path from database.")
+                    if "company_info" in company_settings.settings:
+                        company_settings.settings["company_info"].pop("logo_path", None)
+                        flag_modified(company_settings, "settings")
+                        try:
+                            db.commit()
+                        except Exception as e:
+                            logger.error(f"Error cleaning logo_path from database: {e}")
+                            db.rollback()
+                    raise HTTPException(status_code=404, detail="Logo file not found")
             else:
-                logger.error(f"Logo file not found: {file_path}. Company upload directory does not exist: {company_upload_dir}")
-                raise HTTPException(status_code=404, detail=f"Logo file not found at {file_path}")
+                # Le répertoire n'existe même pas, nettoyer le logo_path
+                logger.warning(f"Company upload directory does not exist: {company_upload_dir}. Cleaning logo_path from database.")
+                if "company_info" in company_settings.settings:
+                    company_settings.settings["company_info"].pop("logo_path", None)
+                    flag_modified(company_settings, "settings")
+                    try:
+                        db.commit()
+                    except Exception as e:
+                        logger.error(f"Error cleaning logo_path from database: {e}")
+                        db.rollback()
+                raise HTTPException(status_code=404, detail="Logo file not found")
     
     return FileResponse(
         path=str(file_path),
