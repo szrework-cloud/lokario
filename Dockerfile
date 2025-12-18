@@ -20,6 +20,6 @@ COPY backend/ .
 # Variable d'environnement par défaut (Railway écrasera $PORT)
 ENV PORT=8080
 
-# Utiliser CMD pour permettre à Railway de facilement override si nécessaire
-# Railway peut aussi définir startCommand dans railway.json
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}
+# Utiliser le script start.py qui gère correctement le port
+# Railway peut override avec startCommand dans railway.json si nécessaire
+CMD ["python", "start.py"]
