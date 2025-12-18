@@ -1196,6 +1196,20 @@ def convert_quote_to_invoice(
             # Si le logging échoue, on continue quand même
             print(f"[QUOTE CONVERT] Erreur lors du logging: {e}")
         
+        # Créer une relance automatique pour la facture impayée
+        logger.info(f"[QUOTE CONVERT] Statut de la facture créée: {invoice.status}")
+        if invoice.status == InvoiceStatus.IMPAYEE:
+            logger.info(f"[QUOTE CONVERT] ✅ Statut IMPAYEE détecté, tentative de création de relance automatique pour la facture {invoice.number}")
+            try:
+                # Importer la fonction depuis invoices.py
+                from app.api.routes.invoices import create_automatic_followup_for_invoice
+                create_automatic_followup_for_invoice(db, invoice, current_user.id)
+            except Exception as e:
+                logger.error(f"[QUOTE CONVERT] ❌ Erreur lors de la création de la relance automatique: {e}", exc_info=True)
+                # Ne pas faire échouer la conversion si la relance échoue
+        else:
+            logger.info(f"[QUOTE CONVERT] ⏭️ Statut de la facture n'est pas IMPAYEE ({invoice.status}), pas de relance automatique créée")
+        
         return invoice
     
     except HTTPException:
