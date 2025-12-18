@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from app.db.session import get_db
 from app.db.models.billing import Quote, QuoteLine, QuoteStatus, Invoice, InvoiceLine, InvoiceStatus, InvoiceType, QuoteSignature, QuoteSignatureAuditLog
@@ -182,23 +182,26 @@ def recalculate_quote_totals(quote: Quote) -> None:
     
     # Appliquer la réduction si présente
     discount_amount = Decimal("0")
-    if quote.discount_type and quote.discount_value:
+    if quote.discount_type and quote.discount_value is not None:
         if quote.discount_type == "percentage":
             # Réduction en pourcentage sur le total TTC
-            discount_amount = (total_ttc_before_discount * quote.discount_value) / Decimal("100")
+            discount_amount = (total_ttc_before_discount * Decimal(str(quote.discount_value))) / Decimal("100")
+            # Arrondir la réduction à 2 décimales
+            discount_amount = discount_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif quote.discount_type == "fixed":
             # Réduction en montant fixe
-            discount_amount = quote.discount_value
+            discount_amount = Decimal(str(quote.discount_value))
     
     # Calculer le total TTC après réduction
     total_ttc_after_discount = total_ttc_before_discount - discount_amount
     if total_ttc_after_discount < 0:
         total_ttc_after_discount = Decimal("0")
     
-    quote.subtotal_ht = subtotal_ht
-    quote.total_tax = total_tax
-    quote.total_ttc = total_ttc_after_discount
-    quote.amount = total_ttc_after_discount  # Pour compatibilité
+    # Arrondir les totaux à 2 décimales
+    quote.subtotal_ht = subtotal_ht.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    quote.total_tax = total_tax.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    quote.total_ttc = total_ttc_after_discount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    quote.amount = quote.total_ttc  # Pour compatibilité
 
 
 @router.get("", response_model=List[QuoteRead])

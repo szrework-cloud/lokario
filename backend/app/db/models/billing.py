@@ -182,6 +182,11 @@ class Invoice(Base):
     total_tax = Column(Numeric(10, 2), nullable=True)
     total_ttc = Column(Numeric(10, 2), nullable=True)
     
+    # Réduction/Escompte
+    discount_type = Column(String(20), nullable=True)  # "percentage" ou "fixed"
+    discount_value = Column(Numeric(10, 2), nullable=True)  # Valeur de la réduction (en % ou en €)
+    discount_label = Column(String(200), nullable=True)  # Libellé de la réduction (ex: "Remise commerciale", "Escompte 2%")
+    
     # Conditions
     payment_terms = Column(Text, nullable=True)  # Modalités de paiement
     late_penalty_rate = Column(Numeric(5, 2), nullable=True)  # Taux pénalités de retard

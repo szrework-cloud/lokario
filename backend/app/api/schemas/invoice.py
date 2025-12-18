@@ -77,6 +77,11 @@ class InvoiceBase(BaseModel):
     sale_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     
+    # Réduction/Escompte
+    discount_type: Optional[str] = Field(None, description="Type de réduction: 'percentage' ou 'fixed'")
+    discount_value: Optional[Decimal] = Field(None, ge=0, description="Valeur de la réduction (en % ou en €)")
+    discount_label: Optional[str] = Field(None, description="Libellé de la réduction (ex: 'Remise commerciale', 'Escompte 2%')")
+    
     # Conditions
     payment_terms: Optional[str] = None
     late_penalty_rate: Optional[Decimal] = Field(None, ge=0, le=100)
@@ -139,6 +144,11 @@ class InvoiceUpdate(BaseModel):
     sale_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     
+    # Réduction/Escompte
+    discount_type: Optional[str] = Field(None, description="Type de réduction: 'percentage' ou 'fixed'")
+    discount_value: Optional[Decimal] = Field(None, ge=0, description="Valeur de la réduction (en % ou en €)")
+    discount_label: Optional[str] = Field(None, description="Libellé de la réduction (ex: 'Remise commerciale', 'Escompte 2%')")
+    
     # Conditions
     payment_terms: Optional[str] = None
     late_penalty_rate: Optional[Decimal] = Field(None, ge=0, le=100)
@@ -198,6 +208,11 @@ class InvoiceRead(BaseModel):
     # Dates
     issue_date: Optional[datetime]
     sale_date: Optional[datetime]
+    
+    # Réduction/Escompte
+    discount_type: Optional[str]
+    discount_value: Optional[Decimal]
+    discount_label: Optional[str]
     
     # Conditions
     payment_terms: Optional[str]

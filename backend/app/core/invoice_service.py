@@ -247,12 +247,29 @@ def recalculate_invoice_totals(invoice: Invoice) -> None:
     # Calculer les totaux depuis les lignes
     subtotal_ht = sum(Decimal(str(line.subtotal_ht)) for line in invoice.lines)
     total_tax = sum(Decimal(str(line.tax_amount)) for line in invoice.lines)
-    total_ttc = sum(Decimal(str(line.total_ttc)) for line in invoice.lines)
+    total_ttc_before_discount = sum(Decimal(str(line.total_ttc)) for line in invoice.lines)
+    
+    # Appliquer la réduction si présente
+    discount_amount = Decimal('0')
+    if invoice.discount_type and invoice.discount_value is not None:
+        if invoice.discount_type == "percentage":
+            # Réduction en pourcentage sur le total TTC
+            discount_amount = (total_ttc_before_discount * Decimal(str(invoice.discount_value))) / Decimal('100')
+            # Arrondir la réduction à 2 décimales
+            discount_amount = discount_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif invoice.discount_type == "fixed":
+            # Réduction en montant fixe
+            discount_amount = Decimal(str(invoice.discount_value))
+    
+    # Calculer le total TTC après réduction
+    total_ttc_after_discount = total_ttc_before_discount - discount_amount
+    if total_ttc_after_discount < 0:
+        total_ttc_after_discount = Decimal('0')
     
     # Arrondir à 2 décimales
     invoice.subtotal_ht = subtotal_ht.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     invoice.total_tax = total_tax.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    invoice.total_ttc = total_ttc.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    invoice.total_ttc = total_ttc_after_discount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     
-    # Conserver amount pour compatibilité (égal à total_ttc)
+    # Conserver amount pour compatibilité (égal à total_ttc après réduction)
     invoice.amount = invoice.total_ttc
