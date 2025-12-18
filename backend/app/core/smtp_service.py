@@ -2,6 +2,7 @@
 Service SMTP pour envoyer des emails via la boîte mail configurée.
 """
 import smtplib
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -9,6 +10,18 @@ from email import encoders
 from typing import List, Optional, Dict
 from pathlib import Path
 import re
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+# Import SendGrid (optionnel, seulement si disponible)
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Email, Content, Attachment
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    SENDGRID_AVAILABLE = False
+    logger.warning("SendGrid SDK non disponible. Utilisation de SMTP uniquement.")
 
 
 def get_smtp_config(email_address: str) -> Dict[str, any]:
@@ -91,7 +104,7 @@ def send_email_smtp(
     reply_to: Optional[str] = None
 ) -> bool:
     """
-    Envoie un email via SMTP.
+    Envoie un email via SMTP (avec fallback vers SendGrid API si configuré).
     
     Args:
         smtp_server: Serveur SMTP (ex: smtp.gmail.com)
@@ -104,10 +117,63 @@ def send_email_smtp(
         use_tls: Utiliser TLS (True) ou SSL (False)
         attachments: Liste de pièces jointes [{"path": "...", "filename": "..."}]
         from_name: Nom de l'expéditeur (optionnel)
+        reply_to: Email de réponse (optionnel)
     
     Returns:
         True si l'email a été envoyé avec succès, False sinon
     """
+    # Priorité 1 : Utiliser SendGrid API REST si configuré (évite les problèmes réseau sur Railway)
+    if hasattr(settings, 'SENDGRID_API_KEY') and settings.SENDGRID_API_KEY and SENDGRID_AVAILABLE:
+        logger.info(f"📧 [SMTP SERVICE] Utilisation de l'API REST SendGrid (fallback)")
+        try:
+            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+            
+            # Construire le message SendGrid
+            message = Mail(
+                from_email=Email(email_address, from_name or email_address),
+                to_emails=to_email,
+                subject=subject,
+                plain_text_content=Content("text/plain", content)
+            )
+            
+            # Ajouter Reply-To si fourni
+            if reply_to:
+                message.reply_to = Email(reply_to)
+            
+            # Ajouter les pièces jointes si fournies
+            if attachments:
+                for att in attachments:
+                    file_path = att.get("path")
+                    filename = att.get("filename", Path(file_path).name if file_path else "attachment")
+                    
+                    if file_path and Path(file_path).exists():
+                        with open(file_path, "rb") as f:
+                            file_data = f.read()
+                        
+                        attachment = Attachment()
+                        attachment.file_content = file_data
+                        attachment.file_name = filename
+                        attachment.disposition = "attachment"
+                        message.add_attachment(attachment)
+            
+            logger.info(f"📧 [SENDGRID API] Envoi du message depuis {email_address} à {to_email}...")
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"✅ [SENDGRID API] Email envoyé avec succès (status: {response.status_code})")
+                return True
+            else:
+                logger.error(f"❌ [SENDGRID API] Erreur (status: {response.status_code}): {response.body}")
+                # Tomber sur SMTP si SendGrid échoue
+                logger.info(f"📧 [SENDGRID API] Passage au fallback SMTP...")
+        except Exception as e:
+            logger.error(f"❌ [SENDGRID API] Erreur: {e}")
+            import traceback
+            logger.error(f"   Traceback: {traceback.format_exc()}")
+            # Tomber sur SMTP si SendGrid échoue
+            logger.info(f"📧 [SENDGRID API] Passage au fallback SMTP...")
+    
+    # Priorité 2 : Utiliser SMTP (méthode originale)
     try:
         # Nettoyer le mot de passe (supprimer les espaces pour Gmail)
         cleaned_password = password.replace(" ", "").strip()
@@ -142,28 +208,31 @@ def send_email_smtp(
                     msg.attach(part)
         
         # Connexion au serveur SMTP et envoi
-        print(f"[SMTP] Connexion à {smtp_server}:{smtp_port} (TLS: {use_tls})")
+        logger.info(f"[SMTP] Connexion à {smtp_server}:{smtp_port} (TLS: {use_tls})")
+        
+        # Ajouter un timeout pour éviter les blocages
+        timeout = 30
         
         if use_tls:
-            server = smtplib.SMTP(smtp_server, smtp_port)
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=timeout)
             server.starttls()  # Activer TLS
         else:
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port)  # SSL direct
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=timeout)  # SSL direct
         
-        print(f"[SMTP] Authentification pour {email_address}")
+        logger.info(f"[SMTP] Authentification pour {email_address}")
         server.login(email_address, cleaned_password)
         
-        print(f"[SMTP] Envoi de l'email à {to_email}")
+        logger.info(f"[SMTP] Envoi de l'email à {to_email}")
         text = msg.as_string()
         server.sendmail(email_address, to_email, text)
         server.quit()
         
-        print(f"[SMTP] Email envoyé avec succès à {to_email}")
+        logger.info(f"[SMTP] Email envoyé avec succès à {to_email}")
         return True
         
     except smtplib.SMTPAuthenticationError as e:
         error_msg = f"Erreur d'authentification SMTP: {str(e)}"
-        print(f"[SMTP] {error_msg}")
+        logger.error(f"[SMTP] {error_msg}")
         
         # Messages d'erreur spécifiques pour Gmail
         if "gmail.com" in email_address.lower():
@@ -177,7 +246,7 @@ def send_email_smtp(
         
     except Exception as e:
         error_msg = f"Erreur lors de l'envoi de l'email: {str(e)}"
-        print(f"[SMTP] {error_msg}")
+        logger.error(f"[SMTP] {error_msg}")
         import traceback
         traceback.print_exc()
         raise Exception(error_msg)
