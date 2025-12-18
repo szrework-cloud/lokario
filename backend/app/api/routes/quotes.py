@@ -1093,6 +1093,11 @@ def convert_quote_to_invoice(
             # Notes et conditions
             notes=quote.notes,
             conditions=quote.conditions,
+            
+            # Réduction/Escompte (copier depuis le devis)
+            discount_type=quote.discount_type,
+            discount_value=quote.discount_value,
+            discount_label=quote.discount_label,
         )
         
         # Remplir les informations depuis l'entreprise et le client
