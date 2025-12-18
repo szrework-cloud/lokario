@@ -1,6 +1,6 @@
 from datetime import timedelta, datetime
 import random
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import verify_password, get_password_hash, create_access_token, validate_password_strength
@@ -47,6 +47,7 @@ from app.core.limiter import limiter
 def register(
     request: Request,
     user_data: UserCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """
