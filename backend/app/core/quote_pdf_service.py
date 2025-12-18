@@ -474,14 +474,13 @@ def generate_quote_pdf(
     
     # Ajouter la réduction si présente
     if quote.discount_type and quote.discount_value:
-        # Calculer le total TTC avant réduction pour l'affichage
-        total_ttc_before_discount = sum(line.total_ttc for line in quote.lines) if quote.lines else Decimal("0")
+        # Calculer le total TTC avant réduction pour l'affichage (convertir en Decimal)
+        total_ttc_before_discount = sum(Decimal(str(line.total_ttc)) for line in quote.lines) if quote.lines else Decimal("0")
         
         discount_label = quote.discount_label or "Réduction"
         if quote.discount_type == "percentage":
             discount_amount = (total_ttc_before_discount * Decimal(str(quote.discount_value))) / Decimal("100")
             # Arrondir le montant de la réduction à 2 décimales
-            from decimal import ROUND_HALF_UP
             discount_amount = discount_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             discount_display = f"{discount_label} ({quote.discount_value:.2f}%)"
         else:  # fixed
