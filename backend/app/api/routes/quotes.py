@@ -561,11 +561,8 @@ def create_quote(
             
             db.add(quote_line)
         
-        # Mettre à jour les totaux du devis
-        quote.subtotal_ht = subtotal_ht_total
-        quote.total_tax = total_tax_total
-        quote.total_ttc = total_ttc_total
-        quote.amount = total_ttc_total  # Pour compatibilité
+        # Recalculer les totaux du devis (en prenant en compte la réduction si présente)
+        recalculate_quote_totals(quote)
         
         db.commit()
         db.refresh(quote)
