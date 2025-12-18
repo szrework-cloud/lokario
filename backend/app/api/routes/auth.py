@@ -405,7 +405,7 @@ def forgot_password(
     
     # Générer un token de réinitialisation
     reset_token = generate_verification_token()
-    token_expires_at = datetime.utcnow() + timedelta(hours=1)  # 1 heure de validité
+    token_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)  # 1 heure de validité
     
     user.password_reset_token = reset_token
     user.password_reset_token_expires_at = token_expires_at
