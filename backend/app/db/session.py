@@ -24,11 +24,11 @@ else:
     # Récupérer les arguments de connexion depuis DATABASE_URL ou utiliser des valeurs par défaut
     connect_args = {}
     
-    # Si on utilise Supabase (pooler ou direct), forcer SSL avec vérification
-    if "supabase.com" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL:
-        # Pour Supabase, SSL est généralement requis
-        # Mais le pooler gère SSL automatiquement, donc pas besoin de forcer
-        # Le pool_pre_ping va détecter et recréer les connexions mortes
+    # Si on utilise Supabase, configurer SSL correctement
+    if "supabase.com" in settings.DATABASE_URL:
+        # Pour Supabase, les connexions SSL peuvent être fermées de manière inattendue
+        # Le pool_pre_ping va détecter et recréer les connexions mortes automatiquement
+        # Pas besoin de forcer SSL explicitement car le pooler gère ça automatiquement
         pass
     
     engine = create_engine(
@@ -40,13 +40,14 @@ else:
         # Pool timeout : temps d'attente avant d'abandonner si toutes les connexions sont occupées
         pool_timeout=30,  # 30 secondes par défaut
         # Pool recycle : recycler les connexions après ce nombre de secondes (évite les connexions mortes)
-        # Réduit à 30 minutes car Supabase peut fermer les connexions plus tôt
+        # Réduit à 30 minutes car Supabase peut fermer les connexions inactives plus tôt
         pool_recycle=1800,  # 30 minutes (Supabase peut fermer les connexions inactives)
         # Pool pre ping : vérifier que la connexion est vivante avant de l'utiliser
         # CRUCIAL pour Supabase qui peut fermer les connexions SSL de manière inattendue
+        # pool_pre_ping=True fait un SELECT 1 avant chaque utilisation pour détecter les connexions mortes
         pool_pre_ping=True,  # Détecte et recrée automatiquement les connexions mortes
         # Connect args : arguments supplémentaires pour la connexion
-        connect_args=connect_args if connect_args else {},
+        connect_args=connect_args,
         echo=False
     )
     logger.info(f"📊 Pool de connexions configuré: pool_size=10, max_overflow=20, pool_recycle=1800 (30min), pool_pre_ping=True")
