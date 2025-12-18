@@ -273,6 +273,28 @@ def generate_invoice_pdf(invoice: Invoice) -> bytes:
         c.drawString(170 * mm, totals_y, format_amount(Decimal(str(invoice.total_tax))))
         totals_y -= 5 * mm
     
+    # Réduction si présente
+    if invoice.discount_type and invoice.discount_value is not None:
+        # Calculer le total TTC avant réduction pour l'affichage
+        total_ttc_before_discount = sum(Decimal(str(line.total_ttc)) for line in invoice.lines) if invoice.lines else Decimal('0')
+        
+        discount_label = invoice.discount_label or "Réduction"
+        if invoice.discount_type == "percentage":
+            discount_amount = (total_ttc_before_discount * Decimal(str(invoice.discount_value))) / Decimal('100')
+            # Arrondir le montant de la réduction à 2 décimales
+            from decimal import ROUND_HALF_UP
+            discount_amount = discount_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            discount_display = f"{discount_label} ({invoice.discount_value:.2f}%)"
+        else:  # fixed
+            discount_amount = Decimal(str(invoice.discount_value))
+            discount_display = discount_label
+        
+        c.setFont("Helvetica", 9)
+        c.setFillColor(black)
+        c.drawString(120 * mm, totals_y, discount_display + ":")
+        c.drawString(170 * mm, totals_y, "-" + format_amount(discount_amount))
+        totals_y -= 5 * mm
+    
     # Total TTC (ou Montant crédité pour les avoirs)
     c.setFont("Helvetica-Bold", 11)
     c.setFillColor(dark_gray)
