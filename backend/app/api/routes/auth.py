@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 import random
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
@@ -459,7 +459,7 @@ def reset_password(
         )
     
     # Vérifier l'expiration
-    if user.password_reset_token_expires_at and user.password_reset_token_expires_at < datetime.utcnow():
+    if user.password_reset_token_expires_at and user.password_reset_token_expires_at < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Token expiré. Veuillez demander un nouveau lien."

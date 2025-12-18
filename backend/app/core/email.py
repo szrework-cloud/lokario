@@ -6,7 +6,7 @@ import secrets
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from app.core.config import settings
 
@@ -33,7 +33,7 @@ def get_verification_token_expiry() -> datetime:
     """
     Retourne la date d'expiration du token (24 heures à partir de maintenant).
     """
-    return datetime.utcnow() + timedelta(hours=24)
+    return datetime.now(timezone.utc) + timedelta(hours=24)
 
 
 def send_verification_email(
