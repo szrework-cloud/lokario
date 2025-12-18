@@ -176,9 +176,10 @@ def recalculate_quote_totals(quote: Quote) -> None:
         quote.amount = Decimal("0")
         return
     
-    subtotal_ht = sum(line.subtotal_ht for line in quote.lines)
-    total_tax = sum(line.tax_amount for line in quote.lines)
-    total_ttc_before_discount = sum(line.total_ttc for line in quote.lines)
+    # Convertir en Decimal pour éviter les problèmes de types SQLAlchemy Numeric
+    subtotal_ht = sum(Decimal(str(line.subtotal_ht)) for line in quote.lines)
+    total_tax = sum(Decimal(str(line.tax_amount)) for line in quote.lines)
+    total_ttc_before_discount = sum(Decimal(str(line.total_ttc)) for line in quote.lines)
     
     # Appliquer la réduction si présente
     discount_amount = Decimal("0")
