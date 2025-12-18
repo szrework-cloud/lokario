@@ -2944,10 +2944,9 @@ async def sign_public_quote(
         # Arrêter les relances automatiques pour ce devis
         try:
             from app.api.routes.followups import stop_followups_for_source
-            stop_followups_for_source(db, "quote", quote.id, current_user.company_id)
+            stop_followups_for_source(db, "quote", quote.id, quote.company_id)
         except Exception as e:
-            convert_logger = logging.getLogger(__name__)
-            convert_logger.error(f"Erreur lors de l'arrêt des relances pour le devis {quote.id}: {e}", exc_info=True)
+            logger.error(f"Erreur lors de l'arrêt des relances pour le devis {quote.id}: {e}", exc_info=True)
     
     # Créer l'enregistrement de signature avec toutes les métadonnées
     quote_signature = QuoteSignature(
