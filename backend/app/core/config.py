@@ -73,15 +73,21 @@ if settings.JWT_SECRET_KEY == DEFAULT_JWT_SECRET:
         print(f"\n⚠️  ATTENTION: JWT_SECRET_KEY utilise la valeur par défaut (développement uniquement)")
         print(f"   Pour la production, définissez JWT_SECRET_KEY dans votre fichier .env\n")
 
-# Debug: Afficher la configuration SMTP au démarrage (sans le mot de passe)
-if settings.SMTP_HOST:
-    print(f"\n📧 Configuration SMTP chargée:")
-    print(f"   Host: {settings.SMTP_HOST}")
-    print(f"   Port: {settings.SMTP_PORT}")
-    print(f"   Username: {settings.SMTP_USERNAME}")
-    print(f"   Password: {'✅ Configuré (' + str(len(settings.SMTP_PASSWORD or '')) + ' caractères)' if settings.SMTP_PASSWORD else '❌ Non configuré'}")
+# Debug: Afficher la configuration email au démarrage
+sendgrid_configured = hasattr(settings, 'SENDGRID_API_KEY') and settings.SENDGRID_API_KEY
+smtp_configured = settings.SMTP_HOST
+
+if sendgrid_configured or smtp_configured:
+    print(f"\n📧 Configuration email chargée:")
+    if sendgrid_configured:
+        print(f"   ✅ SendGrid API: Configuré ({len(settings.SENDGRID_API_KEY)} caractères)")
+    if smtp_configured:
+        print(f"   ✅ SMTP: {settings.SMTP_HOST}:{settings.SMTP_PORT}")
+        print(f"   Username: {settings.SMTP_USERNAME}")
+        print(f"   Password: {'✅ Configuré (' + str(len(settings.SMTP_PASSWORD or '')) + ' caractères)' if settings.SMTP_PASSWORD else '❌ Non configuré'}")
     print(f"   From: {settings.SMTP_FROM_EMAIL}")
     print(f"   Frontend URL: {settings.FRONTEND_URL}\n")
 else:
-    print("\n⚠️  SMTP non configuré - Les emails ne seront pas envoyés (mode MOCK)\n")
+    print("\n⚠️  Aucune configuration email (SMTP ou SendGrid) - Les emails ne seront pas envoyés (mode MOCK)")
+    print("   💡 Configurez SENDGRID_API_KEY (recommandé) ou SMTP_HOST pour activer l'envoi d'emails\n")
 
