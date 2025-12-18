@@ -35,7 +35,17 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "LOKARIO - Gestion administrative simplifiée",
   description: "SaaS de gestion administrative pour petits commerces",
-  // Les favicons sont gérés automatiquement par Next.js via icon.png et apple-icon.png dans ce dossier
+  icons: {
+    icon: [
+      { url: "/lokario-logo.png", sizes: "any", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
