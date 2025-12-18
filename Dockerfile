@@ -18,7 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 
 # Variable d'environnement par défaut (Railway écrasera $PORT)
-ENV PORT=8000
+ENV PORT=8080
 
-# Utiliser ENTRYPOINT pour éviter que Railway override la commande
-ENTRYPOINT ["python", "start.py"]
+# Utiliser CMD pour permettre à Railway de facilement override si nécessaire
+# Railway peut aussi définir startCommand dans railway.json
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}
