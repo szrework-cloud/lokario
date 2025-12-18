@@ -20,6 +20,5 @@ COPY backend/ .
 # Variable d'environnement par défaut (Railway écrasera $PORT)
 ENV PORT=8080
 
-# Utiliser directement uvicorn - Railway injectera $PORT dans l'environnement
-# uvicorn lit automatiquement $PORT depuis l'environnement si --port n'est pas spécifié
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Commande de démarrage simple - cette configuration fonctionnait avant
+CMD ["python", "-u", "start.py"]
