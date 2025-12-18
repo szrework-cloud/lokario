@@ -1822,11 +1822,17 @@ async def send_quote_email(
                 detail=error_detail
             )
         
+        # Mettre à jour le statut du devis à "envoyé" si ce n'est pas déjà le cas
+        if quote.status != QuoteStatus.ENVOYE:
+            quote.status = QuoteStatus.ENVOYE
+            if not quote.sent_at:
+                quote.sent_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(quote)
+            logger.info(f"[SEND EMAIL] ✅ Statut du devis mis à jour à 'envoyé'")
+        
         # Créer une conversation dans l'inbox pour enregistrer l'envoi
         try:
-            from app.db.models.conversation import Conversation, InboxMessage, MessageAttachment
-            from app.db.models.inbox_integration import InboxIntegration
-            
             # Chercher une conversation existante avec le client
             existing_conversation = db.query(Conversation).filter(
                 Conversation.company_id == current_user.company_id,
@@ -1858,13 +1864,7 @@ async def send_quote_email(
                 logger.info(f"[SEND EMAIL] ✅ Conversation existante mise à jour pour le devis {quote.number}")
             
             # Récupérer l'intégration inbox principale pour obtenir l'email expéditeur
-            primary_integration = db.query(InboxIntegration).filter(
-                InboxIntegration.company_id == current_user.company_id,
-                InboxIntegration.is_primary == True,
-                InboxIntegration.is_active == True,
-                InboxIntegration.integration_type == "imap"
-            ).first()
-            
+            # Utiliser l'integration déjà récupérée plus haut (primary_integration)
             from_email = primary_integration.email_address if primary_integration else current_user.email or "noreply@lokario.fr"
             
             # Créer un message dans la conversation pour enregistrer l'envoi
@@ -1880,6 +1880,7 @@ async def send_quote_email(
                 created_at=datetime.now(timezone.utc)
             )
             db.add(message)
+            db.flush()  # Flush pour obtenir l'ID du message
             
             # Ajouter le PDF en pièce jointe si disponible
             if attachments and len(attachments) > 0:
@@ -1901,17 +1902,13 @@ async def send_quote_email(
         except Exception as e:
             logger.error(f"[SEND EMAIL] ⚠️ Erreur lors de la création de la conversation: {e}", exc_info=True)
             # Ne pas faire échouer l'envoi si l'enregistrement dans l'inbox échoue
-            db.rollback()
+            try:
+                db.rollback()
+            except:
+                pass
         
         # Créer une relance automatique pour le devis envoyé
         try:
-            # S'assurer que le statut du devis est "envoyé"
-            if quote.status != QuoteStatus.ENVOYE:
-                quote.status = QuoteStatus.ENVOYE
-                quote.sent_at = datetime.now(timezone.utc)
-                db.commit()
-                db.refresh(quote)
-            
             create_automatic_followup_for_quote(db, quote, current_user.id)
             logger.info(f"[SEND EMAIL] ✅ Relance automatique créée pour le devis {quote.number}")
         except Exception as e:
