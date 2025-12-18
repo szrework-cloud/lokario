@@ -12,6 +12,15 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Import SendGrid (optionnel, seulement si disponible)
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Email, Content
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    SENDGRID_AVAILABLE = False
+    logger.warning("SendGrid SDK non disponible. Utilisation de SMTP uniquement.")
+
 
 def generate_verification_token() -> str:
     """
@@ -45,8 +54,77 @@ def send_verification_email(
     """
     logger.info(f"📧 [EMAIL] Début de l'envoi d'email de vérification à {email}")
     
-    # Si pas de configuration SMTP, simuler l'envoi (mode développement)
-    if not hasattr(settings, 'SMTP_HOST') or not settings.SMTP_HOST:
+    # URL de vérification
+    verification_url = f"{settings.FRONTEND_URL}/verify-email/{token}"
+    
+    # Priorité 1 : Utiliser SendGrid API REST si configuré
+    if hasattr(settings, 'SENDGRID_API_KEY') and settings.SENDGRID_API_KEY and SENDGRID_AVAILABLE:
+        logger.info(f"📧 [EMAIL] Utilisation de l'API REST SendGrid")
+        try:
+            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+            
+            text_content = f"""Bonjour {full_name or 'Utilisateur'},
+
+Merci de vous être inscrit sur Lokario !
+
+Pour activer votre compte, veuillez cliquer sur le lien suivant :
+{verification_url}
+
+Ce lien est valide pendant 24 heures.
+
+Cordialement,
+L'équipe Lokario"""
+            
+            html_content = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background-color: #F97316; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1>Bienvenue sur Lokario</h1>
+        </div>
+        <div style="background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
+            <p>Bonjour {full_name or 'Utilisateur'},</p>
+            <p>Merci de vous être inscrit sur Lokario !</p>
+            <p style="text-align: center;">
+                <a href="{verification_url}" style="display: inline-block; padding: 12px 24px; background-color: #F97316; color: white; text-decoration: none; border-radius: 6px;">Vérifier mon email</a>
+            </p>
+            <p><strong>Ce lien est valide pendant 24 heures.</strong></p>
+        </div>
+    </div>
+</body>
+</html>"""
+            
+            message = Mail(
+                from_email=Email(settings.SMTP_FROM_EMAIL, "Lokario"),
+                to_emails=email,
+                subject="Vérifiez votre adresse email - Lokario",
+                plain_text_content=Content("text/plain", text_content),
+                html_content=Content("text/html", html_content)
+            )
+            
+            logger.info(f"📧 [SENDGRID API] Envoi du message...")
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"✅ [SENDGRID API] Email envoyé avec succès (status: {response.status_code})")
+                return True
+            else:
+                logger.error(f"❌ [SENDGRID API] Erreur (status: {response.status_code}): {response.body}")
+                return False
+        except Exception as e:
+            logger.error(f"❌ [SENDGRID API] Erreur: {e}")
+            import traceback
+            logger.error(f"   Traceback: {traceback.format_exc()}")
+            return False
+    
+    # Priorité 2 : Utiliser SMTP si configuré
+    if hasattr(settings, 'SMTP_HOST') and settings.SMTP_HOST:
+        # Continuer avec le code SMTP existant
+        pass
+    else:
+        # Priorité 3 : Mode développement (mock)
+        logger.warning("="*80)
         logger.warning("="*80)
         logger.warning("📧 [MOCK EMAIL] Email de vérification")
         logger.warning("="*80)
@@ -64,9 +142,6 @@ def send_verification_email(
         msg['Subject'] = "Vérifiez votre adresse email - Lokario"
         msg['From'] = settings.SMTP_FROM_EMAIL
         msg['To'] = email
-        
-        # URL de vérification
-        verification_url = f"{settings.FRONTEND_URL}/verify-email/{token}"
         
         # Corps du message en texte brut
         text_content = f"""

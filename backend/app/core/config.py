@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = "noreply@lokario.fr"  # Email expéditeur
     FRONTEND_URL: str = "http://localhost:3000"  # URL du frontend pour les liens
     
+    # Configuration SendGrid API (prioritaire si configuré)
+    SENDGRID_API_KEY: Optional[str] = None  # API Key SendGrid pour utiliser l'API REST
+    
     # Configuration stockage fichiers
     UPLOAD_DIR: str = "./uploads"  # Répertoire de stockage des fichiers uploadés
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10 MB max par fichier
