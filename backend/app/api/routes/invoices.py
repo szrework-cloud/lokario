@@ -69,6 +69,7 @@ def create_automatic_followup_for_invoice(db: Session, invoice: Invoice, user_id
     Crée automatiquement une relance pour une facture impayée.
     Vérifie d'abord si les relances automatiques sont activées dans les settings.
     """
+    logger = logging.getLogger(__name__)
     try:
         # Vérifier si les relances automatiques sont activées
         from app.db.models.company_settings import CompanySettings
