@@ -64,6 +64,72 @@ def populate_client_info(invoice: Invoice, client: Client):
     # client_siren devra être ajouté au modèle Client ou saisi manuellement
 
 
+def create_automatic_followup_for_invoice(db: Session, invoice: Invoice, user_id: int):
+    """
+    Crée automatiquement une relance pour une facture impayée.
+    """
+    try:
+        # Vérifier si une relance existe déjà pour cette facture
+        from app.db.models.followup import FollowUp, FollowUpType, FollowUpStatus
+        from datetime import timedelta
+        
+        existing_followup = db.query(FollowUp).filter(
+            FollowUp.source_type == "invoice",
+            FollowUp.source_id == invoice.id,
+            FollowUp.type == FollowUpType.FACTURE_IMPAYEE
+        ).first()
+        
+        if existing_followup:
+            logger.info(f"[FOLLOWUP AUTO] Relance déjà existante pour la facture {invoice.number} (ID: {invoice.id})")
+            return
+        
+        # Récupérer les paramètres de relance automatique
+        from app.db.models.company_settings import CompanySettings
+        company_settings = db.query(CompanySettings).filter(
+            CompanySettings.company_id == invoice.company_id
+        ).first()
+        
+        initial_delay_days = 7  # Valeur par défaut
+        if company_settings and company_settings.settings:
+            followup_settings = company_settings.settings.get("followups", {})
+            relance_delays = followup_settings.get("relance_delays", [7, 14, 21])
+            if relance_delays and len(relance_delays) > 0:
+                initial_delay_days = relance_delays[0]
+            else:
+                initial_delay_days = followup_settings.get("initial_delay_days", 7)
+        
+        # Calculer la date due (dans X jours)
+        due_date = datetime.now(timezone.utc) + timedelta(days=initial_delay_days)
+        
+        # Créer la relance automatique
+        followup = FollowUp(
+            company_id=invoice.company_id,
+            client_id=invoice.client_id,
+            type=FollowUpType.FACTURE_IMPAYEE,
+            source_type="invoice",
+            source_id=invoice.id,
+            source_label=f"Facture {invoice.number}",
+            due_date=due_date,
+            actual_date=due_date,
+            status=FollowUpStatus.A_FAIRE,
+            amount=invoice.total_ttc or invoice.amount,
+            auto_enabled=True,
+            auto_frequency_days=initial_delay_days,
+            auto_stop_on_response=True,
+            auto_stop_on_paid=True,
+            auto_stop_on_refused=False,  # Les factures ne sont pas "refusées"
+            created_by_id=user_id
+        )
+        
+        db.add(followup)
+        db.commit()
+        logger.info(f"[FOLLOWUP AUTO] ✅ Relance automatique créée pour la facture {invoice.number} (ID: {invoice.id}) - Due: {due_date.strftime('%Y-%m-%d')}")
+        
+    except Exception as e:
+        logger.error(f"[FOLLOWUP AUTO] ❌ Erreur lors de la création de la relance automatique pour la facture {invoice.id}: {e}", exc_info=True)
+        # Ne pas faire échouer la création de la facture si la relance échoue
+
+
 @router.get("", response_model=List[InvoiceRead])
 def get_invoices(
     skip: int = Query(0, ge=0),
@@ -379,6 +445,14 @@ def create_invoice(
     
     # Logger la création
     log_invoice_creation(db, invoice.id, current_user.id, request)
+    
+    # Créer une relance automatique pour la facture impayée
+    if invoice.status == InvoiceStatus.IMPAYEE:
+        try:
+            create_automatic_followup_for_invoice(db, invoice, current_user.id)
+        except Exception as e:
+            logger.error(f"Erreur lors de la création de la relance automatique: {e}", exc_info=True)
+            # Ne pas faire échouer la création de la facture si la relance échoue
     
     return invoice
 

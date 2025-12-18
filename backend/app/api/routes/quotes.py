@@ -77,6 +77,73 @@ def generate_quote_number(db: Session, company_id: int) -> str:
     return f"DEV-{current_year}-{next_number:03d}"
 
 
+def create_automatic_followup_for_quote(db: Session, quote: Quote, user_id: int):
+    """
+    Crée automatiquement une relance pour un devis envoyé.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Vérifier si une relance existe déjà pour ce devis
+        from app.db.models.followup import FollowUp, FollowUpType, FollowUpStatus
+        existing_followup = db.query(FollowUp).filter(
+            FollowUp.source_type == "quote",
+            FollowUp.source_id == quote.id,
+            FollowUp.type == FollowUpType.DEVIS_NON_REPONDU
+        ).first()
+        
+        if existing_followup:
+            logger.info(f"[FOLLOWUP AUTO] Relance déjà existante pour le devis {quote.number} (ID: {quote.id})")
+            return
+        
+        # Récupérer les paramètres de relance automatique
+        from app.db.models.company_settings import CompanySettings
+        company_settings = db.query(CompanySettings).filter(
+            CompanySettings.company_id == quote.company_id
+        ).first()
+        
+        initial_delay_days = 7  # Valeur par défaut
+        if company_settings and company_settings.settings:
+            followup_settings = company_settings.settings.get("followups", {})
+            relance_delays = followup_settings.get("relance_delays", [7, 14, 21])
+            if relance_delays and len(relance_delays) > 0:
+                initial_delay_days = relance_delays[0]
+            else:
+                initial_delay_days = followup_settings.get("initial_delay_days", 7)
+        
+        # Calculer la date due (dans X jours)
+        due_date = datetime.now(timezone.utc) + timedelta(days=initial_delay_days)
+        
+        # Créer la relance automatique
+        followup = FollowUp(
+            company_id=quote.company_id,
+            client_id=quote.client_id,
+            type=FollowUpType.DEVIS_NON_REPONDU,
+            source_type="quote",
+            source_id=quote.id,
+            source_label=f"Devis {quote.number}",
+            due_date=due_date,
+            actual_date=due_date,
+            status=FollowUpStatus.A_FAIRE,
+            amount=quote.total_ttc or quote.amount,
+            auto_enabled=True,
+            auto_frequency_days=initial_delay_days,
+            auto_stop_on_response=True,
+            auto_stop_on_paid=True,
+            auto_stop_on_refused=True,
+            created_by_id=user_id
+        )
+        
+        db.add(followup)
+        db.commit()
+        logger.info(f"[FOLLOWUP AUTO] ✅ Relance automatique créée pour le devis {quote.number} (ID: {quote.id}) - Due: {due_date.strftime('%Y-%m-%d')}")
+        
+    except Exception as e:
+        logger.error(f"[FOLLOWUP AUTO] ❌ Erreur lors de la création de la relance automatique pour le devis {quote.id}: {e}", exc_info=True)
+        # Ne pas faire échouer la création du devis si la relance échoue
+
+
 def recalculate_quote_totals(quote: Quote) -> None:
     """Recalcule les totaux du devis à partir de ses lignes, en appliquant la réduction si présente."""
     if not quote.lines:
@@ -509,6 +576,15 @@ def create_quote(
                 print(f"[QUOTE CREATE] ❌ Erreur lors de l'envoi: {e}")
                 import traceback
                 traceback.print_exc()
+            
+            # Créer une relance automatique pour le devis envoyé
+            try:
+                create_automatic_followup_for_quote(db, quote, current_user.id)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Erreur lors de la création de la relance automatique: {e}", exc_info=True)
+                # Ne pas faire échouer la création du devis si la relance échoue
         else:
             print(f"[QUOTE CREATE] ⏭️ Statut '{quote_status}' n'est pas 'envoyé', pas d'envoi")
         
@@ -591,11 +667,23 @@ def update_quote(
                 quote.public_token_expires_at = datetime.now(timezone.utc) + timedelta(days=90)
             quote.status = new_status
             
-            # Si le statut passe de "brouillon" à "envoyé", envoyer l'email
-            if old_status == QuoteStatus.BROUILLON and new_status == QuoteStatus.ENVOYE:
-                quote.sent_at = datetime.now(timezone.utc)
-                # Envoyer l'email après le commit
-                should_send_email = True
+            # Si le statut passe à "envoyé", créer une relance automatique
+            if new_status == QuoteStatus.ENVOYE:
+                try:
+                    create_automatic_followup_for_quote(db, quote, current_user.id)
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Erreur lors de la création de la relance automatique: {e}", exc_info=True)
+                    # Ne pas faire échouer la mise à jour si la relance échoue
+                
+                # Si le statut passe de "brouillon" à "envoyé", envoyer l'email
+                if old_status == QuoteStatus.BROUILLON:
+                    quote.sent_at = datetime.now(timezone.utc)
+                    # Envoyer l'email après le commit
+                    should_send_email = True
+                else:
+                    should_send_email = False
             else:
                 should_send_email = False
         except ValueError:
