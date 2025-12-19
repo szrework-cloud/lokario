@@ -383,7 +383,6 @@ def login(
                 raise Exception("No result and no error - unexpected state")
                 
         except Exception as e:
-        except Exception as e:
             last_error = e
             error_str = str(e).lower()
             is_ssl_error = any(msg in error_str for msg in [
