@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import NullPool, QueuePool
 from sqlalchemy.exc import DisconnectionError, OperationalError
 from app.core.config import settings
 from app.db.base import Base
@@ -27,44 +27,95 @@ else:
     # Récupérer les arguments de connexion depuis DATABASE_URL ou utiliser des valeurs par défaut
     connect_args = {}
     
-    # Configuration pour connexion directe PostgreSQL/Supabase
+    # Configuration SSL pour PostgreSQL/Supabase
+    # Détecter si on utilise le pooler (port 6543) ou connexion directe (port 5432)
+    is_pooler = ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL
+    
     if "supabase.com" in settings.DATABASE_URL or "postgresql" in settings.DATABASE_URL.lower():
-        # Configuration pour connexion directe (sans pooler)
-        connect_args = {
-            "sslmode": "require",
-            "connect_timeout": 5,  # Timeout court pour échouer rapidement
-            "keepalives": 1,
-            "keepalives_idle": 30,
-            "keepalives_interval": 10,
-            "keepalives_count": 3,
-        }
-        logger.info("🔧 Configuration SSL pour connexion directe (sslmode=require, timeout=5s)")
+        if is_pooler:
+            # Configuration pour pooler Supabase (RECOMMANDÉ pour Railway)
+            connect_args = {
+                "sslmode": "require",
+                "connect_timeout": 5,
+                "application_name": "lokario_backend",
+                "target_session_attrs": "read-write",
+            }
+            logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require, timeout=5s)")
+        else:
+            # Configuration pour connexion directe - FORCER IPv4 pour éviter problèmes Railway
+            # Résoudre le hostname en IPv4 avant la connexion
+            import socket
+            from urllib.parse import urlparse, urlunparse
+            
+            try:
+                # Parser l'URL pour extraire le hostname
+                parsed = urlparse(settings.DATABASE_URL)
+                hostname = parsed.hostname
+                
+                if hostname and "supabase.co" in hostname:
+                    # Résoudre le hostname en IPv4 uniquement
+                    try:
+                        # socket.getaddrinfo avec AF_INET force IPv4
+                        addr_info = socket.getaddrinfo(hostname, None, socket.AF_INET, socket.SOCK_STREAM)
+                        if addr_info:
+                            ipv4_address = addr_info[0][4][0]
+                            # Remplacer le hostname par l'IP dans l'URL
+                            new_netloc = parsed.netloc.replace(hostname, ipv4_address)
+                            settings.DATABASE_URL = urlunparse(parsed._replace(netloc=new_netloc))
+                            logger.info(f"🔧 Hostname résolu en IPv4: {hostname} → {ipv4_address}")
+                    except Exception as resolve_error:
+                        logger.warning(f"⚠️ Impossible de résoudre {hostname} en IPv4: {resolve_error}")
+                        logger.warning("⚠️ La connexion peut échouer avec IPv6 sur Railway")
+            except Exception as url_error:
+                logger.warning(f"⚠️ Erreur lors du parsing de l'URL: {url_error}")
+            
+            connect_args = {
+                "sslmode": "require",
+                "connect_timeout": 5,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 3,
+            }
+            logger.info("🔧 Configuration SSL pour connexion directe (sslmode=require, timeout=5s, IPv4 forcé)")
     
-    # Configuration du pool : TOUJOURS utiliser QueuePool (connexion directe)
-    # Pas de pooler Supabase - connexion directe avec pool SQLAlchemy
-    pool_size = 10
-    max_overflow = 20
-    pool_recycle = 1200  # 20 minutes
+    # Configuration du pool selon le type de connexion
+    if is_pooler:
+        # Pooler Supabase : utiliser NullPool (recommandé par Supabase)
+        # Le pooler gère déjà le pooling, SQLAlchemy ne doit PAS créer son propre pool
+        pool_class = NullPool
+        logger.info("🔧 Utilisation de NullPool avec pooler Supabase (recommandé)")
+        
+        engine = create_engine(
+            settings.DATABASE_URL,
+            poolclass=pool_class,
+            pool_pre_ping=False,  # Pas nécessaire avec NullPool
+            connect_args=connect_args,
+            echo=False,
+            isolation_level="READ COMMITTED"
+        )
+    else:
+        # Connexion directe : utiliser QueuePool normal
+        pool_size = 10
+        max_overflow = 20
+        pool_recycle = 1200  # 20 minutes
+        pool_class = QueuePool
+        
+        engine = create_engine(
+            settings.DATABASE_URL,
+            poolclass=pool_class,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=30,
+            pool_recycle=pool_recycle,
+            pool_pre_ping=True,
+            connect_args=connect_args,
+            echo=False,
+            isolation_level="READ COMMITTED"
+        )
+        logger.info(f"🔧 Utilisation de QueuePool (connexion directe) - pool_size={pool_size}, max_overflow={max_overflow}")
     
-    # Configuration de l'engine avec QueuePool
-    engine = create_engine(
-        settings.DATABASE_URL,
-        poolclass=QueuePool,
-        pool_size=pool_size,
-        max_overflow=max_overflow,
-        pool_timeout=30,
-        pool_recycle=pool_recycle,
-        pool_pre_ping=True,  # Tester la connexion avant utilisation
-        connect_args=connect_args,
-        echo=False,
-        isolation_level="READ COMMITTED"
-    )
-    
-    logger.info(f"🔧 Utilisation de QueuePool (connexion directe) - pool_size={pool_size}, max_overflow={max_overflow}")
-    
-    # pool_pre_ping est activé pour tester les connexions avant utilisation
-    # Cela permet de détecter et récupérer automatiquement les connexions fermées
-    logger.info(f"📊 Pool de connexions configuré: pool_size={pool_size}, max_overflow={max_overflow}, pool_recycle={pool_recycle}s, pool_pre_ping=True")
+    logger.info(f"📊 Pool de connexions configuré: {'NullPool (pooler)' if is_pooler else f'QueuePool (pool_size={pool_size}, max_overflow={max_overflow})'}")
 
 # Session locale pour les requêtes DB
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
