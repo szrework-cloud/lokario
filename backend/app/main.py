@@ -122,13 +122,15 @@ async def log_requests(request: Request, call_next):
     import logging
     logger = logging.getLogger(__name__)
     
-    if request.url.path in ["/followups/stats", "/followups/weekly"]:
-        logger.info(f"[MIDDLEWARE] Requête reçue: {request.method} {request.url.path}")
-        logger.info(f"[MIDDLEWARE] Query params: {request.query_params}")
+    # Logger les health checks et requêtes importantes
+    if request.url.path in ["/health", "/", "/followups/stats", "/followups/weekly"]:
+        logger.info(f"[MIDDLEWARE] Requête reçue: {request.method} {request.url.path} - User-Agent: {request.headers.get('user-agent', 'N/A')}")
+        if request.url.path in ["/followups/stats", "/followups/weekly"]:
+            logger.info(f"[MIDDLEWARE] Query params: {request.query_params}")
     
     response = await call_next(request)
     
-    if request.url.path in ["/followups/stats", "/followups/weekly"]:
+    if request.url.path in ["/health", "/", "/followups/stats", "/followups/weekly"]:
         logger.info(f"[MIDDLEWARE] Réponse: {response.status_code} pour {request.method} {request.url.path}")
     
     return response
@@ -392,6 +394,9 @@ def health_check():
     Utilisé par Railway pour vérifier que le container est prêt.
     Ne fait PAS de requête DB pour éviter les erreurs SSL au démarrage.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug("🏥 Health check appelé")
     return {
         "status": "ok",
         "service": "lokario-backend",
@@ -401,6 +406,9 @@ def health_check():
 @app.get("/")
 def root():
     """Endpoint racine pour vérifier que l'API répond."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug("🏠 Root endpoint appelé")
     return {
         "message": "Lokario API",
         "status": "running",
