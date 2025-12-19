@@ -291,16 +291,13 @@ async def startup_event():
     import logging
     logger = logging.getLogger(__name__)
     
-    # Initialiser la base de données avec retry
+    # Initialiser la base de données (non-bloquant en production)
+    # En production, init_db() ne fait que vérifier la connexion, pas créer les tables
     try:
-        logger.info("🔄 Initialisation de la base de données...")
         init_db()
-        logger.info("✅ Base de données initialisée avec succès")
     except Exception as e:
-        logger.error(f"❌ Erreur critique lors de l'initialisation de la base de données: {e}")
-        # Ne pas faire échouer le démarrage si les tables existent déjà
-        # (cela peut arriver si la connexion échoue mais les tables sont déjà créées)
-        logger.warning("⚠️ Continuation du démarrage malgré l'erreur d'initialisation...")
+        # Ne jamais faire échouer le démarrage - les tables existent déjà en production
+        logger.warning(f"⚠️ Initialisation DB: {e} - L'application continue le démarrage")
     
     # SÉCURITÉ: Configurer le logging pour masquer automatiquement les données sensibles
     setup_sanitized_logging()

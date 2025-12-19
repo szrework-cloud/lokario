@@ -63,18 +63,19 @@ else:
         isolation_level="READ COMMITTED"
     )
     
-    # Ajouter un listener pour gérer les déconnexions
-    @event.listens_for(engine, "connect")
-    def set_connection_timeout(dbapi_conn, connection_record):
-        """Configure les timeouts de connexion au niveau de la base de données"""
-        try:
-            # Définir un timeout pour les requêtes (30 secondes)
-            with dbapi_conn.cursor() as cursor:
-                cursor.execute("SET statement_timeout = '30s'")
-        except Exception as e:
-            logger.warning(f"Impossible de définir statement_timeout: {e}")
+    # Désactiver le listener qui peut causer des problèmes SSL au démarrage
+    # Le pooler Supabase gère déjà les timeouts
+    # @event.listens_for(engine, "connect")
+    # def set_connection_timeout(dbapi_conn, connection_record):
+    #     """Configure les timeouts de connexion au niveau de la base de données"""
+    #     try:
+    #         # Définir un timeout pour les requêtes (30 secondes)
+    #         with dbapi_conn.cursor() as cursor:
+    #             cursor.execute("SET statement_timeout = '30s'")
+    #     except Exception as e:
+    #         logger.warning(f"Impossible de définir statement_timeout: {e}")
     
-    logger.info(f"📊 Pool de connexions configuré: pool_size=10, max_overflow=20, pool_recycle=1200 (20min), pool_pre_ping=True, SSL configuré")
+    logger.info(f"📊 Pool de connexions configuré: pool_size=10, max_overflow=20, pool_recycle=1200 (20min), pool_pre_ping=True, Pooler Supabase")
 
 # Session locale pour les requêtes DB
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -114,24 +115,42 @@ def init_db():
         except Exception as e:
             logger.warning(f"⚠️ Erreur lors de l'initialisation SQLite (tables peuvent exister déjà): {e}")
     else:
-        # PostgreSQL : utiliser retry pour gérer les erreurs SSL au démarrage
-        max_retries = 5
-        initial_delay = 1.0
+        # PostgreSQL : En production, ne pas créer les tables (elles existent déjà)
+        # Juste vérifier que la connexion fonctionne
+        from app.core.config import settings
+        
+        if settings.ENVIRONMENT.lower() in ["production", "prod"]:
+            # En production : juste vérifier la connexion, ne pas créer les tables
+            logger.info("🔍 Mode production : vérification de la connexion DB (tables supposées existantes)...")
+            try:
+                from sqlalchemy import inspect
+                inspector = inspect(engine)
+                existing_tables = inspector.get_table_names()
+                if existing_tables:
+                    logger.info(f"✅ Connexion DB OK - {len(existing_tables)} table(s) détectée(s)")
+                    return
+                else:
+                    logger.warning("⚠️ Aucune table détectée, mais l'application va continuer")
+                    return
+            except Exception as e:
+                logger.warning(f"⚠️ Impossible de vérifier les tables (connexion peut être OK): {e}")
+                logger.warning("⚠️ L'application va continuer le démarrage")
+                return
+        
+        # En développement/staging : créer les tables avec retry
+        logger.info("🔄 Mode développement : création des tables...")
+        max_retries = 2  # Réduire à 2 tentatives
+        initial_delay = 2.0
         max_delay = 5.0
-        backoff_factor = 2.0
         delay = initial_delay
-        last_exception = None
         
         for attempt in range(max_retries + 1):
             try:
-                # Tester d'abord la connexion avec une requête simple
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-                    conn.commit()
+                if attempt > 0:
+                    logger.info(f"🔄 Tentative {attempt + 1}/{max_retries + 1}...")
+                    time.sleep(delay)
+                    delay = min(delay * 2, max_delay)
                 
-                # Si la connexion fonctionne, créer les tables
-                logger.info(f"🔄 Tentative {attempt + 1}/{max_retries + 1} d'initialisation de la base de données...")
                 Base.metadata.create_all(bind=engine)
                 logger.info("✅ Base de données PostgreSQL initialisée avec succès")
                 return
@@ -191,21 +210,22 @@ def init_db():
                 
                 # Log de la tentative de retry
                 logger.warning(
-                    f"⚠️ Erreur de connexion SSL lors de l'initialisation (tentative {attempt + 1}/{max_retries + 1}): {e}. "
-                    f"Retry dans {delay:.2f}s..."
+                    f"⚠️ Erreur de connexion SSL lors de l'initialisation (tentative {attempt + 1}/{max_retries + 1}): {e}"
                 )
+                logger.warning(f"⏳ Attente de {delay:.2f}s avant la prochaine tentative...")
+                
+                # Invalider le pool AVANT d'attendre pour libérer les ressources
+                try:
+                    engine.dispose()
+                    logger.debug("🔄 Pool de connexions invalidé")
+                except Exception as dispose_error:
+                    logger.debug(f"⚠️ Erreur lors de l'invalidation du pool: {dispose_error}")
                 
                 # Attendre avant de réessayer
                 time.sleep(delay)
                 
                 # Augmenter le délai pour la prochaine tentative (backoff exponentiel)
                 delay = min(delay * backoff_factor, max_delay)
-                
-                # Invalider le pool de connexions pour forcer la recréation
-                try:
-                    engine.dispose()
-                except Exception:
-                    pass
             
             except Exception as e:
                 # Pour les autres erreurs, vérifier si les tables existent déjà
