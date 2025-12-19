@@ -1276,6 +1276,7 @@ async def sync_all_integrations_endpoint(
     try:
         # Importer la fonction de synchronisation depuis le script
         import sys
+        import os
         from pathlib import Path
         
         # Ajouter le répertoire backend au path si nécessaire
@@ -1283,12 +1284,14 @@ async def sync_all_integrations_endpoint(
         if str(backend_dir) not in sys.path:
             sys.path.insert(0, str(backend_dir))
         
+        # Le script sync_emails_periodic utilise sys.path.insert pour ajouter le backend
+        # Donc on importe directement depuis scripts
         from scripts.sync_emails_periodic import sync_all_integrations
         
         logger.info("🔄 Déclenchement de la synchronisation inbox via API...")
         
         # Exécuter la synchronisation (la fonction est async)
-        asyncio.run(sync_all_integrations())
+        await sync_all_integrations()
         
         return {
             "success": True,
