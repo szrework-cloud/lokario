@@ -184,16 +184,17 @@ def execute_with_retry(
             # Augmenter le délai pour la prochaine tentative (backoff exponentiel)
             delay = min(delay * backoff_factor, max_delay)
             
-            # Invalider le pool de connexions (mais garder la session ouverte)
-            # La session sera réutilisée mais avec de nouvelles connexions du pool
+            # Avec NullPool, il n'y a pas de pool à invalider
+            # Mais on doit quand même rollback et expirer la session pour forcer une nouvelle connexion
             try:
                 db.rollback()  # Rollback de la transaction en cours
-                # Invalider le pool pour forcer la création de nouvelles connexions
+                db.expire_all()  # Expirer tous les objets de la session
+                # Avec NullPool, dispose() ne fait rien mais on l'appelle quand même pour être sûr
                 if hasattr(db, 'bind') and hasattr(db.bind, 'dispose'):
                     db.bind.dispose()
-                    logger.debug("🔄 Pool de connexions invalidé après erreur SSL")
+                    logger.debug("🔄 Session expirée après erreur SSL (NullPool)")
             except Exception as e:
-                logger.debug(f"⚠️ Erreur lors de l'invalidation: {e}")
+                logger.debug(f"⚠️ Erreur lors de l'expiration de la session: {e}")
     
     # Ne devrait jamais arriver ici, mais au cas où
     if last_exception:

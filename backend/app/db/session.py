@@ -37,13 +37,15 @@ else:
         if is_pooler:
             # Configuration optimisée pour le pooler Supabase
             # Le pooler nécessite SSL - utiliser 'require' pour forcer SSL
-            # Mais avec un timeout plus long pour laisser le temps à la connexion
+            # Timeout plus long et options supplémentaires pour stabilité
             connect_args = {
                 "sslmode": "require",  # Require SSL (le pooler le supporte)
-                "connect_timeout": 15,  # Timeout de 15 secondes (plus long pour SSL)
+                "connect_timeout": 20,  # Timeout de 20 secondes (plus long pour SSL)
                 "application_name": "lokario_backend",
+                # Options supplémentaires pour améliorer la stabilité SSL
+                "target_session_attrs": "read-write",  # S'assurer que la connexion est en read-write
             }
-            logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require, timeout=15s)")
+            logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require, timeout=20s)")
         else:
             # Configuration pour connexion directe
             connect_args = {
@@ -75,11 +77,12 @@ else:
     # Configuration de l'engine selon le type de connexion
     if is_pooler:
         # Avec NullPool, pas besoin de pool_size, max_overflow, etc.
+        # pool_pre_ping n'est pas nécessaire avec NullPool car chaque connexion est nouvelle
         engine = create_engine(
             settings.DATABASE_URL,
             poolclass=pool_class,  # NullPool = pas de pool SQLAlchemy
-            # Pool pre ping : toujours utile pour détecter les connexions mortes
-            pool_pre_ping=True,
+            # Pool pre ping : DÉSACTIVÉ avec NullPool (chaque connexion est nouvelle, pas besoin de ping)
+            pool_pre_ping=False,  # Pas nécessaire avec NullPool
             # Connect args : arguments supplémentaires pour la connexion
             connect_args=connect_args,
             echo=False,
