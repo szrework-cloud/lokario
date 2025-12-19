@@ -8,6 +8,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 from app.db.session import get_db
+from app.db.retry import execute_with_retry
 from app.db.models.followup import FollowUp, FollowUpType, FollowUpStatus, FollowUpHistory, FollowUpHistoryStatus
 from app.db.models.user import User
 from app.db.models.client import Client
@@ -196,7 +197,12 @@ def get_followups(
             joinedload(FollowUp.created_by)
         )
         
-        followups = query.order_by(FollowUp.due_date.asc()).all()
+        # Utiliser retry pour gérer les erreurs de connexion SSL
+        followups = execute_with_retry(
+            db,
+            lambda: query.order_by(FollowUp.due_date.asc()).all(),
+            max_retries=3
+        )
         
         logger.info(f"[FOLLOWUP GET] ✅ {len(followups)} relance(s) trouvée(s)")
         

@@ -37,26 +37,32 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS - Configuration pour permettre les requêtes depuis le frontend Next.js
 # Déterminer les origines en fonction de l'environnement
-if settings.ENVIRONMENT.lower() in ["production", "prod"]:
-    origins = [
-        "https://lokario.fr",
-        "https://www.lokario.fr",
-    ]
-    # Ajouter l'URL Railway si définie dans les variables d'environnement
-    railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL")
-    if railway_url:
-        origins.append(f"https://{railway_url}")
-else:
-    origins = [
+import logging
+logger = logging.getLogger(__name__)
+
+# Toujours inclure les origines de production
+origins = [
+    "https://lokario.fr",
+    "https://www.lokario.fr",
+]
+
+# Ajouter les origines de développement si on n'est pas en production
+if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+    origins.extend([
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
-    ]
-    # En développement, aussi autoriser l'URL Railway si elle existe
-    railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL")
-    if railway_url:
-        origins.append(f"https://{railway_url}")
+    ])
+
+# Ajouter l'URL Railway si définie dans les variables d'environnement
+railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL")
+if railway_url:
+    origins.append(f"https://{railway_url}")
+
+# Log des origines autorisées pour debug
+logger.info(f"🌐 CORS - Origines autorisées: {origins}")
+logger.info(f"🌐 CORS - Environnement détecté: {settings.ENVIRONMENT}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -67,6 +73,32 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,
 )
+
+# Middleware pour logger les requêtes CORS et s'assurer que les headers sont toujours présents
+@app.middleware("http")
+async def cors_debug_middleware(request: Request, call_next):
+    """Middleware pour debug CORS et garantir les headers"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    origin = request.headers.get("origin")
+    if origin:
+        logger.debug(f"🌐 CORS - Requête depuis origin: {origin}")
+        logger.debug(f"🌐 CORS - Origin autorisé: {origin in origins}")
+    
+    response = await call_next(request)
+    
+    # S'assurer que les headers CORS sont toujours présents pour les requêtes OPTIONS et les erreurs
+    if origin and origin in origins:
+        # Si les headers CORS ne sont pas déjà présents, les ajouter
+        if "Access-Control-Allow-Origin" not in response.headers:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            logger.debug(f"🌐 CORS - Headers ajoutés manuellement pour origin: {origin}")
+    
+    return response
 
 # Middleware de logging pour debug
 @app.middleware("http")
@@ -256,23 +288,60 @@ app.include_router(contact.router)
 @app.on_event("startup")
 async def startup_event():
     """Initialise la base de données au démarrage de l'application."""
-    init_db()
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Initialiser la base de données avec retry
+    try:
+        logger.info("🔄 Initialisation de la base de données...")
+        init_db()
+        logger.info("✅ Base de données initialisée avec succès")
+    except Exception as e:
+        logger.error(f"❌ Erreur critique lors de l'initialisation de la base de données: {e}")
+        # Ne pas faire échouer le démarrage si les tables existent déjà
+        # (cela peut arriver si la connexion échoue mais les tables sont déjà créées)
+        logger.warning("⚠️ Continuation du démarrage malgré l'erreur d'initialisation...")
+    
     # SÉCURITÉ: Configurer le logging pour masquer automatiquement les données sensibles
     setup_sanitized_logging()
     
     # Nettoyer automatiquement les tâches complétées depuis au moins un jour
+    # (ne pas bloquer le démarrage si cela échoue)
     from app.db.session import SessionLocal
     from app.api.routes.tasks import cleanup_completed_tasks
     
-    db = SessionLocal()
     try:
-        cleanup_completed_tasks(db, company_id=None)  # Nettoie toutes les entreprises
+        db = SessionLocal()
+        try:
+            cleanup_completed_tasks(db, company_id=None)  # Nettoie toutes les entreprises
+        except Exception as e:
+            logger.error(f"Erreur lors du nettoyage automatique des tâches: {e}")
+        finally:
+            db.close()
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Erreur lors du nettoyage automatique des tâches: {e}")
-    finally:
-        db.close()
+        logger.error(f"Erreur lors de la création de la session pour le nettoyage: {e}")
+
+
+@app.options("/{full_path:path}")
+async def options_handler(request: Request):
+    """
+    Handler explicite pour les requêtes OPTIONS (preflight CORS).
+    Garantit que les headers CORS sont toujours renvoyés pour les requêtes preflight.
+    """
+    origin = request.headers.get("origin")
+    if origin and origin in origins:
+        from fastapi.responses import Response
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+    return Response(status_code=200)
 
 
 @app.get("/health")

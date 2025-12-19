@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import datetime, date, timedelta
 
 from app.db.session import get_db
+from app.db.retry import execute_with_retry
 from app.db.models.task import Task, TaskType, TaskStatus
 from app.db.models.user import User
 from app.api.schemas.task import (
@@ -1168,7 +1169,12 @@ def cleanup_completed_tasks(db: Session, company_id: Optional[int] = None):
     
     # Récupérer toutes les tâches complétées et filtrer en Python
     # (SQLite peut avoir des problèmes avec sql_func.date())
-    all_completed = query.all()
+    # Utiliser retry pour gérer les erreurs de connexion SSL
+    all_completed = execute_with_retry(
+        db,
+        lambda: query.all(),
+        max_retries=3
+    )
     tasks_to_delete = []
     
     for task in all_completed:

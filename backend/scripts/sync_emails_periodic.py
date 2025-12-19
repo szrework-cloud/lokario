@@ -16,6 +16,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db.session import SessionLocal
+from app.db.retry import execute_with_retry
 from app.db.models.inbox_integration import InboxIntegration
 from app.db.models.company import Company
 from app.core.imap_service import fetch_emails_async, get_message_ids_from_imap_async
@@ -290,11 +291,16 @@ async def sync_all_integrations():
     try:
         logger.info("[SYNC PERIODIC] 🔄 Démarrage de la synchronisation périodique")
         
-        # Récupérer toutes les intégrations IMAP actives
-        integrations = db.query(InboxIntegration).filter(
+        # Récupérer toutes les intégrations IMAP actives avec retry pour gérer les erreurs SSL
+        query = db.query(InboxIntegration).filter(
             InboxIntegration.integration_type == "imap",
             InboxIntegration.is_active == True
-        ).all()
+        )
+        integrations = execute_with_retry(
+            db,
+            lambda: query.all(),
+            max_retries=3
+        )
         
         logger.info(f"[SYNC PERIODIC] {len(integrations)} intégration(s) IMAP active(s)")
         
@@ -318,10 +324,15 @@ async def sync_all_integrations():
             from datetime import timedelta
             
             # Reclassifier pour toutes les entreprises qui ont des intégrations actives
-            companies_with_integrations = db.query(Company).join(InboxIntegration).filter(
+            companies_query = db.query(Company).join(InboxIntegration).filter(
                 InboxIntegration.integration_type == "imap",
                 InboxIntegration.is_active == True
-            ).distinct().all()
+            ).distinct()
+            companies_with_integrations = execute_with_retry(
+                db,
+                lambda: companies_query.all(),
+                max_retries=3
+            )
             
             total_classified = 0
             total_auto_reply = 0
@@ -335,11 +346,16 @@ async def sync_all_integrations():
                     logger.info(f"[SYNC PERIODIC] {classified_count} conversation(s) classée(s) pour l'entreprise {company.id}")
                     
                     # Déclencher l'auto-réponse pour les conversations nouvellement classées
-                    recently_classified = db.query(Conversation).filter(
+                    recently_classified_query = db.query(Conversation).filter(
                         Conversation.company_id == company.id,
                         Conversation.folder_id.isnot(None),
                         Conversation.updated_at >= datetime.utcnow() - timedelta(minutes=5)
-                    ).all()
+                    )
+                    recently_classified = execute_with_retry(
+                        db,
+                        lambda: recently_classified_query.all(),
+                        max_retries=3
+                    )
                     
                     for conv in recently_classified:
                         last_message = db.query(InboxMessage).filter(
