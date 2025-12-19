@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import NullPool, QueuePool
+from sqlalchemy.pool import QueuePool
 from sqlalchemy.exc import DisconnectionError, OperationalError
 from app.core.config import settings
 from app.db.base import Base
@@ -27,105 +27,44 @@ else:
     # Récupérer les arguments de connexion depuis DATABASE_URL ou utiliser des valeurs par défaut
     connect_args = {}
     
-    # Si on utilise Supabase, configurer SSL correctement
+    # Configuration pour connexion directe PostgreSQL/Supabase
     if "supabase.com" in settings.DATABASE_URL or "postgresql" in settings.DATABASE_URL.lower():
-        # Configuration SSL pour PostgreSQL/Supabase avec pooler
-        # Pour le pooler Supabase, utiliser sslmode='prefer' (plus tolérant)
-        # Le pooler gère déjà les reconnexions SSL
-        is_pooler = ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL
-        
-        if is_pooler:
-            # Configuration optimisée pour le pooler Supabase
-            # Le pooler nécessite SSL - utiliser 'require' pour forcer SSL
-            # Timeout COURT pour échouer rapidement si problème réseau
-            connect_args = {
-                "sslmode": "require",  # Require SSL (le pooler le supporte)
-                "connect_timeout": 5,  # Timeout de 5 secondes (échoue rapidement si problème)
-                "application_name": "lokario_backend",
-                # Options supplémentaires pour améliorer la stabilité SSL
-                "target_session_attrs": "read-write",  # S'assurer que la connexion est en read-write
-            }
-            logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require, timeout=5s)")
-        else:
-            # Configuration pour connexion directe
-            connect_args = {
-                "sslmode": "require",
-                "connect_timeout": 5,  # Timeout court pour échouer rapidement
-                "keepalives": 1,
-                "keepalives_idle": 30,
-                "keepalives_interval": 10,
-                "keepalives_count": 3,
-            }
+        # Configuration pour connexion directe (sans pooler)
+        connect_args = {
+            "sslmode": "require",
+            "connect_timeout": 5,  # Timeout court pour échouer rapidement
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 3,
+        }
+        logger.info("🔧 Configuration SSL pour connexion directe (sslmode=require, timeout=5s)")
     
-    # Configuration du pool selon le type de connexion
-    is_pooler = ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL
+    # Configuration du pool : TOUJOURS utiliser QueuePool (connexion directe)
+    # Pas de pooler Supabase - connexion directe avec pool SQLAlchemy
+    pool_size = 10
+    max_overflow = 20
+    pool_recycle = 1200  # 20 minutes
     
-    if is_pooler:
-        # Pooler Supabase : utiliser NullPool (recommandé par Supabase)
-        # Le pooler gère déjà le pooling, SQLAlchemy ne doit PAS créer son propre pool
-        # NullPool = pas de pool SQLAlchemy, chaque requête crée une nouvelle connexion
-        # Le pooler Supabase réutilise efficacement les connexions
-        pool_class = NullPool
-        logger.info("🔧 Utilisation de NullPool avec pooler Supabase (recommandé par Supabase)")
-    else:
-        # Connexion directe : utiliser QueuePool normal
-        pool_class = QueuePool
-        pool_size = 10
-        max_overflow = 20
-        pool_recycle = 1200  # 20 minutes
+    # Configuration de l'engine avec QueuePool
+    engine = create_engine(
+        settings.DATABASE_URL,
+        poolclass=QueuePool,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_timeout=30,
+        pool_recycle=pool_recycle,
+        pool_pre_ping=True,  # Tester la connexion avant utilisation
+        connect_args=connect_args,
+        echo=False,
+        isolation_level="READ COMMITTED"
+    )
     
-    # Configuration de l'engine selon le type de connexion
-    if is_pooler:
-        # Avec NullPool, pas besoin de pool_size, max_overflow, etc.
-        # pool_pre_ping n'est pas nécessaire avec NullPool car chaque connexion est nouvelle
-        engine = create_engine(
-            settings.DATABASE_URL,
-            poolclass=pool_class,  # NullPool = pas de pool SQLAlchemy
-            # Pool pre ping : DÉSACTIVÉ avec NullPool (chaque connexion est nouvelle, pas besoin de ping)
-            pool_pre_ping=False,  # Pas nécessaire avec NullPool
-            # Connect args : arguments supplémentaires pour la connexion
-            connect_args=connect_args,
-            echo=False,
-            # Isolation level : utiliser READ COMMITTED pour éviter les deadlocks
-            isolation_level="READ COMMITTED"
-        )
-    else:
-        # Connexion directe : pool normal
-        engine = create_engine(
-            settings.DATABASE_URL,
-            poolclass=pool_class,
-            pool_size=pool_size,
-            max_overflow=max_overflow,
-            pool_timeout=30,
-            pool_recycle=pool_recycle,
-            pool_pre_ping=True,
-            connect_args=connect_args,
-            echo=False,
-            isolation_level="READ COMMITTED"
-        )
+    logger.info(f"🔧 Utilisation de QueuePool (connexion directe) - pool_size={pool_size}, max_overflow={max_overflow}")
     
-    # Désactiver la détection automatique de hstore pour éviter les erreurs SSL
-    # avec le pooler Supabase lors de la première connexion
-    if is_pooler:
-        # Pour le pooler, on peut désactiver certaines détections automatiques
-        # en utilisant un dialect personnalisé, mais c'est complexe
-        # À la place, on va utiliser pool_pre_ping qui teste la connexion avant utilisation
-        # et gérer les erreurs avec retry
-        pass
-    
-    # Désactiver le listener qui peut causer des problèmes SSL au démarrage
-    # Le pooler Supabase gère déjà les timeouts
-    # @event.listens_for(engine, "connect")
-    # def set_connection_timeout(dbapi_conn, connection_record):
-    #     """Configure les timeouts de connexion au niveau de la base de données"""
-    #     try:
-    #         # Définir un timeout pour les requêtes (30 secondes)
-    #         with dbapi_conn.cursor() as cursor:
-    #             cursor.execute("SET statement_timeout = '30s'")
-    #     except Exception as e:
-    #         logger.warning(f"Impossible de définir statement_timeout: {e}")
-    
-    logger.info(f"📊 Pool de connexions configuré: pool_size=10, max_overflow=20, pool_recycle=1200 (20min), pool_pre_ping=True, Pooler Supabase")
+    # pool_pre_ping est activé pour tester les connexions avant utilisation
+    # Cela permet de détecter et récupérer automatiquement les connexions fermées
+    logger.info(f"📊 Pool de connexions configuré: pool_size={pool_size}, max_overflow={max_overflow}, pool_recycle={pool_recycle}s, pool_pre_ping=True")
 
 # Session locale pour les requêtes DB
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
