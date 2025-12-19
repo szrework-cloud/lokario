@@ -335,10 +335,13 @@ def login(
     Rate limiting activé: 5 tentatives par minute.
     """
     # Utiliser retry pour gérer les erreurs SSL lors de la première connexion
+    # Augmenter les délais pour laisser le temps au pooler de se stabiliser
     user = execute_with_retry(
         db,
         lambda: db.query(User).filter(User.email == login_data.email).first(),
-        max_retries=3
+        max_retries=5,  # Plus de tentatives
+        initial_delay=1.0,  # Délai initial plus long
+        max_delay=5.0  # Délai max plus long
     )
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(

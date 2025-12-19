@@ -184,10 +184,10 @@ def execute_with_retry(
             # Augmenter le délai pour la prochaine tentative (backoff exponentiel)
             delay = min(delay * backoff_factor, max_delay)
             
-            # Invalider complètement la session ET le pool de connexions
+            # Invalider le pool de connexions (mais garder la session ouverte)
+            # La session sera réutilisée mais avec de nouvelles connexions du pool
             try:
-                db.rollback()
-                db.close()
+                db.rollback()  # Rollback de la transaction en cours
                 # Invalider le pool pour forcer la création de nouvelles connexions
                 if hasattr(db, 'bind') and hasattr(db.bind, 'dispose'):
                     db.bind.dispose()
