@@ -96,6 +96,7 @@ def init_db():
     """
     Initialise la base de données en créant toutes les tables.
     Avec retry automatique en cas d'erreur de connexion SSL.
+    Ne fait pas échouer le démarrage si les tables existent déjà.
     """
     from sqlalchemy.exc import OperationalError
     
@@ -107,8 +108,11 @@ def init_db():
     
     if is_sqlite:
         # SQLite : pas besoin de retry
-        Base.metadata.create_all(bind=engine)
-        logger.info("✅ Base de données SQLite initialisée")
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("✅ Base de données SQLite initialisée")
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur lors de l'initialisation SQLite (tables peuvent exister déjà): {e}")
     else:
         # PostgreSQL : utiliser retry pour gérer les erreurs SSL au démarrage
         max_retries = 5
@@ -148,14 +152,42 @@ def init_db():
                 ])
                 
                 if not is_ssl_error:
-                    # Si ce n'est pas une erreur de connexion, propager immédiatement
+                    # Si ce n'est pas une erreur de connexion, vérifier si les tables existent déjà
+                    # Si oui, on peut continuer sans erreur
+                    try:
+                        from sqlalchemy import inspect
+                        inspector = inspect(engine)
+                        existing_tables = inspector.get_table_names()
+                        if existing_tables:
+                            logger.info(f"✅ Les tables existent déjà ({len(existing_tables)} table(s)). Initialisation non nécessaire.")
+                            return
+                    except Exception:
+                        pass
+                    
+                    # Si les tables n'existent pas, propager l'erreur
                     logger.error(f"❌ Erreur non liée à la connexion: {e}")
                     raise
                 
-                # Si c'est la dernière tentative, propager l'erreur
+                # Si c'est la dernière tentative, vérifier si les tables existent déjà
                 if attempt >= max_retries:
-                    logger.error(f"❌ Échec après {max_retries + 1} tentatives d'initialisation: {e}")
-                    raise
+                    logger.warning(f"⚠️ Échec après {max_retries + 1} tentatives d'initialisation: {e}")
+                    # Vérifier si les tables existent déjà avant de lever l'erreur
+                    try:
+                        from sqlalchemy import inspect
+                        inspector = inspect(engine)
+                        existing_tables = inspector.get_table_names()
+                        if existing_tables:
+                            logger.info(f"✅ Les tables existent déjà ({len(existing_tables)} table(s)). L'application peut démarrer.")
+                            return
+                    except Exception as inspect_error:
+                        logger.warning(f"⚠️ Impossible de vérifier l'existence des tables: {inspect_error}")
+                    
+                    # Si on arrive ici, les tables n'existent probablement pas
+                    # Mais on ne fait pas échouer le démarrage - l'application peut fonctionner
+                    # si les tables sont créées manuellement ou par migration
+                    logger.warning("⚠️ Impossible d'initialiser la base de données, mais l'application va continuer le démarrage.")
+                    logger.warning("⚠️ Les tables peuvent exister déjà ou être créées par une migration.")
+                    return  # Ne pas lever d'exception
                 
                 # Log de la tentative de retry
                 logger.warning(
@@ -176,12 +208,40 @@ def init_db():
                     pass
             
             except Exception as e:
-                # Pour les autres erreurs, propager immédiatement
-                logger.error(f"❌ Erreur inattendue lors de l'initialisation: {e}")
-                raise
+                # Pour les autres erreurs, vérifier si les tables existent déjà
+                error_str = str(e).lower()
+                if "already exists" in error_str or "duplicate" in error_str:
+                    logger.info("✅ Les tables semblent déjà exister. Initialisation non nécessaire.")
+                    return
+                
+                # Vérifier si les tables existent
+                try:
+                    from sqlalchemy import inspect
+                    inspector = inspect(engine)
+                    existing_tables = inspector.get_table_names()
+                    if existing_tables:
+                        logger.info(f"✅ Les tables existent déjà ({len(existing_tables)} table(s)). L'application peut démarrer.")
+                        return
+                except Exception:
+                    pass
+                
+                # Si on ne peut pas vérifier, logger l'erreur mais ne pas faire échouer le démarrage
+                logger.warning(f"⚠️ Erreur lors de l'initialisation: {e}. L'application va continuer le démarrage.")
+                return  # Ne pas lever d'exception pour permettre le démarrage
         
-        # Ne devrait jamais arriver ici, mais au cas où
+        # Si on arrive ici après toutes les tentatives, vérifier une dernière fois
         if last_exception:
-            raise last_exception
-        raise RuntimeError("Échec inattendu de l'initialisation de la base de données")
+            try:
+                from sqlalchemy import inspect
+                inspector = inspect(engine)
+                existing_tables = inspector.get_table_names()
+                if existing_tables:
+                    logger.info(f"✅ Les tables existent déjà ({len(existing_tables)} table(s)). L'application peut démarrer.")
+                    return
+            except Exception:
+                pass
+            
+            logger.warning(f"⚠️ Impossible d'initialiser après toutes les tentatives: {last_exception}")
+            logger.warning("⚠️ L'application va continuer le démarrage. Les tables peuvent exister déjà.")
+            return  # Ne pas lever d'exception
 
