@@ -229,7 +229,7 @@ def create_default_folders(db: Session, company_id: int):
                 "autoClassify": True,
                 "priority": 2,
                 "filters": {
-                    "keywords": ["newsletter", "se désabonner", "désinscription", "unsubscribe"],
+                    "keywords": ["newsletter", "se désabonner", "désinscription", "unsubscribe", "désabonnez", "désabonner", "se désabonner"],
                     "keywords_location": "any",
                     "match_type": "any"
                 }
@@ -244,7 +244,7 @@ def create_default_folders(db: Session, company_id: int):
                 "autoClassify": True,
                 "priority": 3,
                 "filters": {
-                    "sender_domain": ["noreply", "no-reply", "notifications", "notification"],
+                    "sender_email": ["noreply@", "no-reply@", "notifications@", "notification@"],
                     "match_type": "any"
                 }
             }
