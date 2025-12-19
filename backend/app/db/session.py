@@ -31,12 +31,10 @@ else:
     # Détecter si on utilise le pooler (port 6543) ou connexion directe (port 5432)
     is_pooler = ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL
     
-    # URL de connexion (peut être modifiée pour forcer IPv4)
-    database_url = settings.DATABASE_URL
-    
     if "supabase.com" in settings.DATABASE_URL or "postgresql" in settings.DATABASE_URL.lower():
         if is_pooler:
             # Configuration pour pooler Supabase (RECOMMANDÉ pour Railway)
+            # Le pooler gère automatiquement IPv4/IPv6, pas besoin de forcer IPv4
             connect_args = {
                 "sslmode": "require",
                 "connect_timeout": 5,
@@ -45,33 +43,7 @@ else:
             }
             logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require, timeout=5s)")
         else:
-            # Configuration pour connexion directe - FORCER IPv4 pour éviter problèmes Railway
-            # Résoudre le hostname en IPv4 avant la connexion
-            import socket
-            from urllib.parse import urlparse, urlunparse
-            
-            try:
-                # Parser l'URL pour extraire le hostname
-                parsed = urlparse(settings.DATABASE_URL)
-                hostname = parsed.hostname
-                
-                if hostname and "supabase.co" in hostname:
-                    # Résoudre le hostname en IPv4 uniquement
-                    try:
-                        # socket.getaddrinfo avec AF_INET force IPv4
-                        addr_info = socket.getaddrinfo(hostname, None, socket.AF_INET, socket.SOCK_STREAM)
-                        if addr_info:
-                            ipv4_address = addr_info[0][4][0]
-                            # Remplacer le hostname par l'IP dans l'URL (copie locale)
-                            new_netloc = parsed.netloc.replace(hostname, ipv4_address)
-                            database_url = urlunparse(parsed._replace(netloc=new_netloc))
-                            logger.info(f"🔧 Hostname résolu en IPv4: {hostname} → {ipv4_address}")
-                    except Exception as resolve_error:
-                        logger.warning(f"⚠️ Impossible de résoudre {hostname} en IPv4: {resolve_error}")
-                        logger.warning("⚠️ La connexion peut échouer avec IPv6 sur Railway")
-            except Exception as url_error:
-                logger.warning(f"⚠️ Erreur lors du parsing de l'URL: {url_error}")
-            
+            # Configuration pour connexion directe (non recommandé avec Railway)
             connect_args = {
                 "sslmode": "require",
                 "connect_timeout": 5,
@@ -80,7 +52,8 @@ else:
                 "keepalives_interval": 10,
                 "keepalives_count": 3,
             }
-            logger.info("🔧 Configuration SSL pour connexion directe (sslmode=require, timeout=5s, IPv4 forcé)")
+            logger.warning("⚠️ Connexion directe détectée - peut avoir des problèmes IPv6 avec Railway")
+            logger.info("🔧 Configuration SSL pour connexion directe (sslmode=require, timeout=5s)")
     
     # Configuration du pool selon le type de connexion
     if is_pooler:
@@ -90,7 +63,7 @@ else:
         logger.info("🔧 Utilisation de NullPool avec pooler Supabase (recommandé)")
         
         engine = create_engine(
-            database_url,  # Utiliser database_url (peut contenir IPv4)
+            settings.DATABASE_URL,  # Utiliser l'URL originale (pooler gère IPv4/IPv6)
             poolclass=pool_class,
             pool_pre_ping=False,  # Pas nécessaire avec NullPool
             connect_args=connect_args,
@@ -105,7 +78,7 @@ else:
         pool_class = QueuePool
         
         engine = create_engine(
-            settings.DATABASE_URL,
+            settings.DATABASE_URL,  # Utiliser l'URL originale
             poolclass=pool_class,
             pool_size=pool_size,
             max_overflow=max_overflow,
