@@ -197,22 +197,15 @@ def detect_newsletter_or_spam(email_data: dict) -> Tuple[bool, str]:
     content = email_data.get("content", "").lower()
     html_content = email_data.get("html_content", "").lower()
     
-    # Mots-clés typiques des newsletters
+    # Mots-clés typiques des newsletters (filtres réduits)
     newsletter_keywords = [
-        "unsubscribe", "newsletter", "mailing list", "se désabonner",
-        "opt-out", "opt out", "ne plus recevoir", "désinscription"
+        "unsubscribe", "newsletter", "se désabonner", "désinscription"
     ]
     
-    # Domaines connus de newsletters
+    # Domaines connus de newsletters (sans noreply/no-reply)
     newsletter_domains = [
-        "noreply@", "no-reply@", "newsletter@", "news@", "info@",
+        "newsletter@", "news@", "info@",
         "marketing@", "promo@", "offers@", "deals@"
-    ]
-    
-    # Mots-clés typiques du spam
-    spam_keywords = [
-        "viagra", "cialis", "casino", "lottery", "winner", "prize",
-        "click here", "limited time", "act now", "free money"
     ]
     
     # Vérifier les newsletters
@@ -228,10 +221,7 @@ def detect_newsletter_or_spam(email_data: dict) -> Tuple[bool, str]:
         if domain in from_email:
             return (True, "newsletter")
     
-    # Vérifier le spam
-    for keyword in spam_keywords:
-        if keyword in text_to_check:
-            return (True, "spam")
+    # Pas de filtres spam automatiques (supprimés comme demandé)
     
     return (False, "")
 
