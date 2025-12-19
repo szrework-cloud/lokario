@@ -37,20 +37,20 @@ else:
         if is_pooler:
             # Configuration optimisée pour le pooler Supabase
             # Le pooler nécessite SSL - utiliser 'require' pour forcer SSL
-            # Timeout plus long et options supplémentaires pour stabilité
+            # Timeout COURT pour échouer rapidement si problème réseau
             connect_args = {
                 "sslmode": "require",  # Require SSL (le pooler le supporte)
-                "connect_timeout": 20,  # Timeout de 20 secondes (plus long pour SSL)
+                "connect_timeout": 5,  # Timeout de 5 secondes (échoue rapidement si problème)
                 "application_name": "lokario_backend",
                 # Options supplémentaires pour améliorer la stabilité SSL
                 "target_session_attrs": "read-write",  # S'assurer que la connexion est en read-write
             }
-            logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require, timeout=20s)")
+            logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require, timeout=5s)")
         else:
             # Configuration pour connexion directe
             connect_args = {
                 "sslmode": "require",
-                "connect_timeout": 10,
+                "connect_timeout": 5,  # Timeout court pour échouer rapidement
                 "keepalives": 1,
                 "keepalives_idle": 30,
                 "keepalives_interval": 10,
