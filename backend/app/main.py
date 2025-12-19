@@ -306,44 +306,61 @@ app.include_router(contact.router)
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialise la base de données au démarrage de l'application."""
+    """
+    Initialise l'application au démarrage.
+    RAPIDE et NON-BLOQUANT pour éviter les timeouts Railway.
+    """
     import logging
+    import asyncio
     logger = logging.getLogger(__name__)
     
-    # Initialiser la base de données (non-bloquant)
+    # SÉCURITÉ: Configurer le logging IMMÉDIATEMENT (rapide)
+    setup_sanitized_logging()
+    logger.info("✅ Logging configuré")
+    
+    # Initialiser la base de données en arrière-plan (non-bloquant)
     # En production, init_db() ne fait RIEN (pas de requête DB au démarrage)
     # Les tables existent déjà, les connexions seront testées lors de la première requête
-    try:
-        init_db()
-    except Exception as e:
-        # Ne jamais faire échouer le démarrage
-        logger.warning(f"⚠️ Initialisation DB: {e} - L'application continue le démarrage")
+    async def init_db_async():
+        try:
+            # Exécuter init_db() dans un thread pour ne pas bloquer
+            import concurrent.futures
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                await loop.run_in_executor(executor, init_db)
+            logger.info("✅ Base de données initialisée (en arrière-plan)")
+        except Exception as e:
+            # Ne jamais faire échouer le démarrage
+            logger.warning(f"⚠️ Initialisation DB: {e} - L'application continue le démarrage")
     
-    # SÉCURITÉ: Configurer le logging pour masquer automatiquement les données sensibles
-    setup_sanitized_logging()
+    # Lancer l'initialisation DB en arrière-plan (ne bloque pas le démarrage)
+    asyncio.create_task(init_db_async())
     
-    # Nettoyer automatiquement les tâches complétées depuis au moins un jour
-    # DÉSACTIVÉ en production pour éviter les erreurs SSL au démarrage
-    # Le nettoyage peut être fait via un cron job séparé
+    # Nettoyer automatiquement les tâches complétées (seulement en dev)
     from app.core.config import settings
     
     if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-        # Seulement en développement/staging
-        from app.db.session import SessionLocal
-        from app.api.routes.tasks import cleanup_completed_tasks
-        
-        try:
-            db = SessionLocal()
+        # Seulement en développement/staging - en arrière-plan aussi
+        async def cleanup_tasks_async():
             try:
-                cleanup_completed_tasks(db, company_id=None)  # Nettoie toutes les entreprises
+                from app.db.session import SessionLocal
+                from app.api.routes.tasks import cleanup_completed_tasks
+                
+                db = SessionLocal()
+                try:
+                    cleanup_completed_tasks(db, company_id=None)
+                except Exception as e:
+                    logger.error(f"Erreur lors du nettoyage automatique des tâches: {e}")
+                finally:
+                    db.close()
             except Exception as e:
-                logger.error(f"Erreur lors du nettoyage automatique des tâches: {e}")
-            finally:
-                db.close()
-        except Exception as e:
-            logger.error(f"Erreur lors de la création de la session pour le nettoyage: {e}")
+                logger.error(f"Erreur lors de la création de la session pour le nettoyage: {e}")
+        
+        asyncio.create_task(cleanup_tasks_async())
     else:
-        logger.info("⏭️ Nettoyage des tâches désactivé au démarrage en production (évite erreurs SSL)")
+        logger.info("⏭️ Nettoyage des tâches désactivé au démarrage en production")
+    
+    logger.info("✅ Application démarrée (startup non-bloquant)")
 
 
 @app.options("/{full_path:path}")
