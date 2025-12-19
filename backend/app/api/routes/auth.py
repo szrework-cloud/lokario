@@ -4,6 +4,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.config import settings
+from app.db.retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
 from app.core.security import verify_password, get_password_hash, create_access_token, validate_password_strength
@@ -333,7 +334,12 @@ def login(
     Authentifie un utilisateur et retourne un JWT.
     Rate limiting activé: 5 tentatives par minute.
     """
-    user = db.query(User).filter(User.email == login_data.email).first()
+    # Utiliser retry pour gérer les erreurs SSL lors de la première connexion
+    user = execute_with_retry(
+        db,
+        lambda: db.query(User).filter(User.email == login_data.email).first(),
+        max_retries=3
+    )
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

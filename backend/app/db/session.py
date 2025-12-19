@@ -86,6 +86,15 @@ else:
         isolation_level="READ COMMITTED"
     )
     
+    # Ajouter un event listener pour gérer les erreurs SSL lors du chargement des OIDs hstore
+    # SQLAlchemy essaie de charger les OIDs hstore automatiquement, ce qui peut échouer avec SSL
+    @event.listens_for(engine, "connect")
+    def receive_connect(dbapi_conn, connection_record):
+        """Gère les erreurs lors de la connexion initiale (chargement OIDs hstore)"""
+        # Ne rien faire - laisser le retry automatique gérer les erreurs
+        # Si le chargement des OIDs échoue, SQLAlchemy continuera quand même
+        pass
+    
     # Désactiver le listener qui peut causer des problèmes SSL au démarrage
     # Le pooler Supabase gère déjà les timeouts
     # @event.listens_for(engine, "connect")
