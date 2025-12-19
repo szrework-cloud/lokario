@@ -225,7 +225,7 @@ def init_db():
                 time.sleep(delay)
                 
                 # Augmenter le délai pour la prochaine tentative (backoff exponentiel)
-                delay = min(delay * backoff_factor, max_delay)
+                delay = min(delay * 2, max_delay)
             
             except Exception as e:
                 # Pour les autres erreurs, vérifier si les tables existent déjà
