@@ -31,6 +31,9 @@ else:
     # Détecter si on utilise le pooler (port 6543) ou connexion directe (port 5432)
     is_pooler = ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL
     
+    # URL de connexion (peut être modifiée pour forcer IPv4)
+    database_url = settings.DATABASE_URL
+    
     if "supabase.com" in settings.DATABASE_URL or "postgresql" in settings.DATABASE_URL.lower():
         if is_pooler:
             # Configuration pour pooler Supabase (RECOMMANDÉ pour Railway)
@@ -59,9 +62,9 @@ else:
                         addr_info = socket.getaddrinfo(hostname, None, socket.AF_INET, socket.SOCK_STREAM)
                         if addr_info:
                             ipv4_address = addr_info[0][4][0]
-                            # Remplacer le hostname par l'IP dans l'URL
+                            # Remplacer le hostname par l'IP dans l'URL (copie locale)
                             new_netloc = parsed.netloc.replace(hostname, ipv4_address)
-                            settings.DATABASE_URL = urlunparse(parsed._replace(netloc=new_netloc))
+                            database_url = urlunparse(parsed._replace(netloc=new_netloc))
                             logger.info(f"🔧 Hostname résolu en IPv4: {hostname} → {ipv4_address}")
                     except Exception as resolve_error:
                         logger.warning(f"⚠️ Impossible de résoudre {hostname} en IPv4: {resolve_error}")
@@ -87,7 +90,7 @@ else:
         logger.info("🔧 Utilisation de NullPool avec pooler Supabase (recommandé)")
         
         engine = create_engine(
-            settings.DATABASE_URL,
+            database_url,  # Utiliser database_url (peut contenir IPv4)
             poolclass=pool_class,
             pool_pre_ping=False,  # Pas nécessaire avec NullPool
             connect_args=connect_args,
