@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     WEBHOOK_SECRET: Optional[str] = None  # Secret pour vérifier les signatures de webhooks
     MESSENGER_VERIFY_TOKEN: Optional[str] = None  # Token de vérification Facebook Messenger
     
+    # Configuration cron jobs
+    CRON_SECRET: Optional[str] = None  # Secret pour protéger les endpoints cron (ex: pour relances automatiques)
+    
     # Configuration OpenAI (pour classification IA)
     OPENAI_API_KEY: Optional[str] = None  # Clé API OpenAI pour ChatGPT
     
