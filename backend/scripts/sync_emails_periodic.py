@@ -113,12 +113,14 @@ async def sync_integration(integration: InboxIntegration, db):
                             pass
                 
                 if is_duplicate_message(db, company.id, message_id, from_email, content, email_date):
+                    logger.debug(f"[SYNC PERIODIC] Email ignoré (doublon): {email_data.get('subject', 'Sans sujet')[:50]} de {from_email}")
                     stats["skipped"] += 1
                     continue
                 
                 # Détecter newsletters/spam
                 is_filtered, filter_reason = detect_newsletter_or_spam(email_data)
                 if is_filtered:
+                    logger.info(f"[SYNC PERIODIC] Email filtré comme {filter_reason}: {email_data.get('subject', 'Sans sujet')[:50]} de {from_email}")
                     stats["skipped"] += 1
                     continue
                 
