@@ -30,14 +30,20 @@ def classify_conversation_with_filters(
         L'ID du dossier approprié, ou None si aucun dossier ne correspond
     """
     try:
-        # Récupérer tous les dossiers non système avec filtres activés
-        folders = db.query(InboxFolder).filter(
-            InboxFolder.company_id == company_id,
-            InboxFolder.is_system == False
+        # Récupérer tous les dossiers (système et non-système) avec autoClassify activé
+        all_folders = db.query(InboxFolder).filter(
+            InboxFolder.company_id == company_id
         ).all()
         
+        # Filtrer uniquement les dossiers avec autoClassify activé
+        folders = []
+        for folder in all_folders:
+            filters = folder.ai_rules or {}
+            if isinstance(filters, dict) and filters.get("autoClassify", False):
+                folders.append(folder)
+        
         if not folders:
-            logger.debug("Aucun dossier trouvé pour la classification")
+            logger.debug("Aucun dossier avec autoClassify activé trouvé pour la classification")
             return None
         
         # Extraire les données du message
