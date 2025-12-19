@@ -36,14 +36,14 @@ else:
         
         if is_pooler:
             # Configuration optimisée pour le pooler Supabase
-            # Le pooler nécessite SSL mais peut être plus tolérant
+            # Le pooler nécessite SSL - utiliser 'require' pour forcer SSL
+            # Mais avec un timeout plus long pour laisser le temps à la connexion
             connect_args = {
                 "sslmode": "require",  # Require SSL (le pooler le supporte)
-                "connect_timeout": 10,  # Timeout de 10 secondes
-                # Désactiver certaines options qui peuvent causer des problèmes
+                "connect_timeout": 15,  # Timeout de 15 secondes (plus long pour SSL)
                 "application_name": "lokario_backend",
             }
-            logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require)")
+            logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require, timeout=15s)")
         else:
             # Configuration pour connexion directe
             connect_args = {
@@ -59,10 +59,12 @@ else:
     is_pooler = ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL
     
     if is_pooler:
-        # Pooler Supabase : pool plus petit (le pooler gère déjà les connexions)
-        pool_size = 5
-        max_overflow = 10
-        pool_recycle = 1800  # 30 minutes
+        # Pooler Supabase : pool minimal (le pooler gère déjà les connexions)
+        # Avec le pooler, on n'a pas besoin de garder plusieurs connexions ouvertes
+        pool_size = 1  # Une seule connexion permanente (le pooler gère le reste)
+        max_overflow = 2  # Maximum 2 connexions supplémentaires si besoin
+        pool_recycle = 3600  # 1 heure (le pooler gère déjà le recyclage)
+        logger.info("🔧 Pool SQLAlchemy minimal pour pooler Supabase (pool_size=1, max_overflow=2)")
     else:
         # Connexion directe : pool plus grand
         pool_size = 10
