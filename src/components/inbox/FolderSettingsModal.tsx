@@ -5,7 +5,6 @@ import { InboxFolder, FolderType } from "./types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useAuth } from "@/hooks/useAuth";
-import { FolderFiltersConfig } from "./FolderFiltersConfig";
 
 interface FolderSettingsModalProps {
   isOpen: boolean;
@@ -99,30 +98,7 @@ export function FolderSettingsModal({
       color,
       aiRules: {
         autoClassify,
-        priority: autoClassify ? priority : undefined,
-        filters: autoClassify && (
-          (filters.keywords && filters.keywords.length > 0) ||
-          (filters.sender_email && filters.sender_email.length > 0) ||
-          (filters.sender_domain && filters.sender_domain.length > 0) ||
-          (filters.sender_phone && filters.sender_phone.length > 0)
-        )
-          ? {
-              ...(filters.keywords && filters.keywords.length > 0 && {
-                keywords: filters.keywords,
-                keywords_location: filters.keywords_location,
-              }),
-              ...(filters.sender_email && filters.sender_email.length > 0 && {
-                sender_email: filters.sender_email,
-              }),
-              ...(filters.sender_domain && filters.sender_domain.length > 0 && {
-                sender_domain: filters.sender_domain,
-              }),
-              ...(filters.sender_phone && filters.sender_phone.length > 0 && {
-                sender_phone: filters.sender_phone,
-              }),
-              match_type: filters.match_type,
-            }
-          : undefined,
+        context: autoClassify && context.trim() ? context.trim() : undefined,
       },
       autoReply: autoReplyEnabled
         ? {

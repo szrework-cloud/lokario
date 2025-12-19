@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { InboxFolder, FolderType } from "./types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
-import { FolderFiltersConfig } from "./FolderFiltersConfig";
 
 interface CreateFolderModalProps {
   isOpen: boolean;
@@ -67,15 +66,7 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
     setType("general");
     setColor(colorOptions[0]);
     setAutoClassify(false);
-    setPriority(10);
-    setFilters({
-      keywords: undefined,
-      keywords_location: "any",
-      sender_email: undefined,
-      sender_domain: undefined,
-      sender_phone: undefined,
-      match_type: "any",
-    });
+    setContext("");
     onClose();
   };
 
@@ -162,42 +153,27 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
                   className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
                 />
                 <span className="text-sm font-medium text-[#0F172A]">
-                  Classer automatiquement les messages dans ce dossier
+                  Classer automatiquement les messages dans ce dossier avec l'IA
                 </span>
               </label>
 
               {autoClassify && (
-                <div className="space-y-4 pl-6 border-l-2 border-[#E5E7EB]">
+                <div className="pl-6 border-l-2 border-[#E5E7EB]">
                   <div>
                     <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                      Priorité
+                      Context
                     </label>
-                    <input
-                      type="number"
-                      value={priority}
-                      onChange={(e) => setPriority(parseInt(e.target.value) || 10)}
-                      min="1"
+                    <textarea
+                      value={context}
+                      onChange={(e) => setContext(e.target.value)}
+                      rows={4}
                       className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                      placeholder="10"
+                      placeholder="Ex: Messages de demande de rendez-vous, emails contenant 'rendez-vous', 'rdv', 'disponibilité' dans le sujet ou le contenu..."
                     />
                     <p className="text-xs text-[#64748B] mt-1">
-                      Priorité du dossier (plus petit = plus prioritaire). Si un message correspond à plusieurs dossiers, il sera classé dans celui avec la plus haute priorité.
+                      Décrivez le contexte pour que l'IA classe automatiquement les messages dans ce dossier. L'IA analysera le sujet et le contenu des messages.
                     </p>
                   </div>
-
-                  <FolderFiltersConfig
-                    filters={filters}
-                    onChange={(newFilters) => {
-                      setFilters({
-                        keywords: newFilters.keywords,
-                        keywords_location: newFilters.keywords_location || "any",
-                        sender_email: newFilters.sender_email,
-                        sender_domain: newFilters.sender_domain,
-                        sender_phone: newFilters.sender_phone,
-                        match_type: newFilters.match_type || "any",
-                      });
-                    }}
-                  />
                 </div>
               )}
             </div>
