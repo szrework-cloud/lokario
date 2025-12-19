@@ -1,5 +1,4 @@
 {
   "language": "python",
-  "installCommand": "pip install -r requirements.txt",
-  "startCommand": "./start.sh"
+  "installCommand": "pip install -r requirements.txt"
 }
