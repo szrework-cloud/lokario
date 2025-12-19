@@ -334,14 +334,15 @@ def login(
     Authentifie un utilisateur et retourne un JWT.
     Rate limiting activé: 5 tentatives par minute.
     """
-    # SOLUTION SIMPLE : 1 seul retry rapide, puis échouer
-    # En entreprise, on préfère échouer rapidement plutôt que de bloquer
+    # SOLUTION : Créer une nouvelle session à chaque tentative
+    # La session corrompue ne peut pas être réutilisée après une erreur SSL
     user = None
     last_error = None
+    current_db = db  # Utiliser la session initiale pour la première tentative
     
     for attempt in range(2):  # 2 tentatives max (1 initiale + 1 retry)
         try:
-            user = db.query(User).filter(User.email == login_data.email).first()
+            user = current_db.query(User).filter(User.email == login_data.email).first()
             if attempt > 0:
                 logger.info(f"✅ Connexion réussie après {attempt} retry")
             break  # Succès, sortir de la boucle
@@ -355,18 +356,32 @@ def login(
             ])
             
             if attempt == 0 and is_ssl_error:
-                # Première tentative échouée avec erreur SSL -> 1 retry rapide
-                logger.warning(f"⚠️ Erreur SSL (tentative 1/2), retry dans 0.3s...")
-                time.sleep(0.3)  # Attendre 300ms seulement
-                # Nettoyer la session
+                # Première tentative échouée avec erreur SSL -> 1 retry avec nouvelle session
+                logger.warning(f"⚠️ Erreur SSL (tentative 1/2), création nouvelle session...")
+                
+                # Fermer l'ancienne session corrompue
                 try:
-                    db.rollback()
-                    db.expire_all()
+                    current_db.close()
                 except:
                     pass
+                
+                # Attendre un peu avant de réessayer
+                time.sleep(0.3)
+                
+                # Créer une NOUVELLE session pour le retry
+                from app.db.session import SessionLocal
+                current_db = SessionLocal()
+                logger.debug("🔄 Nouvelle session créée pour retry")
             else:
                 # Pas d'erreur SSL ou deuxième tentative -> échouer immédiatement
                 break
+    
+    # Fermer la session si on a créé une nouvelle pour le retry
+    if current_db != db:
+        try:
+            current_db.close()
+        except:
+            pass
     
     # Si toutes les tentatives ont échoué
     if user is None:
