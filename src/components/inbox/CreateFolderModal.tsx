@@ -31,15 +31,7 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
   const [type, setType] = useState<FolderType>("general");
   const [color, setColor] = useState(colorOptions[0]);
   const [autoClassify, setAutoClassify] = useState(false);
-  const [priority, setPriority] = useState<number>(10);
-  const [filters, setFilters] = useState({
-    keywords: undefined as string[] | undefined,
-    keywords_location: "any" as "subject" | "content" | "any",
-    sender_email: undefined as string[] | undefined,
-    sender_domain: undefined as string[] | undefined,
-    sender_phone: undefined as string[] | undefined,
-    match_type: "any" as "all" | "any",
-  });
+  const [context, setContext] = useState("");
 
   // Guard de permission
   useEffect(() => {
@@ -59,23 +51,6 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
     e.preventDefault();
     if (!name.trim()) return;
 
-    // Construire les règles de filtrage
-    const filterRules: any = {};
-    if (filters.keywords && filters.keywords.length > 0) {
-      filterRules.keywords = filters.keywords;
-      filterRules.keywords_location = filters.keywords_location;
-    }
-    if (filters.sender_email && filters.sender_email.length > 0) {
-      filterRules.sender_email = filters.sender_email;
-    }
-    if (filters.sender_domain && filters.sender_domain.length > 0) {
-      filterRules.sender_domain = filters.sender_domain;
-    }
-    if (filters.sender_phone && filters.sender_phone.length > 0) {
-      filterRules.sender_phone = filters.sender_phone;
-    }
-    filterRules.match_type = filters.match_type;
-
     onSave({
       name: name.trim(),
       type,
@@ -83,10 +58,7 @@ export function CreateFolderModal({ isOpen, onClose, onSave }: CreateFolderModal
       isSystem: false,
       aiRules: {
         autoClassify,
-        priority: autoClassify ? priority : undefined,
-        filters: Object.keys(filterRules).length > 1 || filterRules.keywords || filterRules.sender_email || filterRules.sender_domain || filterRules.sender_phone
-          ? filterRules
-          : undefined,
+        context: autoClassify && context.trim() ? context.trim() : undefined,
       },
     });
 

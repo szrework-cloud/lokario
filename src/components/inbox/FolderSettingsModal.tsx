@@ -40,16 +40,8 @@ export function FolderSettingsModal({
   const [type, setType] = useState<FolderType>("general");
   const [color, setColor] = useState(colorOptions[0]);
   const [autoClassify, setAutoClassify] = useState(false);
-  const [priority, setPriority] = useState<number>(10);
+  const [context, setContext] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [filters, setFilters] = useState({
-    keywords: undefined as string[] | undefined,
-    keywords_location: "any" as "subject" | "content" | "any",
-    sender_email: undefined as string[] | undefined,
-    sender_domain: undefined as string[] | undefined,
-    sender_phone: undefined as string[] | undefined,
-    match_type: "any" as "all" | "any",
-  });
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [autoReplyMode, setAutoReplyMode] = useState<"none" | "approval" | "auto">("none");
   const [autoReplyDelay, setAutoReplyDelay] = useState<number | undefined>(undefined);
@@ -70,16 +62,7 @@ export function FolderSettingsModal({
       setType(folder.type || "general");
       setColor(folder.color || colorOptions[0]);
       setAutoClassify(folder.aiRules?.autoClassify || false);
-      setPriority(folder.aiRules?.priority || 10);
-      const existingFilters = folder.aiRules?.filters || {};
-      setFilters({
-        keywords: existingFilters.keywords || undefined,
-        keywords_location: existingFilters.keywords_location || "any",
-        sender_email: existingFilters.sender_email || undefined,
-        sender_domain: existingFilters.sender_domain || undefined,
-        sender_phone: existingFilters.sender_phone || undefined,
-        match_type: existingFilters.match_type || "any",
-      });
+      setContext(folder.aiRules?.context || "");
       setAutoReplyEnabled(folder.autoReply?.enabled || false);
       setAutoReplyMode(folder.autoReply?.mode || "none");
       setAutoReplyDelay(folder.autoReply?.delay || undefined);
@@ -90,15 +73,7 @@ export function FolderSettingsModal({
       setType("general");
       setColor(colorOptions[0]);
       setAutoClassify(false);
-      setPriority(10);
-      setFilters({
-        keywords: undefined,
-        keywords_location: "any",
-        sender_email: undefined,
-        sender_domain: undefined,
-        sender_phone: undefined,
-        match_type: "any",
-      });
+      setContext("");
       setAutoReplyEnabled(false);
       setAutoReplyMode("none");
       setAutoReplyDelay(undefined);
@@ -263,41 +238,27 @@ export function FolderSettingsModal({
                   className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
                 />
                 <span className="text-sm font-medium text-[#0F172A]">
-                  Classer automatiquement les messages dans ce dossier avec des filtres
+                  Classer automatiquement les messages dans ce dossier avec l'IA
                 </span>
               </label>
 
               {autoClassify && (
-                <div className="space-y-4 pl-6 border-l-2 border-[#E5E7EB]">
+                <div className="pl-6 border-l-2 border-[#E5E7EB]">
                   <div>
                     <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                      Priorité
+                      Context
                     </label>
-                    <input
-                      type="number"
-                      value={priority}
-                      onChange={(e) => setPriority(parseInt(e.target.value) || 10)}
-                      min="1"
+                    <textarea
+                      value={context}
+                      onChange={(e) => setContext(e.target.value)}
+                      rows={4}
                       className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      placeholder="Ex: Messages de demande de rendez-vous, emails contenant 'rendez-vous', 'rdv', 'disponibilité' dans le sujet ou le contenu..."
                     />
                     <p className="text-xs text-[#64748B] mt-1">
-                      Priorité du dossier (plus petit = plus prioritaire). Si un message correspond à plusieurs dossiers, il sera classé dans celui avec la plus haute priorité.
+                      Décrivez le contexte pour que l'IA classe automatiquement les messages dans ce dossier. L'IA analysera le sujet et le contenu des messages.
                     </p>
                   </div>
-
-                  <FolderFiltersConfig
-                    filters={filters}
-                    onChange={(newFilters) => {
-                      setFilters({
-                        keywords: newFilters.keywords,
-                        keywords_location: newFilters.keywords_location || "any",
-                        sender_email: newFilters.sender_email,
-                        sender_domain: newFilters.sender_domain,
-                        sender_phone: newFilters.sender_phone,
-                        match_type: newFilters.match_type || "any",
-                      });
-                    }}
-                  />
                 </div>
               )}
             </div>

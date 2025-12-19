@@ -233,35 +233,26 @@ class AIClassifierService:
         prompt_parts.append("\n\nDossiers disponibles:\n")
         for folder in folders:
             folder_info = f"- ID {folder['id']}: {folder['name']}"
-            folder_type = folder.get('folder_type', 'general')
-            folder_info += f" (Type: {folder_type})"
             
             ai_rules = folder.get('ai_rules', {})
-            context = ai_rules.get('context')
+            context = ai_rules.get('context', '').strip()
+            
             if context:
-                folder_info += f"\n  Description: {context}"
+                folder_info += f"\n  Context: {context}"
+            else:
+                # Si pas de context, utiliser le nom du dossier comme indice
+                folder_info += f"\n  Context: Messages qui correspondent à ce dossier basé sur son nom"
             
             prompt_parts.append(folder_info)
         
         # Instructions
         prompt_parts.append("\n\nInstructions:")
-        prompt_parts.append("Analyse chaque message et choisis le dossier le plus approprié.")
-        prompt_parts.append("IMPORTANT: Si la description d'un dossier mentionne un expéditeur (nom, email, ou mot-clé),")
-        prompt_parts.append("vérifie d'abord que l'expéditeur du message correspond à cette mention.")
-        prompt_parts.append("\nLes messages importants incluent:")
-        prompt_parts.append("- Les demandes de rendez-vous (rdv, rendez-vous, disponibilité, réserver, réservation, prendre rdv, j'aimerais prendre, etc.)")
-        prompt_parts.append("- Les demandes urgentes ou avec deadline")
-        prompt_parts.append("- Les messages nécessitant une action rapide")
-        prompt_parts.append("\n⚠️  ATTENTION: Si un dossier a un nom qui contient 'rdv' ou 'rendez-vous' ou 'appointment',")
-        prompt_parts.append("et que le message contient des mots comme 'rdv', 'rendez-vous', 'disponible', 'réserver', 'prendre rdv', etc.,")
-        prompt_parts.append("choisis ce dossier même si le message est actuellement dans un autre dossier.")
-        prompt_parts.append("\n🔍 IMPORTANT pour les dossiers Spam/Newsletter:")
-        prompt_parts.append("Sois TRÈS PRUDENT avant de classer un message comme spam ou newsletter.")
-        prompt_parts.append("Ne classe comme spam/newsletter QUE si c'est vraiment évident (publicités massives, emails promotionnels clairs, etc.).")
-        prompt_parts.append("En cas de doute, NE classe PAS comme spam - laisse le message non classé plutôt que de risquer de perdre un message important.")
+        prompt_parts.append("Pour chaque message, analyse le SUJET et le CONTENU pour déterminer dans quel dossier il doit être classé.")
+        prompt_parts.append("Utilise uniquement le contexte fourni pour chaque dossier pour prendre ta décision.")
+        prompt_parts.append("Sois PRÉCIS et n'utilise que les informations du contexte pour classifier.")
         prompt_parts.append("\nRéponds au format JSON suivant:")
         prompt_parts.append('{"results": [{"conversation_id": 123, "folder_id": 5}, {"conversation_id": 124, "folder_id": null}]}')
-        prompt_parts.append("Si aucun dossier ne correspond, utilise null pour folder_id.")
+        prompt_parts.append("Si aucun dossier ne correspond au contexte, utilise null pour folder_id.")
         
         return "\n".join(prompt_parts)
     
@@ -444,35 +435,25 @@ class AIClassifierService:
         prompt_parts.append("\nDossiers disponibles:\n")
         for folder in folders:
             folder_info = f"- ID {folder['id']}: {folder['name']}"
-            folder_type = folder.get('folder_type', 'general')
-            folder_info += f" (Type: {folder_type})"
             
             ai_rules = folder.get('ai_rules', {})
-            context = ai_rules.get('context')
+            context = ai_rules.get('context', '').strip()
+            
             if context:
-                folder_info += f"\n  Description: {context}"
+                folder_info += f"\n  Context: {context}"
+            else:
+                # Si pas de context, utiliser le nom du dossier comme indice
+                folder_info += f"\n  Context: Messages qui correspondent à ce dossier basé sur son nom"
             
             prompt_parts.append(folder_info)
         
         # Instructions
         prompt_parts.append("\nInstructions:")
-        prompt_parts.append("Analyse le message et choisis le dossier le plus approprié.")
-        prompt_parts.append("IMPORTANT: Si la description d'un dossier mentionne un expéditeur (nom, email, ou mot-clé),")
-        prompt_parts.append("vérifie d'abord que l'expéditeur du message correspond à cette mention.")
-        prompt_parts.append("\nLes messages importants incluent:")
-        prompt_parts.append("- Les demandes de rendez-vous (rdv, rendez-vous, disponibilité, réserver, réservation, prendre rdv, j'aimerais prendre, etc.)")
-        prompt_parts.append("- Les demandes urgentes ou avec deadline")
-        prompt_parts.append("- Les messages nécessitant une action rapide")
-        prompt_parts.append("- Les messages dont l'expéditeur correspond aux critères mentionnés dans la description du dossier")
-        prompt_parts.append("\n⚠️  ATTENTION: Si un dossier a un nom qui contient 'rdv' ou 'rendez-vous' ou 'appointment',")
-        prompt_parts.append("et que le message contient des mots comme 'rdv', 'rendez-vous', 'disponible', 'réserver', 'prendre rdv', etc.,")
-        prompt_parts.append("choisis ce dossier même si le message est actuellement dans un autre dossier.")
-        prompt_parts.append("\n🔍 IMPORTANT pour les dossiers Spam/Newsletter:")
-        prompt_parts.append("Sois TRÈS PRUDENT avant de classer un message comme spam ou newsletter.")
-        prompt_parts.append("Ne classe comme spam/newsletter QUE si c'est vraiment évident (publicités massives, emails promotionnels clairs, etc.).")
-        prompt_parts.append("En cas de doute, NE classe PAS comme spam - laisse le message non classé plutôt que de risquer de perdre un message important.")
+        prompt_parts.append("Analyse le SUJET et le CONTENU du message pour déterminer dans quel dossier il doit être classé.")
+        prompt_parts.append("Utilise uniquement le contexte fourni pour chaque dossier pour prendre ta décision.")
+        prompt_parts.append("Sois PRÉCIS et n'utilise que les informations du contexte pour classifier.")
         prompt_parts.append("\nRéponds UNIQUEMENT avec l'ID du dossier (exemple: 5).")
-        prompt_parts.append("Si aucun dossier ne correspond, réponds: NONE")
+        prompt_parts.append("Si aucun dossier ne correspond au contexte, réponds: NONE")
         
         return "\n".join(prompt_parts)
     
