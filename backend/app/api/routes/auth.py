@@ -336,22 +336,39 @@ def login(
     """
     # Utiliser retry pour gérer les erreurs SSL lors de la première connexion
     # Avec NullPool, chaque tentative crée une nouvelle connexion
+    # Essayer d'abord sans retry (peut fonctionner directement)
     try:
-        user = execute_with_retry(
-            db,
-            lambda: db.query(User).filter(User.email == login_data.email).first(),
-            max_retries=5,  # 5 tentatives pour laisser plus de chances
-            initial_delay=0.3,  # Délai initial très court (0.3s)
-            max_delay=1.5  # Délai max court (1.5s) pour éviter les timeouts
-        )
-    except Exception as e:
-        # Si toutes les tentatives échouent, logger et retourner une erreur claire
-        logger.error(f"❌ Échec de connexion DB après tous les retries: {e}")
-        # Ne pas faire échouer complètement - retourner une erreur HTTP avec headers CORS
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporairement indisponible. Veuillez réessayer dans quelques instants."
-        )
+        user = db.query(User).filter(User.email == login_data.email).first()
+        logger.debug("✅ Connexion DB réussie sans retry")
+    except Exception as first_error:
+        # Si la première tentative échoue, utiliser retry
+        error_str = str(first_error).lower()
+        is_ssl_error = any(msg in error_str for msg in [
+            "ssl connection has been closed",
+            "connection closed",
+            "server closed the connection"
+        ])
+        
+        if is_ssl_error:
+            logger.warning(f"⚠️ Erreur SSL détectée, utilisation du retry: {first_error}")
+            try:
+                user = execute_with_retry(
+                    db,
+                    lambda: db.query(User).filter(User.email == login_data.email).first(),
+                    max_retries=3,  # 3 tentatives seulement pour éviter les timeouts
+                    initial_delay=0.2,  # Délai initial très court (200ms)
+                    max_delay=1.0  # Délai max court (1s) pour éviter les timeouts Railway
+                )
+            except Exception as retry_error:
+                logger.error(f"❌ Échec de connexion DB après retries: {retry_error}")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Service temporairement indisponible. Veuillez réessayer dans quelques instants."
+                )
+        else:
+            # Si ce n'est pas une erreur SSL, propager l'erreur
+            logger.error(f"❌ Erreur non-SSL: {first_error}")
+            raise
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
