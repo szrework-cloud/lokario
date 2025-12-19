@@ -1,10 +1,10 @@
 from datetime import timedelta, datetime, timezone
 import random
 import logging
+import time
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.config import settings
-from app.db.retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
 from app.core.security import verify_password, get_password_hash, create_access_token, validate_password_strength
@@ -334,41 +334,47 @@ def login(
     Authentifie un utilisateur et retourne un JWT.
     Rate limiting activé: 5 tentatives par minute.
     """
-    # Utiliser retry pour gérer les erreurs SSL lors de la première connexion
-    # Avec NullPool, chaque tentative crée une nouvelle connexion
-    # Essayer d'abord sans retry (peut fonctionner directement)
-    try:
-        user = db.query(User).filter(User.email == login_data.email).first()
-        logger.debug("✅ Connexion DB réussie sans retry")
-    except Exception as first_error:
-        # Si la première tentative échoue, utiliser retry
-        error_str = str(first_error).lower()
-        is_ssl_error = any(msg in error_str for msg in [
-            "ssl connection has been closed",
-            "connection closed",
-            "server closed the connection"
-        ])
-        
-        if is_ssl_error:
-            logger.warning(f"⚠️ Erreur SSL détectée, utilisation du retry: {first_error}")
-            try:
-                user = execute_with_retry(
-                    db,
-                    lambda: db.query(User).filter(User.email == login_data.email).first(),
-                    max_retries=3,  # 3 tentatives seulement pour éviter les timeouts
-                    initial_delay=0.2,  # Délai initial très court (200ms)
-                    max_delay=1.0  # Délai max court (1s) pour éviter les timeouts Railway
-                )
-            except Exception as retry_error:
-                logger.error(f"❌ Échec de connexion DB après retries: {retry_error}")
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Service temporairement indisponible. Veuillez réessayer dans quelques instants."
-                )
-        else:
-            # Si ce n'est pas une erreur SSL, propager l'erreur
-            logger.error(f"❌ Erreur non-SSL: {first_error}")
-            raise
+    # SOLUTION SIMPLE : 1 seul retry rapide, puis échouer
+    # En entreprise, on préfère échouer rapidement plutôt que de bloquer
+    user = None
+    last_error = None
+    
+    for attempt in range(2):  # 2 tentatives max (1 initiale + 1 retry)
+        try:
+            user = db.query(User).filter(User.email == login_data.email).first()
+            if attempt > 0:
+                logger.info(f"✅ Connexion réussie après {attempt} retry")
+            break  # Succès, sortir de la boucle
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            is_ssl_error = any(msg in error_str for msg in [
+                "ssl connection has been closed",
+                "connection closed",
+                "server closed the connection"
+            ])
+            
+            if attempt == 0 and is_ssl_error:
+                # Première tentative échouée avec erreur SSL -> 1 retry rapide
+                logger.warning(f"⚠️ Erreur SSL (tentative 1/2), retry dans 0.3s...")
+                time.sleep(0.3)  # Attendre 300ms seulement
+                # Nettoyer la session
+                try:
+                    db.rollback()
+                    db.expire_all()
+                except:
+                    pass
+            else:
+                # Pas d'erreur SSL ou deuxième tentative -> échouer immédiatement
+                break
+    
+    # Si toutes les tentatives ont échoué
+    if user is None:
+        logger.error(f"❌ Échec de connexion DB après 2 tentatives: {last_error}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporairement indisponible. Veuillez réessayer."
+        )
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
