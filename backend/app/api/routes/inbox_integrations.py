@@ -200,6 +200,87 @@ def detect_newsletter_or_spam(email_data: dict) -> Tuple[bool, str]:
     return (False, "")
 
 
+def create_default_folders(db: Session, company_id: int):
+    """
+    Crée les dossiers par défaut pour une entreprise s'ils n'existent pas.
+    """
+    default_folders = [
+        {
+            "name": "Spam",
+            "folder_type": "autre",
+            "is_system": True,
+            "color": "#DC2626",  # Rouge
+            "ai_rules": {
+                "autoClassify": True,
+                "priority": 1,
+                "filters": {
+                    "keywords": ["spam", "phishing", "scam"],
+                    "keywords_location": "any",
+                    "match_type": "any"
+                }
+            }
+        },
+        {
+            "name": "Newsletters",
+            "folder_type": "autre",
+            "is_system": True,
+            "color": "#F59E0B",  # Orange
+            "ai_rules": {
+                "autoClassify": True,
+                "priority": 2,
+                "filters": {
+                    "keywords": ["newsletter", "se désabonner", "désinscription", "unsubscribe"],
+                    "keywords_location": "any",
+                    "match_type": "any"
+                }
+            }
+        },
+        {
+            "name": "Notifications",
+            "folder_type": "autre",
+            "is_system": True,
+            "color": "#6B7280",  # Gris
+            "ai_rules": {
+                "autoClassify": True,
+                "priority": 3,
+                "filters": {
+                    "sender_domain": ["noreply", "no-reply", "notifications", "notification"],
+                    "match_type": "any"
+                }
+            }
+        }
+    ]
+    
+    created_count = 0
+    for folder_data in default_folders:
+        # Vérifier si le dossier existe déjà
+        existing_folder = db.query(InboxFolder).filter(
+            InboxFolder.company_id == company_id,
+            InboxFolder.name == folder_data["name"],
+            InboxFolder.is_system == folder_data["is_system"]
+        ).first()
+        
+        if not existing_folder:
+            folder = InboxFolder(
+                company_id=company_id,
+                name=folder_data["name"],
+                folder_type=folder_data["folder_type"],
+                is_system=folder_data["is_system"],
+                color=folder_data.get("color", "#6B7280"),
+                ai_rules=folder_data.get("ai_rules", {})
+            )
+            db.add(folder)
+            created_count += 1
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"[INIT FOLDERS] Dossier par défaut créé: {folder_data['name']} pour l'entreprise {company_id}")
+    
+    if created_count > 0:
+        db.commit()
+    
+    return created_count
+
+
 def get_or_create_spam_folder(db: Session, company_id: int) -> InboxFolder:
     """
     Récupère ou crée le dossier Spam système pour une entreprise.

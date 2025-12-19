@@ -75,6 +75,16 @@ async def sync_integration(integration: InboxIntegration, db):
             logger.error(f"[SYNC PERIODIC] Company {integration.company_id} non trouvée")
             return {"processed": 0, "created": 0, "errors": 0, "skipped": 0}
         
+        # Créer les dossiers par défaut s'ils n'existent pas
+        try:
+            from app.api.routes.inbox_integrations import create_default_folders
+            created_folders = create_default_folders(db, company.id)
+            if created_folders > 0:
+                logger.info(f"[SYNC PERIODIC] {created_folders} dossier(s) par défaut créé(s) pour l'entreprise {company.id}")
+        except Exception as e:
+            logger.warning(f"[SYNC PERIODIC] Erreur lors de la création des dossiers par défaut: {e}")
+            # Continuer même si la création des dossiers échoue
+        
         # Déchiffrer le mot de passe avant utilisation
         encryption_service = get_encryption_service()
         decrypted_password = encryption_service.decrypt(integration.email_password) if integration.email_password else None
