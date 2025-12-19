@@ -167,22 +167,30 @@ def init_db():
     else:
         # PostgreSQL : Ne JAMAIS créer les tables au démarrage en production
         # Détecter automatiquement si on est en production :
-        # - Si on utilise le pooler Supabase (port 6543) → production
-        # - Si ENVIRONMENT est défini à production → production
+        # - Si ENVIRONMENT est défini à production → production (PRIORITAIRE)
+        # - Si on utilise Supabase (pooler OU directe) → production
         # - Sinon → développement (créer les tables)
         from app.core.config import settings
         
         is_production = False
         
-        # Détecter la production via l'URL (pooler Supabase = production)
-        if ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL:
-            is_production = True
-            logger.info("🔍 Pooler Supabase détecté → Mode production")
+        # PRIORITÉ 1 : Variable d'environnement (la plus fiable)
+        if hasattr(settings, 'ENVIRONMENT') and settings.ENVIRONMENT:
+            if settings.ENVIRONMENT.lower() in ["production", "prod"]:
+                is_production = True
+                logger.info("🔍 ENVIRONMENT=production détecté → Mode production")
         
-        # Ou via la variable d'environnement
-        if settings.ENVIRONMENT.lower() in ["production", "prod"]:
-            is_production = True
-            logger.info("🔍 ENVIRONMENT=production détecté → Mode production")
+        # PRIORITÉ 2 : Détecter Supabase (pooler OU connexion directe)
+        if not is_production:
+            is_supabase = (
+                "supabase.com" in settings.DATABASE_URL or
+                "supabase.co" in settings.DATABASE_URL or
+                ":6543/" in settings.DATABASE_URL or
+                "pooler.supabase.com" in settings.DATABASE_URL
+            )
+            if is_supabase:
+                is_production = True
+                logger.info("🔍 Supabase détecté (pooler ou directe) → Mode production")
         
         if is_production:
             # En production : NE FAIRE AUCUNE REQUÊTE au démarrage
@@ -190,6 +198,7 @@ def init_db():
             # Les requêtes suivantes fonctionneront avec le retry automatique
             logger.info("✅ Mode production détecté - Pas de vérification DB au démarrage (tables supposées existantes)")
             logger.info("✅ L'application démarre - Les connexions DB seront testées lors de la première requête")
+            logger.info(f"✅ DATABASE_URL contient: {'supabase' if 'supabase' in settings.DATABASE_URL else 'autre'}")
             return
         
         # En développement/staging : créer les tables avec retry

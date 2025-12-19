@@ -370,6 +370,23 @@ async def options_handler(request: Request):
 
 @app.get("/health")
 def health_check():
-    """Endpoint de santé pour vérifier que l'API fonctionne."""
-    return {"status": "ok"}
+    """
+    Endpoint de santé pour vérifier que l'API fonctionne.
+    Utilisé par Railway pour vérifier que le container est prêt.
+    Ne fait PAS de requête DB pour éviter les erreurs SSL au démarrage.
+    """
+    return {
+        "status": "ok",
+        "service": "lokario-backend",
+        "version": "1.0.0"
+    }
+
+@app.get("/")
+def root():
+    """Endpoint racine pour vérifier que l'API répond."""
+    return {
+        "message": "Lokario API",
+        "status": "running",
+        "health": "/health"
+    }
 
