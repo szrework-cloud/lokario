@@ -135,23 +135,12 @@ def init_db():
             logger.info("🔍 ENVIRONMENT=production détecté → Mode production")
         
         if is_production:
-            # En production : juste vérifier la connexion, ne JAMAIS créer les tables
-            logger.info("🔍 Mode production : vérification de la connexion DB (tables supposées existantes)...")
-            try:
-                from sqlalchemy import inspect
-                inspector = inspect(engine)
-                existing_tables = inspector.get_table_names()
-                if existing_tables:
-                    logger.info(f"✅ Connexion DB OK - {len(existing_tables)} table(s) détectée(s)")
-                    return
-                else:
-                    logger.warning("⚠️ Aucune table détectée, mais l'application va continuer")
-                    return
-            except Exception as e:
-                # Ne pas bloquer le démarrage même si la vérification échoue
-                logger.warning(f"⚠️ Impossible de vérifier les tables (connexion peut être OK): {e}")
-                logger.warning("⚠️ L'application va continuer le démarrage")
-                return
+            # En production : NE FAIRE AUCUNE REQUÊTE au démarrage
+            # Les tables existent déjà, pas besoin de vérifier
+            # Les requêtes suivantes fonctionneront avec le retry automatique
+            logger.info("✅ Mode production détecté - Pas de vérification DB au démarrage (tables supposées existantes)")
+            logger.info("✅ L'application démarre - Les connexions DB seront testées lors de la première requête")
+            return
         
         # En développement/staging : créer les tables avec retry
         logger.info("🔄 Mode développement : création des tables...")

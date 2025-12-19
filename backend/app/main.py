@@ -291,12 +291,13 @@ async def startup_event():
     import logging
     logger = logging.getLogger(__name__)
     
-    # Initialiser la base de données (non-bloquant en production)
-    # En production, init_db() ne fait que vérifier la connexion, pas créer les tables
+    # Initialiser la base de données (non-bloquant)
+    # En production, init_db() ne fait RIEN (pas de requête DB au démarrage)
+    # Les tables existent déjà, les connexions seront testées lors de la première requête
     try:
         init_db()
     except Exception as e:
-        # Ne jamais faire échouer le démarrage - les tables existent déjà en production
+        # Ne jamais faire échouer le démarrage
         logger.warning(f"⚠️ Initialisation DB: {e} - L'application continue le démarrage")
     
     # SÉCURITÉ: Configurer le logging pour masquer automatiquement les données sensibles
