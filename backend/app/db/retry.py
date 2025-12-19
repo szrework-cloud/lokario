@@ -156,6 +156,7 @@ def execute_with_retry(
     
     for attempt in range(max_retries + 1):
         try:
+            logger.debug(f"🔄 Tentative {attempt + 1}/{max_retries + 1} d'exécution de l'opération...")
             # Exécuter l'opération
             result = operation()
             # Si on arrive ici, l'opération a réussi
@@ -164,24 +165,25 @@ def execute_with_retry(
             return result
         except Exception as e:
             last_exception = e
+            error_str = str(e)
             
             # Si ce n'est pas une erreur de connexion, propager immédiatement
             if not is_connection_error(e):
-                logger.error(f"Erreur non liée à la connexion: {e}")
+                logger.error(f"❌ Erreur non liée à la connexion: {error_str[:200]}")
                 raise
             
             # Si c'est la dernière tentative, propager l'erreur
             if attempt >= max_retries:
                 logger.error(
-                    f"❌ Échec après {max_retries + 1} tentatives: {e}"
+                    f"❌ Échec après {max_retries + 1} tentatives. Dernière erreur: {error_str[:200]}"
                 )
                 raise
             
             # Log de la tentative de retry
             logger.warning(
-                f"⚠️ Erreur de connexion (tentative {attempt + 1}/{max_retries + 1}): {str(e)[:100]}. "
-                f"Retry dans {delay:.2f}s..."
+                f"⚠️ Erreur de connexion (tentative {attempt + 1}/{max_retries + 1}): {error_str[:150]}"
             )
+            logger.info(f"⏳ Attente de {delay:.2f}s avant la tentative {attempt + 2}...")
             
             # Nettoyer la session avant de réessayer
             try:
@@ -190,11 +192,13 @@ def execute_with_retry(
                 # Avec NullPool, dispose() ne fait rien mais on l'appelle quand même
                 if hasattr(db, 'bind') and hasattr(db.bind, 'dispose'):
                     db.bind.dispose()
+                logger.debug(f"🔄 Session nettoyée après tentative {attempt + 1}")
             except Exception as cleanup_error:
-                logger.debug(f"⚠️ Erreur lors du nettoyage de la session: {cleanup_error}")
+                logger.warning(f"⚠️ Erreur lors du nettoyage de la session: {cleanup_error}")
             
             # Attendre avant de réessayer
             time.sleep(delay)
+            logger.debug(f"✅ Attente terminée, passage à la tentative {attempt + 2}")
             
             # Augmenter le délai pour la prochaine tentative (backoff exponentiel)
             delay = min(delay * backoff_factor, max_delay)
