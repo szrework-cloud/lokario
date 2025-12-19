@@ -1239,6 +1239,77 @@ async def sync_imap_emails(
         )
 
 
+@router.post("/sync-all")
+@router.get("/sync-all")
+async def sync_all_integrations_endpoint(
+    secret: Optional[str] = Query(None, description="Secret pour protéger l'endpoint (variable CRON_SECRET)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint pour déclencher la synchronisation de toutes les intégrations inbox actives.
+    
+    Cet endpoint peut être appelé :
+    - Manuellement via POST/GET /api/inbox/integrations/sync-all?secret=YOUR_CRON_SECRET
+    - Via un service externe de cron (cron-job.org, EasyCron, etc.) toutes les minutes
+    - Via un webhook périodique
+    
+    Protection : Nécessite le paramètre 'secret' qui doit correspondre à CRON_SECRET
+    """
+    import logging
+    from app.core.config import settings
+    import asyncio
+    
+    logger = logging.getLogger(__name__)
+    
+    # Vérifier le secret si configuré
+    if settings.CRON_SECRET:
+        if not secret or secret != settings.CRON_SECRET:
+            logger.warning("Tentative d'accès à /sync-all sans secret valide")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid secret. Provide ?secret=YOUR_CRON_SECRET"
+            )
+    else:
+        # En développement, log un avertissement si pas de secret configuré
+        logger.warning("CRON_SECRET non configuré - l'endpoint est accessible sans protection")
+    
+    try:
+        # Importer la fonction de synchronisation depuis le script
+        import sys
+        from pathlib import Path
+        
+        # Ajouter le répertoire backend au path si nécessaire
+        backend_dir = Path(__file__).parent.parent.parent.parent
+        if str(backend_dir) not in sys.path:
+            sys.path.insert(0, str(backend_dir))
+        
+        from scripts.sync_emails_periodic import sync_all_integrations
+        
+        logger.info("🔄 Déclenchement de la synchronisation inbox via API...")
+        
+        # Exécuter la synchronisation (la fonction est async)
+        asyncio.run(sync_all_integrations())
+        
+        return {
+            "success": True,
+            "message": "Synchronisation inbox terminée avec succès",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except ImportError as e:
+        logger.error(f"❌ Erreur d'import lors de la synchronisation inbox: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur d'import: {str(e)}. Vérifiez que le script sync_emails_periodic.py existe."
+        )
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la synchronisation inbox: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la synchronisation: {str(e)}"
+        )
+
+
 @router.get("/imap/test")
 async def test_imap_connection(
     imap_server: str,
