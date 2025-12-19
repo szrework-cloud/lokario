@@ -82,21 +82,33 @@ async def cors_debug_middleware(request: Request, call_next):
     logger = logging.getLogger(__name__)
     
     origin = request.headers.get("origin")
-    if origin:
-        logger.debug(f"🌐 CORS - Requête depuis origin: {origin}")
-        logger.debug(f"🌐 CORS - Origin autorisé: {origin in origins}")
     
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        # En cas d'erreur, créer une réponse avec headers CORS
+        logger.error(f"❌ Erreur dans cors_debug_middleware: {e}")
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+            headers={
+                "Access-Control-Allow-Origin": origin if origin and origin in origins else "*",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            } if origin and origin in origins else {}
+        )
     
-    # S'assurer que les headers CORS sont toujours présents pour les requêtes OPTIONS et les erreurs
+    # S'assurer que les headers CORS sont toujours présents
     if origin and origin in origins:
-        # Si les headers CORS ne sont pas déjà présents, les ajouter
-        if "Access-Control-Allow-Origin" not in response.headers:
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "*"
-            logger.debug(f"🌐 CORS - Headers ajoutés manuellement pour origin: {origin}")
+        # Toujours ajouter les headers CORS, même s'ils existent déjà
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        if "Access-Control-Max-Age" not in response.headers:
+            response.headers["Access-Control-Max-Age"] = "3600"
     
     return response
 
@@ -239,11 +251,14 @@ async def general_exception_handler(request: Request, exc: Exception):
     logger.error(f"Erreur non gérée: {exc}", exc_info=True)
     
     origin = request.headers.get("origin")
-    if origin in origins:
+    
+    # Toujours inclure les headers CORS, même si l'origin n'est pas dans la liste
+    # (pour éviter les erreurs CORS en plus de l'erreur 500)
+    if origin:
         headers = {
-            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Origin": origin if origin in origins else "*",
             "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
             "Access-Control-Allow-Headers": "*",
         }
     else:
