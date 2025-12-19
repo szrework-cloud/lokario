@@ -59,37 +59,47 @@ else:
     is_pooler = ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL
     
     if is_pooler:
-        # Pooler Supabase : pool minimal (le pooler gère déjà les connexions)
-        # Avec le pooler, on n'a pas besoin de garder plusieurs connexions ouvertes
-        pool_size = 1  # Une seule connexion permanente (le pooler gère le reste)
-        max_overflow = 2  # Maximum 2 connexions supplémentaires si besoin
-        pool_recycle = 3600  # 1 heure (le pooler gère déjà le recyclage)
-        logger.info("🔧 Pool SQLAlchemy minimal pour pooler Supabase (pool_size=1, max_overflow=2)")
+        # Pooler Supabase : utiliser NullPool (recommandé par Supabase)
+        # Le pooler gère déjà le pooling, SQLAlchemy ne doit PAS créer son propre pool
+        # NullPool = pas de pool SQLAlchemy, chaque requête crée une nouvelle connexion
+        # Le pooler Supabase réutilise efficacement les connexions
+        pool_class = NullPool
+        logger.info("🔧 Utilisation de NullPool avec pooler Supabase (recommandé par Supabase)")
     else:
-        # Connexion directe : pool plus grand
+        # Connexion directe : utiliser QueuePool normal
+        pool_class = QueuePool
         pool_size = 10
         max_overflow = 20
         pool_recycle = 1200  # 20 minutes
     
-    engine = create_engine(
-        settings.DATABASE_URL,
-        # Pool size : nombre de connexions permanentes
-        pool_size=pool_size,
-        # Max overflow : connexions supplémentaires autorisées au-delà de pool_size
-        max_overflow=max_overflow,
-        # Pool timeout : temps d'attente avant d'abandonner si toutes les connexions sont occupées
-        pool_timeout=30,  # 30 secondes par défaut
-        # Pool recycle : recycler les connexions après ce nombre de secondes
-        pool_recycle=pool_recycle,
-        # Pool pre ping : vérifier que la connexion est vivante avant de l'utiliser
-        # CRUCIAL pour Supabase qui peut fermer les connexions SSL de manière inattendue
-        pool_pre_ping=True,  # Détecte et recrée automatiquement les connexions mortes
-        # Connect args : arguments supplémentaires pour la connexion
-        connect_args=connect_args,
-        echo=False,
-        # Isolation level : utiliser READ COMMITTED pour éviter les deadlocks
-        isolation_level="READ COMMITTED"
-    )
+    # Configuration de l'engine selon le type de connexion
+    if is_pooler:
+        # Avec NullPool, pas besoin de pool_size, max_overflow, etc.
+        engine = create_engine(
+            settings.DATABASE_URL,
+            poolclass=pool_class,  # NullPool = pas de pool SQLAlchemy
+            # Pool pre ping : toujours utile pour détecter les connexions mortes
+            pool_pre_ping=True,
+            # Connect args : arguments supplémentaires pour la connexion
+            connect_args=connect_args,
+            echo=False,
+            # Isolation level : utiliser READ COMMITTED pour éviter les deadlocks
+            isolation_level="READ COMMITTED"
+        )
+    else:
+        # Connexion directe : pool normal
+        engine = create_engine(
+            settings.DATABASE_URL,
+            poolclass=pool_class,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=30,
+            pool_recycle=pool_recycle,
+            pool_pre_ping=True,
+            connect_args=connect_args,
+            echo=False,
+            isolation_level="READ COMMITTED"
+        )
     
     # Désactiver la détection automatique de hstore pour éviter les erreurs SSL
     # avec le pooler Supabase lors de la première connexion
