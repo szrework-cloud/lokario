@@ -36,11 +36,14 @@ else:
         
         if is_pooler:
             # Configuration optimisée pour le pooler Supabase
+            # Le pooler nécessite SSL mais peut être plus tolérant
             connect_args = {
-                "sslmode": "prefer",  # Plus tolérant que 'require' pour le pooler
-                "connect_timeout": 5,  # Timeout plus court pour le pooler
+                "sslmode": "require",  # Require SSL (le pooler le supporte)
+                "connect_timeout": 10,  # Timeout de 10 secondes
+                # Désactiver certaines options qui peuvent causer des problèmes
+                "application_name": "lokario_backend",
             }
-            logger.info("🔧 Configuration SSL optimisée pour pooler Supabase")
+            logger.info("🔧 Configuration SSL pour pooler Supabase (sslmode=require)")
         else:
             # Configuration pour connexion directe
             connect_args = {
@@ -86,13 +89,13 @@ else:
         isolation_level="READ COMMITTED"
     )
     
-    # Ajouter un event listener pour gérer les erreurs SSL lors du chargement des OIDs hstore
-    # SQLAlchemy essaie de charger les OIDs hstore automatiquement, ce qui peut échouer avec SSL
-    @event.listens_for(engine, "connect")
-    def receive_connect(dbapi_conn, connection_record):
-        """Gère les erreurs lors de la connexion initiale (chargement OIDs hstore)"""
-        # Ne rien faire - laisser le retry automatique gérer les erreurs
-        # Si le chargement des OIDs échoue, SQLAlchemy continuera quand même
+    # Désactiver la détection automatique de hstore pour éviter les erreurs SSL
+    # avec le pooler Supabase lors de la première connexion
+    if is_pooler:
+        # Pour le pooler, on peut désactiver certaines détections automatiques
+        # en utilisant un dialect personnalisé, mais c'est complexe
+        # À la place, on va utiliser pool_pre_ping qui teste la connexion avant utilisation
+        # et gérer les erreurs avec retry
         pass
     
     # Désactiver le listener qui peut causer des problèmes SSL au démarrage

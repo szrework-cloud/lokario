@@ -103,12 +103,15 @@ def retry_db_operation(
                     # Augmenter le délai pour la prochaine tentative (backoff exponentiel)
                     delay = min(delay * backoff_factor, max_delay)
                     
-                    # Invalider la session si elle existe dans les arguments
+                    # Invalider la session ET le pool si elle existe dans les arguments
                     for arg in args:
                         if isinstance(arg, Session):
                             try:
                                 arg.rollback()
                                 arg.close()
+                                # Invalider le pool pour forcer de nouvelles connexions
+                                if hasattr(arg, 'bind') and hasattr(arg.bind, 'dispose'):
+                                    arg.bind.dispose()
                             except Exception:
                                 pass
                             break
@@ -181,12 +184,16 @@ def execute_with_retry(
             # Augmenter le délai pour la prochaine tentative (backoff exponentiel)
             delay = min(delay * backoff_factor, max_delay)
             
-            # Invalider la session
+            # Invalider complètement la session ET le pool de connexions
             try:
                 db.rollback()
                 db.close()
-            except Exception:
-                pass
+                # Invalider le pool pour forcer la création de nouvelles connexions
+                if hasattr(db, 'bind') and hasattr(db.bind, 'dispose'):
+                    db.bind.dispose()
+                    logger.debug("🔄 Pool de connexions invalidé après erreur SSL")
+            except Exception as e:
+                logger.debug(f"⚠️ Erreur lors de l'invalidation: {e}")
     
     # Ne devrait jamais arriver ici, mais au cas où
     if last_exception:
