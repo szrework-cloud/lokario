@@ -115,12 +115,27 @@ def init_db():
         except Exception as e:
             logger.warning(f"⚠️ Erreur lors de l'initialisation SQLite (tables peuvent exister déjà): {e}")
     else:
-        # PostgreSQL : En production, ne pas créer les tables (elles existent déjà)
-        # Juste vérifier que la connexion fonctionne
+        # PostgreSQL : Ne JAMAIS créer les tables au démarrage en production
+        # Détecter automatiquement si on est en production :
+        # - Si on utilise le pooler Supabase (port 6543) → production
+        # - Si ENVIRONMENT est défini à production → production
+        # - Sinon → développement (créer les tables)
         from app.core.config import settings
         
+        is_production = False
+        
+        # Détecter la production via l'URL (pooler Supabase = production)
+        if ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL:
+            is_production = True
+            logger.info("🔍 Pooler Supabase détecté → Mode production")
+        
+        # Ou via la variable d'environnement
         if settings.ENVIRONMENT.lower() in ["production", "prod"]:
-            # En production : juste vérifier la connexion, ne pas créer les tables
+            is_production = True
+            logger.info("🔍 ENVIRONMENT=production détecté → Mode production")
+        
+        if is_production:
+            # En production : juste vérifier la connexion, ne JAMAIS créer les tables
             logger.info("🔍 Mode production : vérification de la connexion DB (tables supposées existantes)...")
             try:
                 from sqlalchemy import inspect
@@ -133,6 +148,7 @@ def init_db():
                     logger.warning("⚠️ Aucune table détectée, mais l'application va continuer")
                     return
             except Exception as e:
+                # Ne pas bloquer le démarrage même si la vérification échoue
                 logger.warning(f"⚠️ Impossible de vérifier les tables (connexion peut être OK): {e}")
                 logger.warning("⚠️ L'application va continuer le démarrage")
                 return
