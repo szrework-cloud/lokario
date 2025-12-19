@@ -420,14 +420,25 @@ def get_employees(
     current_user: User = Depends(get_current_active_user)
 ):
     """Récupère la liste des employés de l'entreprise (pour les dropdowns)"""
-    _check_company_access(current_user)
-    
-    employees = db.query(User).filter(
-        User.company_id == current_user.company_id,
-        User.is_active == True
-    ).order_by(User.full_name.asc(), User.email.asc()).all()
-    
-    return [EmployeeRead.model_validate(emp) for emp in employees]
+    try:
+        _check_company_access(current_user)
+        
+        employees = db.query(User).filter(
+            User.company_id == current_user.company_id,
+            User.is_active == True
+        ).order_by(User.full_name.asc(), User.email.asc()).all()
+        
+        return [EmployeeRead.model_validate(emp) for emp in employees]
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting employees: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting employees: {str(e)}"
+        )
 
 
 # ==================== ROUTES CRUD ====================

@@ -275,7 +275,7 @@ def generate_invoice_pdf(invoice: Invoice) -> bytes:
     
     # Réduction si présente
     if invoice.discount_type and invoice.discount_value is not None:
-        # Calculer le total TTC avant réduction pour l'affichage
+        # Calculer le total TTC avant réduction pour l'affichage (convertir en Decimal)
         total_ttc_before_discount = sum(Decimal(str(line.total_ttc)) for line in invoice.lines) if invoice.lines else Decimal('0')
         
         discount_label = invoice.discount_label or "Réduction"

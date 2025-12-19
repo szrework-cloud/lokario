@@ -152,13 +152,21 @@ export default function SettingsPage() {
                 URL.revokeObjectURL(logoPreview);
               }
               setLogoPreview(blobUrl);
+            } else if (response.status === 404) {
+              // Logo n'existe plus (fichier perdu, ex: sur Railway après redémarrage)
+              // Nettoyer le preview et ne pas afficher d'erreur
+              logger.debug(`Logo file not found (404), logo_path was: ${companyInfo.logo_path}`);
+              if (logoPreview && logoPreview.startsWith("blob:")) {
+                URL.revokeObjectURL(logoPreview);
+              }
+              setLogoPreview(null);
             } else {
-              console.error(`Erreur lors du chargement du logo: ${response.status} ${response.statusText}, logo_path: ${companyInfo.logo_path}`);
+              logger.warn(`Erreur lors du chargement du logo: ${response.status} ${response.statusText}, logo_path: ${companyInfo.logo_path}`);
               // Ne pas supprimer logoPreview si on a déjà une image chargée
             }
           } catch (err) {
-            console.error("Erreur lors du chargement du logo:", err, "logo_path:", companyInfo.logo_path);
-            // Ne pas supprimer logoPreview si on a déjà une image chargée
+            logger.debug("Erreur lors du chargement du logo:", err, "logo_path:", companyInfo.logo_path);
+            // Ne pas supprimer logoPreview si on a déjà une image chargée en cas d'erreur réseau
           }
         };
         loadLogo();
