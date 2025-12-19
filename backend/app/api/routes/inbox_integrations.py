@@ -191,32 +191,12 @@ def detect_newsletter_or_spam(email_data: dict) -> Tuple[bool, str]:
     """
     Détecte si un email est une newsletter ou du spam.
     Retourne (is_filtered, reason) où reason peut être "newsletter" ou "spam"
+    
+    NOTE: Filtres désactivés pour ne pas bloquer d'emails légitimes.
+    Utiliser plutôt la classification IA pour classer les emails dans des dossiers.
     """
-    subject = email_data.get("subject", "").lower()
-    from_email = email_data.get("from", {}).get("email", "").lower()
-    content = email_data.get("content", "").lower()
-    html_content = email_data.get("html_content", "").lower()
-    
-    # Mots-clés typiques des newsletters (filtres très réduits)
-    # Seulement les mots-clés explicites dans le sujet/contenu
-    newsletter_keywords = [
-        "newsletter", "se désabonner", "désinscription"
-    ]
-    
-    # Ne plus filtrer par domaine d'expéditeur (trop agressif)
-    # Les domaines comme marketing@, info@ peuvent être des emails importants
-    
-    # Vérifier les newsletters uniquement via mots-clés dans le contenu
-    text_to_check = f"{subject} {content} {html_content}"
-    
-    # Vérifier les mots-clés newsletter (mais pas "unsubscribe" seul car présent dans beaucoup d'emails légitimes)
-    for keyword in newsletter_keywords:
-        if keyword in text_to_check:
-            return (True, "newsletter")
-    
-    # Pas de filtres par domaine (retirés)
-    # Pas de filtres spam automatiques (supprimés comme demandé)
-    
+    # Filtres désactivés - tous les emails sont acceptés
+    # La classification IA se chargera de classer les emails dans les bons dossiers
     return (False, "")
 
 
