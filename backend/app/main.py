@@ -304,20 +304,27 @@ async def startup_event():
     setup_sanitized_logging()
     
     # Nettoyer automatiquement les tâches complétées depuis au moins un jour
-    # (ne pas bloquer le démarrage si cela échoue)
-    from app.db.session import SessionLocal
-    from app.api.routes.tasks import cleanup_completed_tasks
+    # DÉSACTIVÉ en production pour éviter les erreurs SSL au démarrage
+    # Le nettoyage peut être fait via un cron job séparé
+    from app.core.config import settings
     
-    try:
-        db = SessionLocal()
+    if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+        # Seulement en développement/staging
+        from app.db.session import SessionLocal
+        from app.api.routes.tasks import cleanup_completed_tasks
+        
         try:
-            cleanup_completed_tasks(db, company_id=None)  # Nettoie toutes les entreprises
+            db = SessionLocal()
+            try:
+                cleanup_completed_tasks(db, company_id=None)  # Nettoie toutes les entreprises
+            except Exception as e:
+                logger.error(f"Erreur lors du nettoyage automatique des tâches: {e}")
+            finally:
+                db.close()
         except Exception as e:
-            logger.error(f"Erreur lors du nettoyage automatique des tâches: {e}")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.error(f"Erreur lors de la création de la session pour le nettoyage: {e}")
+            logger.error(f"Erreur lors de la création de la session pour le nettoyage: {e}")
+    else:
+        logger.info("⏭️ Nettoyage des tâches désactivé au démarrage en production (évite erreurs SSL)")
 
 
 @app.options("/{full_path:path}")

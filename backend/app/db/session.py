@@ -29,32 +29,55 @@ else:
     
     # Si on utilise Supabase, configurer SSL correctement
     if "supabase.com" in settings.DATABASE_URL or "postgresql" in settings.DATABASE_URL.lower():
-        # Configuration SSL pour PostgreSQL/Supabase
-        # sslmode='require' force SSL mais permet des reconnexions automatiques
-        # connect_timeout réduit le temps d'attente pour les connexions mortes
-        connect_args = {
-            "sslmode": "require",
-            "connect_timeout": 10,  # Timeout de connexion de 10 secondes
-            "keepalives": 1,  # Activer les keepalives TCP
-            "keepalives_idle": 30,  # Commencer les keepalives après 30 secondes d'inactivité
-            "keepalives_interval": 10,  # Envoyer un keepalive toutes les 10 secondes
-            "keepalives_count": 3,  # Nombre de keepalives avant de considérer la connexion morte
-        }
+        # Configuration SSL pour PostgreSQL/Supabase avec pooler
+        # Pour le pooler Supabase, utiliser sslmode='prefer' (plus tolérant)
+        # Le pooler gère déjà les reconnexions SSL
+        is_pooler = ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL
+        
+        if is_pooler:
+            # Configuration optimisée pour le pooler Supabase
+            connect_args = {
+                "sslmode": "prefer",  # Plus tolérant que 'require' pour le pooler
+                "connect_timeout": 5,  # Timeout plus court pour le pooler
+            }
+            logger.info("🔧 Configuration SSL optimisée pour pooler Supabase")
+        else:
+            # Configuration pour connexion directe
+            connect_args = {
+                "sslmode": "require",
+                "connect_timeout": 10,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 3,
+            }
+    
+    # Configuration du pool selon le type de connexion
+    is_pooler = ":6543/" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL
+    
+    if is_pooler:
+        # Pooler Supabase : pool plus petit (le pooler gère déjà les connexions)
+        pool_size = 5
+        max_overflow = 10
+        pool_recycle = 1800  # 30 minutes
+    else:
+        # Connexion directe : pool plus grand
+        pool_size = 10
+        max_overflow = 20
+        pool_recycle = 1200  # 20 minutes
     
     engine = create_engine(
         settings.DATABASE_URL,
         # Pool size : nombre de connexions permanentes
-        pool_size=10,  # Augmenté de 5 (défaut) à 10
+        pool_size=pool_size,
         # Max overflow : connexions supplémentaires autorisées au-delà de pool_size
-        max_overflow=20,  # Augmenté de 10 (défaut) à 20 (total max = 30 connexions)
+        max_overflow=max_overflow,
         # Pool timeout : temps d'attente avant d'abandonner si toutes les connexions sont occupées
         pool_timeout=30,  # 30 secondes par défaut
-        # Pool recycle : recycler les connexions après ce nombre de secondes (évite les connexions mortes)
-        # Réduit à 20 minutes car Supabase peut fermer les connexions inactives plus tôt
-        pool_recycle=1200,  # 20 minutes (Supabase peut fermer les connexions inactives)
+        # Pool recycle : recycler les connexions après ce nombre de secondes
+        pool_recycle=pool_recycle,
         # Pool pre ping : vérifier que la connexion est vivante avant de l'utiliser
         # CRUCIAL pour Supabase qui peut fermer les connexions SSL de manière inattendue
-        # pool_pre_ping=True fait un SELECT 1 avant chaque utilisation pour détecter les connexions mortes
         pool_pre_ping=True,  # Détecte et recrée automatiquement les connexions mortes
         # Connect args : arguments supplémentaires pour la connexion
         connect_args=connect_args,
