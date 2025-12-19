@@ -334,18 +334,55 @@ def login(
     Authentifie un utilisateur et retourne un JWT.
     Rate limiting activé: 5 tentatives par minute.
     """
-    # SOLUTION : Créer une nouvelle session à chaque tentative
+    # SOLUTION : Créer une nouvelle session à chaque tentative avec timeout
     # La session corrompue ne peut pas être réutilisée après une erreur SSL
+    import threading
+    import queue
+    
     user = None
     last_error = None
     current_db = db  # Utiliser la session initiale pour la première tentative
     
+    def execute_query(db_session, email, result_queue, error_queue):
+        """Exécute la requête dans un thread séparé avec timeout"""
+        try:
+            result = db_session.query(User).filter(User.email == email).first()
+            result_queue.put(result)
+        except Exception as e:
+            error_queue.put(e)
+    
     for attempt in range(2):  # 2 tentatives max (1 initiale + 1 retry)
         try:
-            user = current_db.query(User).filter(User.email == login_data.email).first()
-            if attempt > 0:
-                logger.info(f"✅ Connexion réussie après {attempt} retry")
-            break  # Succès, sortir de la boucle
+            # Utiliser un thread avec timeout pour éviter les blocages de 60s
+            result_queue = queue.Queue()
+            error_queue = queue.Queue()
+            query_thread = threading.Thread(
+                target=execute_query,
+                args=(current_db, login_data.email, result_queue, error_queue),
+                daemon=True
+            )
+            query_thread.start()
+            query_thread.join(timeout=10)  # Timeout de 10 secondes max
+            
+            if query_thread.is_alive():
+                # Le thread est encore en vie = timeout
+                logger.warning(f"⏱️ Timeout de requête (10s) - tentative {attempt + 1}")
+                raise Exception("Query timeout after 10 seconds")
+            
+            # Vérifier s'il y a une erreur
+            if not error_queue.empty():
+                raise error_queue.get()
+            
+            # Récupérer le résultat
+            if not result_queue.empty():
+                user = result_queue.get()
+                if attempt > 0:
+                    logger.info(f"✅ Connexion réussie après {attempt} retry")
+                break  # Succès, sortir de la boucle
+            else:
+                raise Exception("No result and no error - unexpected state")
+                
+        except Exception as e:
         except Exception as e:
             last_error = e
             error_str = str(e).lower()
@@ -365,8 +402,8 @@ def login(
                 except:
                     pass
                 
-                # Attendre un peu avant de réessayer
-                time.sleep(0.3)
+                # Attendre très peu avant de réessayer (100ms seulement)
+                time.sleep(0.1)
                 
                 # Créer une NOUVELLE session pour le retry
                 from app.db.session import SessionLocal
