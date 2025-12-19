@@ -139,7 +139,7 @@ def execute_with_retry(
     
     Args:
         db: Session SQLAlchemy
-        operation: Fonction à exécuter (lambda ou fonction)
+        operation: Fonction à exécuter (lambda ou fonction) - DOIT utiliser 'db' passé en paramètre
         max_retries: Nombre maximum de tentatives (défaut: 3)
         initial_delay: Délai initial avant le premier retry en secondes (défaut: 0.5)
         max_delay: Délai maximum entre les tentatives en secondes (défaut: 2.0)
@@ -156,7 +156,12 @@ def execute_with_retry(
     
     for attempt in range(max_retries + 1):
         try:
-            return operation()
+            # Exécuter l'opération
+            result = operation()
+            # Si on arrive ici, l'opération a réussi
+            if attempt > 0:
+                logger.info(f"✅ Connexion réussie après {attempt} tentative(s) de retry")
+            return result
         except Exception as e:
             last_exception = e
             
@@ -168,33 +173,31 @@ def execute_with_retry(
             # Si c'est la dernière tentative, propager l'erreur
             if attempt >= max_retries:
                 logger.error(
-                    f"Échec après {max_retries + 1} tentatives: {e}"
+                    f"❌ Échec après {max_retries + 1} tentatives: {e}"
                 )
                 raise
             
             # Log de la tentative de retry
             logger.warning(
-                f"Erreur de connexion (tentative {attempt + 1}/{max_retries + 1}): {e}. "
+                f"⚠️ Erreur de connexion (tentative {attempt + 1}/{max_retries + 1}): {str(e)[:100]}. "
                 f"Retry dans {delay:.2f}s..."
             )
+            
+            # Nettoyer la session avant de réessayer
+            try:
+                db.rollback()  # Rollback de la transaction en cours
+                db.expire_all()  # Expirer tous les objets de la session
+                # Avec NullPool, dispose() ne fait rien mais on l'appelle quand même
+                if hasattr(db, 'bind') and hasattr(db.bind, 'dispose'):
+                    db.bind.dispose()
+            except Exception as cleanup_error:
+                logger.debug(f"⚠️ Erreur lors du nettoyage de la session: {cleanup_error}")
             
             # Attendre avant de réessayer
             time.sleep(delay)
             
             # Augmenter le délai pour la prochaine tentative (backoff exponentiel)
             delay = min(delay * backoff_factor, max_delay)
-            
-            # Avec NullPool, il n'y a pas de pool à invalider
-            # Mais on doit quand même rollback et expirer la session pour forcer une nouvelle connexion
-            try:
-                db.rollback()  # Rollback de la transaction en cours
-                db.expire_all()  # Expirer tous les objets de la session
-                # Avec NullPool, dispose() ne fait rien mais on l'appelle quand même pour être sûr
-                if hasattr(db, 'bind') and hasattr(db.bind, 'dispose'):
-                    db.bind.dispose()
-                    logger.debug("🔄 Session expirée après erreur SSL (NullPool)")
-            except Exception as e:
-                logger.debug(f"⚠️ Erreur lors de l'expiration de la session: {e}")
     
     # Ne devrait jamais arriver ici, mais au cas où
     if last_exception:
