@@ -335,14 +335,22 @@ def login(
     Rate limiting activé: 5 tentatives par minute.
     """
     # Utiliser retry pour gérer les erreurs SSL lors de la première connexion
-    # Augmenter les délais pour laisser le temps au pooler de se stabiliser
-    user = execute_with_retry(
-        db,
-        lambda: db.query(User).filter(User.email == login_data.email).first(),
-        max_retries=5,  # Plus de tentatives
-        initial_delay=1.0,  # Délai initial plus long
-        max_delay=5.0  # Délai max plus long
-    )
+    # Délais réduits pour éviter les timeouts (502 Bad Gateway)
+    try:
+        user = execute_with_retry(
+            db,
+            lambda: db.query(User).filter(User.email == login_data.email).first(),
+            max_retries=3,  # 3 tentatives suffisent
+            initial_delay=0.5,  # Délai initial court
+            max_delay=2.0  # Délai max court pour éviter les timeouts
+        )
+    except Exception as e:
+        # Si toutes les tentatives échouent, logger et propager l'erreur
+        logger.error(f"❌ Échec de connexion DB après retries: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporairement indisponible. Veuillez réessayer dans quelques instants."
+        )
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

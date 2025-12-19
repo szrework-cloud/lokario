@@ -89,21 +89,25 @@ async def cors_debug_middleware(request: Request, call_next):
         # En cas d'erreur, créer une réponse avec headers CORS
         logger.error(f"❌ Erreur dans cors_debug_middleware: {e}")
         from fastapi.responses import JSONResponse
-        response = JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"},
-            headers={
-                "Access-Control-Allow-Origin": origin if origin and origin in origins else "*",
+        cors_headers = {}
+        if origin:
+            cors_headers = {
+                "Access-Control-Allow-Origin": origin if origin in origins else "*",
                 "Access-Control-Allow-Credentials": "true",
                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
                 "Access-Control-Allow-Headers": "*",
-            } if origin and origin in origins else {}
+            }
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+            headers=cors_headers
         )
+        return response
     
     # S'assurer que les headers CORS sont toujours présents
-    if origin and origin in origins:
+    if origin:
         # Toujours ajouter les headers CORS, même s'ils existent déjà
-        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Origin"] = origin if origin in origins else "*"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
