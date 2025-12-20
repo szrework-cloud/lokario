@@ -96,13 +96,14 @@ logger.info(f"🌐 CORS - Preview Vercel autorisées en staging: {settings.ENVIR
 # En staging/dev, utiliser allow_origin_regex pour autoriser toutes les previews Vercel
 # En production, utiliser allow_origins avec la liste fixe
 if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-    # Staging/dev : autoriser toutes les URLs Vercel via regex
-    # Note: allow_origin_regex prend la priorité, donc on l'utilise seul pour les Vercel
-    # Les origines spécifiques (localhost, etc.) sont gérées par le middleware personnalisé
+    # Staging/dev : autoriser toutes les URLs Vercel via regex + les origines spécifiques
+    # IMPORTANT: allow_origin_regex et allow_origins peuvent être utilisés ensemble
+    # Le regex matchera les URLs Vercel, et allow_origins contiendra les autres origines
+    logger.info(f"🌐 CORS - Configuration staging: regex + {len(origins)} origines spécifiques")
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"https://.*\.vercel\.app",
-        allow_origins=origins,  # Inclure aussi les origines spécifiques (localhost, etc.)
+        allow_origin_regex=r"https://.*\.vercel\.app",  # Toutes les URLs Vercel
+        allow_origins=origins,  # Origines spécifiques (localhost, lokario.fr, etc.)
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
         allow_headers=["*"],
@@ -111,6 +112,7 @@ if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
     )
 else:
     # Production : seulement les origines spécifiques
+    logger.info(f"🌐 CORS - Configuration production: {len(origins)} origines spécifiques")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -121,44 +123,25 @@ else:
         max_age=3600,
     )
 
-# Middleware pour gérer les requêtes OPTIONS (preflight) APRÈS le middleware CORS
-# Dans FastAPI, l'ordre d'exécution est l'inverse de l'ordre d'ajout
-# Donc ce middleware sera exécuté AVANT le CORSMiddleware
+# Middleware pour logger les requêtes OPTIONS et s'assurer qu'elles sont bien gérées
 @app.middleware("http")
-async def preflight_handler(request: Request, call_next):
-    """Gère les requêtes OPTIONS (preflight CORS) avant le middleware CORS"""
+async def log_options_requests(request: Request, call_next):
+    """Log les requêtes OPTIONS pour debug CORS"""
     if request.method == "OPTIONS":
         origin = request.headers.get("origin")
-        if origin:
-            # Vérifier si l'origine est autorisée
-            if is_origin_allowed(origin):
-                from fastapi.responses import Response
-                return Response(
-                    status_code=200,
-                    headers={
-                        "Access-Control-Allow-Origin": origin,
-                        "Access-Control-Allow-Credentials": "true",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                        "Access-Control-Allow-Headers": "*",
-                        "Access-Control-Max-Age": "3600",
-                    }
-                )
-            # En staging/dev, autoriser toutes les URLs Vercel
-            elif settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-                if origin.startswith("https://") and ".vercel.app" in origin:
-                    from fastapi.responses import Response
-                    return Response(
-                        status_code=200,
-                        headers={
-                            "Access-Control-Allow-Origin": origin,
-                            "Access-Control-Allow-Credentials": "true",
-                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                            "Access-Control-Allow-Headers": "*",
-                            "Access-Control-Max-Age": "3600",
-                        }
-                    )
+        logger.info(f"🔍 OPTIONS request reçue depuis: {origin}")
+        logger.info(f"🔍 Environnement: {settings.ENVIRONMENT}")
+        logger.info(f"🔍 Origine autorisée? {is_origin_allowed(origin) if origin else 'No origin'}")
     
-    return await call_next(request)
+    response = await call_next(request)
+    
+    if request.method == "OPTIONS":
+        origin = request.headers.get("origin")
+        logger.info(f"🔍 OPTIONS response: {response.status_code}")
+        if origin:
+            logger.info(f"🔍 Headers CORS dans réponse: {response.headers.get('Access-Control-Allow-Origin', 'NOT SET')}")
+    
+    return response
 
 # Middleware pour logger les requêtes CORS et s'assurer que les headers sont toujours présents
 @app.middleware("http")
