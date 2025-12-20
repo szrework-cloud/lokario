@@ -21,14 +21,28 @@ sudo apt-get install postgresql-client
 ```
 
 #### Exporter depuis Production
+
+**⚠️ IMPORTANT :** Obtenez la vraie URL depuis Supabase Dashboard :
+1. Allez sur [Supabase Dashboard](https://app.supabase.com)
+2. Sélectionnez votre projet **production**
+3. Settings → Database → Connection string → **URI**
+4. Copiez l'URL complète et remplacez `[YOUR-PASSWORD]` par votre vrai mot de passe
+
 ```bash
 # Remplacez par votre vraie DATABASE_URL de production
-pg_dump "postgresql://postgres.xxx:password@aws-1-eu-west-3.pooler.supabase.com:6543/postgres" \
+# Format : postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-eu-west-3.pooler.supabase.com:6543/postgres
+pg_dump "postgresql://postgres.xxx:VOTRE_VRAI_MOT_DE_PASSE@aws-1-eu-west-3.pooler.supabase.com:6543/postgres" \
   --schema-only \
   --no-owner \
   --no-acl \
   -f schema_prod.sql
 ```
+
+**💡 Astuce :** Si votre mot de passe contient des caractères spéciaux (`@`, `#`, `$`, `&`), encodez-les :
+- `@` → `%40`
+- `#` → `%23`
+- `$` → `%24`
+- `&` → `%26`
 
 #### Importer dans Staging
 ```bash
