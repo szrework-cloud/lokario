@@ -46,3 +46,6 @@ src/components/landing modifier/**
 schema_prod.sql
 schema_public_only.sql
 *.sql
+
+# JWT Keys (ne pas commiter les clés secrètes)
+JWT_KEYS_STAGING.md
