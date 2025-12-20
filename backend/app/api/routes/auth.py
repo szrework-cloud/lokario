@@ -71,8 +71,76 @@ def register(
             detail="Super admin creation is reserved"
         )
     
-    # Vérifier si l'email existe déjà
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    # Vérifier si l'email existe déjà (avec retry pour gérer erreurs SSL)
+    import threading
+    import queue
+    
+    def check_email_exists(db_session, email, result_queue, error_queue):
+        """Vérifie si l'email existe déjà"""
+        try:
+            result = db_session.query(User).filter(User.email == email).first()
+            result_queue.put(result)
+        except Exception as e:
+            error_queue.put(e)
+    
+    existing_user = None
+    current_db = db
+    
+    for attempt in range(2):  # 2 tentatives max
+        try:
+            result_queue = queue.Queue()
+            error_queue = queue.Queue()
+            query_thread = threading.Thread(
+                target=check_email_exists,
+                args=(current_db, user_data.email, result_queue, error_queue),
+                daemon=True
+            )
+            query_thread.start()
+            query_thread.join(timeout=10)
+            
+            if query_thread.is_alive():
+                logger.warning(f"⏱️ Timeout vérification email (10s) - tentative {attempt + 1}")
+                raise Exception("Query timeout after 10 seconds")
+            
+            if not error_queue.empty():
+                raise error_queue.get()
+            
+            if not result_queue.empty():
+                existing_user = result_queue.get()
+                break
+            else:
+                raise Exception("No result and no error - unexpected state")
+                
+        except Exception as e:
+            error_str = str(e).lower()
+            is_ssl_error = any(msg in error_str for msg in [
+                "ssl connection has been closed",
+                "connection closed",
+                "server closed the connection"
+            ])
+            
+            if attempt == 0 and is_ssl_error:
+                logger.warning(f"⚠️ Erreur SSL lors vérification email (tentative 1/2), retry...")
+                try:
+                    current_db.close()
+                except:
+                    pass
+                time.sleep(0.1)
+                from app.db.session import SessionLocal
+                current_db = SessionLocal()
+            else:
+                logger.error(f"❌ Erreur lors vérification email: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Service temporairement indisponible. Veuillez réessayer."
+                )
+    
+    if current_db != db:
+        try:
+            current_db.close()
+        except:
+            pass
+    
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -174,8 +242,91 @@ def register(
         email_verification_token_expires_at=token_expires_at
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    
+    # Commit avec retry pour gérer erreurs SSL
+    def commit_user(db_session, user_obj, result_queue, error_queue):
+        """Commit l'utilisateur dans un thread séparé"""
+        try:
+            db_session.commit()
+            db_session.refresh(user_obj)
+            result_queue.put(user_obj)
+        except Exception as e:
+            error_queue.put(e)
+    
+    user_created = None
+    commit_db = db
+    
+    for attempt in range(2):  # 2 tentatives max
+        try:
+            result_queue = queue.Queue()
+            error_queue = queue.Queue()
+            commit_thread = threading.Thread(
+                target=commit_user,
+                args=(commit_db, user, result_queue, error_queue),
+                daemon=True
+            )
+            commit_thread.start()
+            commit_thread.join(timeout=10)
+            
+            if commit_thread.is_alive():
+                logger.warning(f"⏱️ Timeout commit utilisateur (10s) - tentative {attempt + 1}")
+                raise Exception("Commit timeout after 10 seconds")
+            
+            if not error_queue.empty():
+                raise error_queue.get()
+            
+            if not result_queue.empty():
+                user_created = result_queue.get()
+                break
+            else:
+                raise Exception("No result and no error - unexpected state")
+                
+        except Exception as e:
+            error_str = str(e).lower()
+            is_ssl_error = any(msg in error_str for msg in [
+                "ssl connection has been closed",
+                "connection closed",
+                "server closed the connection"
+            ])
+            
+            if attempt == 0 and is_ssl_error:
+                logger.warning(f"⚠️ Erreur SSL lors commit utilisateur (tentative 1/2), retry...")
+                try:
+                    commit_db.rollback()
+                    commit_db.close()
+                except:
+                    pass
+                time.sleep(0.1)
+                from app.db.session import SessionLocal
+                commit_db = SessionLocal()
+                # Recréer l'utilisateur dans la nouvelle session
+                commit_db.add(user)
+            else:
+                logger.error(f"❌ Erreur lors commit utilisateur: {e}")
+                if commit_db != db:
+                    try:
+                        commit_db.rollback()
+                        commit_db.close()
+                    except:
+                        pass
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Service temporairement indisponible. Veuillez réessayer."
+                )
+    
+    if commit_db != db:
+        try:
+            commit_db.close()
+        except:
+            pass
+    
+    if not user_created:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Impossible de créer l'utilisateur. Veuillez réessayer."
+        )
+    
+    user = user_created
     
     # Envoyer l'email de vérification en arrière-plan (NON-BLOQUANT)
     # Cela permet de répondre immédiatement à l'utilisateur sans attendre l'envoi SMTP
