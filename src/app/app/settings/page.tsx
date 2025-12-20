@@ -2451,8 +2451,10 @@ export default function SettingsPage() {
                           Partagez ce code avec les nouveaux membres. Ils devront l'entrer dans le champ "Code entreprise" lors de l'inscription.
                         </p>
                       </>
-                    ) : (
+                    ) : isLoading ? (
                       <p className="text-sm text-slate-400">Chargement...</p>
+                    ) : (
+                      <p className="text-sm text-slate-400">ID: {user?.company_id || "Non disponible"}</p>
                     )}
                   </div>
                 </div>
