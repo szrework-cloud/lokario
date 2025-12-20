@@ -609,13 +609,23 @@ def delete_user_account(
     Supprime le compte de l'utilisateur et toutes ses données (droit à l'oubli RGPD).
     ATTENTION: Action irréversible.
     """
-    if not current_user.company_id:
+    # Récupérer l'utilisateur depuis la session actuelle pour éviter les conflits de session
+    user_id = current_user.id
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if not user.company_id:
         # Si pas d'entreprise, supprimer juste l'utilisateur
-        db.delete(current_user)
+        db.delete(user)
         db.commit()
         return {"message": "Account deleted successfully"}
     
-    company_id = current_user.company_id
+    company_id = user.company_id
     
     try:
         # Supprimer toutes les données de l'entreprise
