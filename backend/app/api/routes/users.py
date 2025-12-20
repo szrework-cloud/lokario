@@ -708,8 +708,8 @@ def delete_user_account(
         for appointment in appointments:
             db.delete(appointment)
         
-        # Supprimer l'utilisateur
-        db.delete(current_user)
+        # Supprimer l'utilisateur (utiliser l'objet de la session actuelle)
+        db.delete(user)
         
         db.commit()
         
