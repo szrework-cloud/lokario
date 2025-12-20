@@ -26,11 +26,11 @@ export const LandingHero = () => {
       
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-24 lg:pt-32 pb-16 lg:pb-24">
         <div className="max-w-3xl">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white border border-white/20 mb-8 animate-fade-up" style={{ animationDelay: '0ms' }}>
+          {/* Badge - Masqué car bloque la landing page */}
+          {/* <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white border border-white/20 mb-8 animate-fade-up" style={{ animationDelay: '0ms' }}>
             <Sparkles className="w-4 h-4 text-[#F97316]" />
             <span className="text-sm font-medium">Propulsé par l'IA</span>
-          </div>
+          </div> */}
 
           {/* Headline - No animation delay to improve LCP */}
           <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl xl:text-8xl leading-[0.95] tracking-wide mb-6 text-white">
