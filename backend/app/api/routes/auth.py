@@ -426,6 +426,81 @@ def resend_verification_email(
     return {"message": "Un nouveau lien de vérification a été envoyé à votre adresse email"}
 
 
+@router.post("/create-admin", status_code=status.HTTP_201_CREATED)
+def create_admin_endpoint(
+    secret: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint pour créer/mettre à jour le compte admin en production.
+    Protégé par un secret pour éviter les abus.
+    Usage: POST /auth/create-admin?secret=VOTRE_SECRET
+    """
+    import os
+    admin_secret = os.getenv("ADMIN_CREATE_SECRET", "change-me-in-production")
+    
+    if secret != admin_secret:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid secret"
+        )
+    
+    email = "admin@lokario.fr"
+    password = "Admin123!"
+    
+    try:
+        # Vérifier si l'utilisateur existe déjà
+        user = db.query(User).filter(User.email == email).first()
+        
+        if user:
+            # Mettre à jour l'utilisateur existant
+            user.hashed_password = get_password_hash(password)
+            user.role = "super_admin"
+            user.is_active = True
+            user.email_verified = True
+            user.company_id = None
+            if not user.full_name:
+                user.full_name = "Administrateur"
+            db.commit()
+            return {
+                "message": "Admin account updated",
+                "email": email,
+                "password": password,
+                "role": "super_admin"
+            }
+        else:
+            # Créer un nouvel utilisateur
+            new_user = User(
+                email=email,
+                hashed_password=get_password_hash(password),
+                full_name="Administrateur",
+                role="super_admin",
+                company_id=None,
+                is_active=True,
+                email_verified=True,
+                can_edit_tasks=True,
+                can_delete_tasks=True,
+                can_create_tasks=True,
+            )
+            db.add(new_user)
+            db.commit()
+            db.refresh(new_user)
+            return {
+                "message": "Admin account created",
+                "email": email,
+                "password": password,
+                "role": "super_admin",
+                "id": new_user.id
+            }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Erreur création admin: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating admin: {str(e)}"
+        )
+
+
 @router.post("/resend-verification-no-password", status_code=status.HTTP_200_OK)
 def resend_verification_email_no_password(
     email_data: dict,
