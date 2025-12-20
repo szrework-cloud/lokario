@@ -2435,7 +2435,7 @@ export default function SettingsPage() {
               <p className="text-sm text-slate-600 mb-3">
                 Gérez les membres de votre équipe et leurs permissions.
               </p>
-              {/* Code entreprise pour inviter des membres */}
+              {/* Code entreprise pour inviter des membres - Affichage du code/ID */}
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
