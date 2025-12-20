@@ -96,7 +96,7 @@ def register(
                 daemon=True
             )
             query_thread.start()
-            query_thread.join(timeout=10)
+            query_thread.join(timeout=8)
             
             if query_thread.is_alive():
                 logger.warning(f"⏱️ Timeout vérification email (10s) - tentative {attempt + 1}")
@@ -281,7 +281,7 @@ def register(
                 daemon=True
             )
             commit_thread.start()
-            commit_thread.join(timeout=10)
+            commit_thread.join(timeout=8)
             
             if commit_thread.is_alive():
                 logger.warning(f"⏱️ Timeout commit utilisateur (10s) - tentative {attempt + 1}")
@@ -607,7 +607,13 @@ def login(
     def execute_query(db_session, email, result_queue, error_queue):
         """Exécute la requête dans un thread séparé avec timeout"""
         try:
-            result = db_session.query(User).filter(User.email == email).first()
+            start_time = time.time()
+            # Utiliser .one_or_none() au lieu de .first() pour être plus explicite
+            # et optimiser la requête avec .options() si nécessaire
+            result = db_session.query(User).filter(User.email == email.lower().strip()).one_or_none()
+            elapsed = time.time() - start_time
+            if elapsed > 1.0:
+                logger.warning(f"⏱️ Requête DB lente ({elapsed:.2f}s) pour email: {email[:20]}...")
             result_queue.put(result)  # Même si None (utilisateur n'existe pas), c'est un succès
         except Exception as e:
             error_queue.put(e)
