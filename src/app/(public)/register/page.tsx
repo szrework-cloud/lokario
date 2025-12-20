@@ -98,18 +98,18 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]">
-      <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-2xl font-semibold text-[#0F172A]">
+    <div className="flex min-h-screen items-center justify-center bg-black">
+      <div className="w-full max-w-md rounded-2xl border border-[#374151] bg-[#111827] p-8 shadow-lg">
+        <h1 className="mb-6 text-2xl font-semibold text-white">
           Inscription
         </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
               htmlFor="company"
-              className="block text-sm font-medium text-[#0F172A]"
+              className="block text-sm font-medium text-gray-200"
             >
-              Nom de l'entreprise <span className="text-[#64748B]">(nouvelle entreprise)</span>
+              Nom de l'entreprise <span className="text-gray-400">(nouvelle entreprise)</span>
             </label>
             <input
               type="text"
@@ -120,25 +120,25 @@ export default function RegisterPage() {
                 setCompanyName(e.target.value);
                 if (e.target.value) setCompanyCode(""); // Vider le code si on entre un nom
               }}
-              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              className="mt-1 block w-full rounded-lg border border-[#374151] bg-[#1F2937] px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="Mon Commerce"
               disabled={loading}
             />
           </div>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[#E5E7EB]"></div>
+              <div className="w-full border-t border-[#374151]"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-[#64748B]">OU</span>
+              <span className="px-2 bg-[#111827] text-gray-400">OU</span>
             </div>
           </div>
           <div>
             <label
               htmlFor="companyCode"
-              className="block text-sm font-medium text-[#0F172A]"
+              className="block text-sm font-medium text-gray-200"
             >
-              Code entreprise <span className="text-[#64748B]">(rejoindre une entreprise existante)</span>
+              Code entreprise <span className="text-gray-400">(rejoindre une entreprise existante)</span>
             </label>
             <input
               type="text"
@@ -151,19 +151,19 @@ export default function RegisterPage() {
                 setCompanyCode(value);
                 if (value) setCompanyName(""); // Vider le nom si on entre un code
               }}
-              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              className="mt-1 block w-full rounded-lg border border-[#374151] bg-[#1F2937] px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="123456"
               maxLength={6}
               disabled={loading}
             />
-            <p className="mt-1 text-xs text-[#64748B]">
+            <p className="mt-1 text-xs text-gray-400">
               Code à 6 chiffres fourni par votre entreprise. Vous serez créé en tant que "User"
             </p>
           </div>
           <div>
             <label
               htmlFor="fullName"
-              className="block text-sm font-medium text-[#0F172A]"
+              className="block text-sm font-medium text-gray-200"
             >
               Nom complet
             </label>
@@ -173,7 +173,7 @@ export default function RegisterPage() {
               name="fullName"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              className="mt-1 block w-full rounded-lg border border-[#374151] bg-[#1F2937] px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="Jean Dupont"
               disabled={loading}
             />
@@ -181,7 +181,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-[#0F172A]"
+              className="block text-sm font-medium text-gray-200"
             >
               Email
             </label>
@@ -192,7 +192,7 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              className="mt-1 block w-full rounded-lg border border-[#374151] bg-[#1F2937] px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="votre@email.com"
               disabled={loading}
             />
@@ -200,7 +200,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-[#0F172A]"
+              className="block text-sm font-medium text-gray-200"
             >
               Mot de passe
             </label>
@@ -212,7 +212,7 @@ export default function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              className="mt-1 block w-full rounded-lg border border-[#374151] bg-[#1F2937] px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="••••••••"
               disabled={loading}
             />
@@ -228,7 +228,7 @@ export default function RegisterPage() {
               required
               className="mt-1 h-4 w-4 rounded border-[#E5E7EB] text-[#F97316] focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
             />
-            <label htmlFor="acceptCGU" className="text-sm text-[#64748B] leading-relaxed">
+            <label htmlFor="acceptCGU" className="text-sm text-gray-300 leading-relaxed">
               J'accepte les{" "}
               <Link href="/legal/cgu" target="_blank" className="text-[#F97316] hover:underline">
                 Conditions Générales d'Utilisation
@@ -242,8 +242,8 @@ export default function RegisterPage() {
           </div>
           
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="rounded-lg border border-red-600 bg-red-900/30 px-3 py-2">
+              <p className="text-sm text-red-300">{error}</p>
             </div>
           )}
           <button
@@ -253,7 +253,7 @@ export default function RegisterPage() {
           >
             {loading ? "Création du compte..." : "Créer mon compte"}
           </button>
-          <p className="text-center text-sm text-[#64748B]">
+          <p className="text-center text-sm text-gray-300">
             Déjà un compte ?{" "}
             <Link href="/login" className="text-[#F97316] hover:underline">
               Se connecter
