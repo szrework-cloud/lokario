@@ -87,19 +87,14 @@ def is_origin_allowed(origin: str) -> bool:
     
     return False
 
-# Log des origines autorisées pour debug
-logger.info(f"🌐 CORS - Origines autorisées: {origins}")
-logger.info(f"🌐 CORS - Environnement détecté: {settings.ENVIRONMENT}")
-logger.info(f"🌐 CORS - Preview Vercel autorisées en staging: {settings.ENVIRONMENT.lower() not in ['production', 'prod']}")
-
 # Configuration CORS avec support des previews Vercel
+# Note: Les logs CORS sont affichés dans startup_event() après configuration du logging
 # En staging/dev, utiliser allow_origin_regex pour autoriser toutes les previews Vercel
 # En production, utiliser allow_origins avec la liste fixe
 if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
     # Staging/dev : autoriser toutes les URLs Vercel via regex + les origines spécifiques
     # IMPORTANT: allow_origin_regex et allow_origins peuvent être utilisés ensemble
     # Le regex matchera les URLs Vercel, et allow_origins contiendra les autres origines
-    logger.info(f"🌐 CORS - Configuration staging: regex + {len(origins)} origines spécifiques")
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"https://.*\.vercel\.app",  # Toutes les URLs Vercel
@@ -112,7 +107,6 @@ if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
     )
 else:
     # Production : seulement les origines spécifiques
-    logger.info(f"🌐 CORS - Configuration production: {len(origins)} origines spécifiques")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -420,6 +414,15 @@ async def startup_event():
     # SÉCURITÉ: Configurer le logging IMMÉDIATEMENT (rapide)
     setup_sanitized_logging()
     logger.info("✅ Logging configuré")
+    
+    # Afficher la configuration CORS après que le logging soit configuré
+    logger.info(f"🌐 CORS - Origines autorisées: {origins}")
+    logger.info(f"🌐 CORS - Environnement détecté: {settings.ENVIRONMENT}")
+    logger.info(f"🌐 CORS - Preview Vercel autorisées en staging: {settings.ENVIRONMENT.lower() not in ['production', 'prod']}")
+    if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+        logger.info(f"🌐 CORS - Configuration staging: regex + {len(origins)} origines spécifiques")
+    else:
+        logger.info(f"🌐 CORS - Configuration production: {len(origins)} origines spécifiques")
     
     # Initialiser la base de données en arrière-plan (non-bloquant)
     # En production, init_db() ne fait RIEN (pas de requête DB au démarrage)
