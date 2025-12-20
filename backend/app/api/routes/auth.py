@@ -572,7 +572,8 @@ def login(
     
     # Si toutes les tentatives ont échoué
     if user is None:
-        logger.error(f"❌ Échec de connexion DB après 2 tentatives: {last_error}")
+        error_msg = str(last_error) if last_error else "Erreur inconnue (timeout ou connexion fermée)"
+        logger.error(f"❌ Échec de connexion DB après 2 tentatives: {error_msg}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporairement indisponible. Veuillez réessayer."
