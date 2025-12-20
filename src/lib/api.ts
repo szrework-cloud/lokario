@@ -6,6 +6,13 @@ if (!process.env.NEXT_PUBLIC_API_URL) {
   console.warn("NEXT_PUBLIC_API_URL is not defined, using default: http://localhost:8000");
 }
 
+// Fonction helper pour construire l'URL sans double slash
+function buildApiUrl(path: string): string {
+  const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${baseUrl}${cleanPath}`;
+}
+
 export async function apiPost<T>(
   path: string,
   body: unknown,
@@ -17,7 +24,7 @@ export async function apiPost<T>(
     return Promise.resolve({} as T);
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -84,7 +91,7 @@ export async function apiGet<T>(path: string, token?: string | null): Promise<T>
     return Promise.resolve({} as T);
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -165,7 +172,7 @@ export async function apiPut<T>(
     return Promise.resolve({} as T);
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -212,7 +219,7 @@ export async function apiPatch<T>(
     return Promise.resolve({} as T);
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -258,7 +265,7 @@ export async function apiDelete<T>(
     return Promise.resolve({} as T);
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
@@ -312,7 +319,7 @@ export async function apiUploadFile<T>(
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     method: "POST",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

@@ -46,6 +46,12 @@ origins = [
     "https://www.lokario.fr",
 ]
 
+# Ajouter les origines de staging
+origins.extend([
+    "https://staging-lokario.vercel.app",
+    "https://lokario-staging.vercel.app",  # Au cas où il y aurait une autre variante
+])
+
 # Ajouter les origines de développement si on n'est pas en production
 if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
     origins.extend([
