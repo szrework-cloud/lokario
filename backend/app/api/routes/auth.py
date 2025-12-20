@@ -623,7 +623,7 @@ def login(
                 daemon=True
             )
             query_thread.start()
-            query_thread.join(timeout=15)  # Timeout de 15 secondes max (augmenté pour DB lente)
+            query_thread.join(timeout=8)  # Timeout de 8 secondes max (optimisé pour performance)
             
             if query_thread.is_alive():
                 # Le thread est encore en vie = timeout

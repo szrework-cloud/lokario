@@ -57,15 +57,23 @@ else:
     
     # Configuration du pool selon le type de connexion
     if is_pooler:
-        # Pooler Supabase : utiliser NullPool (recommandé par Supabase)
-        # Le pooler gère déjà le pooling, SQLAlchemy ne doit PAS créer son propre pool
-        pool_class = NullPool
-        logger.info("🔧 Utilisation de NullPool avec pooler Supabase (recommandé)")
+        # Pooler Supabase : utiliser un petit QueuePool pour réduire la latence
+        # Même avec le pooler Supabase, un petit pool SQLAlchemy réduit la latence
+        # en réutilisant les connexions au lieu de créer une nouvelle connexion à chaque requête
+        pool_size = 5  # Petit pool pour réduire latence
+        max_overflow = 10
+        pool_recycle = 1800  # 30 minutes
+        pool_class = QueuePool
+        logger.info("🔧 Utilisation de QueuePool (petit) avec pooler Supabase pour réduire latence")
         
         engine = create_engine(
             settings.DATABASE_URL,  # Utiliser l'URL originale (pooler gère IPv4/IPv6)
             poolclass=pool_class,
-            pool_pre_ping=False,  # Pas nécessaire avec NullPool
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=10,  # Timeout réduit pour détecter les problèmes rapidement
+            pool_recycle=pool_recycle,
+            pool_pre_ping=True,  # Vérifier que les connexions sont valides
             connect_args=connect_args,
             echo=False,
             isolation_level="READ COMMITTED"
