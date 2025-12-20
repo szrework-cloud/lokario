@@ -2454,7 +2454,14 @@ export default function SettingsPage() {
                     ) : isLoading ? (
                       <p className="text-sm text-slate-400">Chargement...</p>
                     ) : (
-                      <p className="text-sm text-slate-400">ID: {user?.company_id || "Non disponible"}</p>
+                      <>
+                        <p className="text-2xl font-mono font-bold text-[#F97316]">
+                          ID: {user?.company_id || "Non disponible"}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-2">
+                          Partagez ce code avec les nouveaux membres. Ils devront l'entrer dans le champ "Code entreprise" lors de l'inscription.
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>
