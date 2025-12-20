@@ -186,16 +186,16 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]">
-      <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-2xl font-semibold text-[#0F172A]">
+    <div className="flex min-h-screen items-center justify-center bg-black">
+      <div className="w-full max-w-md rounded-2xl border border-[#374151] bg-[#111827] p-8 shadow-lg">
+        <h1 className="mb-6 text-2xl font-semibold text-white">
           Connexion
         </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-[#0F172A]"
+              className="block text-sm font-medium text-gray-200"
             >
               Email
             </label>
@@ -206,7 +206,7 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              className="mt-1 block w-full rounded-lg border border-[#374151] bg-[#1F2937] px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="votre@email.com"
               disabled={loading}
             />
@@ -215,7 +215,7 @@ function LoginForm() {
             <div className="flex items-center justify-between mb-1">
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-[#0F172A]"
+                className="block text-sm font-medium text-gray-200"
               >
                 Mot de passe
               </label>
@@ -233,19 +233,19 @@ function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              className="mt-1 block w-full rounded-lg border border-[#374151] bg-[#1F2937] px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="••••••••"
               disabled={loading}
             />
           </div>
           {successMessage && (
-            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
-              <p className="text-sm text-green-600">{successMessage}</p>
+            <div className="rounded-lg border border-green-600 bg-green-900/30 px-3 py-2">
+              <p className="text-sm text-green-300">{successMessage}</p>
             </div>
           )}
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="rounded-lg border border-red-600 bg-red-900/30 px-3 py-2">
+              <p className="text-sm text-red-300">{error}</p>
               {error.includes("email n'a pas été vérifié") && (
                 <Link
                   href={`/verify-email?email=${encodeURIComponent(email)}`}
