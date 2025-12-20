@@ -482,8 +482,44 @@ def execute_checklist_template(
                 else:
                     execution_dates.append(today)
             elif template.recurrence == "monthly":
-                for i in range(12):
-                    execution_dates.append(today + timedelta(days=i * 30))
+                # Créer les tâches pour les 12 prochains mois en utilisant les jours spécifiés
+                recurrence_days = template.get_recurrence_days()
+                if recurrence_days and len(recurrence_days) > 0:
+                    # Pour chaque mois des 12 prochains mois
+                    from calendar import monthrange
+                    for month_offset in range(12):
+                        # Calculer la date du premier jour du mois cible
+                        target_year = today.year
+                        target_month = today.month + month_offset
+                        # Gérer le dépassement d'année
+                        while target_month > 12:
+                            target_month -= 12
+                            target_year += 1
+                        
+                        # Pour chaque jour spécifié dans recurrence_days
+                        for day in recurrence_days:
+                            # Vérifier que le jour existe dans ce mois (ex: pas de 31 février)
+                            days_in_month = monthrange(target_year, target_month)[1]
+                            if 1 <= day <= days_in_month:
+                                execution_date = date(target_year, target_month, day)
+                                # Ne créer que les dates futures ou aujourd'hui
+                                if execution_date >= today:
+                                    execution_dates.append(execution_date)
+                else:
+                    # Si pas de jours spécifiés, utiliser le jour d'aujourd'hui pour chaque mois
+                    for month_offset in range(12):
+                        target_year = today.year
+                        target_month = today.month + month_offset
+                        while target_month > 12:
+                            target_month -= 12
+                            target_year += 1
+                        # Utiliser le jour d'aujourd'hui, ou le dernier jour du mois si le jour n'existe pas
+                        from calendar import monthrange
+                        days_in_month = monthrange(target_year, target_month)[1]
+                        day = min(today.day, days_in_month)
+                        execution_date = date(target_year, target_month, day)
+                        if execution_date >= today:
+                            execution_dates.append(execution_date)
             else:
                 execution_dates.append(today)
             
@@ -572,10 +608,44 @@ def execute_checklist_template(
                     execution_dates.append(today)
                     
             elif template.recurrence == "monthly":
-                # Créer les tâches pour les 12 prochains mois (approximation avec ~30 jours par mois)
-                for i in range(12):
-                    # Approximation : 30 jours par mois
-                    execution_dates.append(today + timedelta(days=i * 30))
+                # Créer les tâches pour les 12 prochains mois en utilisant les jours spécifiés
+                recurrence_days = template.get_recurrence_days()
+                if recurrence_days and len(recurrence_days) > 0:
+                    # Pour chaque mois des 12 prochains mois
+                    from calendar import monthrange
+                    for month_offset in range(12):
+                        # Calculer la date du premier jour du mois cible
+                        target_year = today.year
+                        target_month = today.month + month_offset
+                        # Gérer le dépassement d'année
+                        while target_month > 12:
+                            target_month -= 12
+                            target_year += 1
+                        
+                        # Pour chaque jour spécifié dans recurrence_days
+                        for day in recurrence_days:
+                            # Vérifier que le jour existe dans ce mois (ex: pas de 31 février)
+                            days_in_month = monthrange(target_year, target_month)[1]
+                            if 1 <= day <= days_in_month:
+                                execution_date = date(target_year, target_month, day)
+                                # Ne créer que les dates futures ou aujourd'hui
+                                if execution_date >= today:
+                                    execution_dates.append(execution_date)
+                else:
+                    # Si pas de jours spécifiés, utiliser le jour d'aujourd'hui pour chaque mois
+                    for month_offset in range(12):
+                        target_year = today.year
+                        target_month = today.month + month_offset
+                        while target_month > 12:
+                            target_month -= 12
+                            target_year += 1
+                        # Utiliser le jour d'aujourd'hui, ou le dernier jour du mois si le jour n'existe pas
+                        from calendar import monthrange
+                        days_in_month = monthrange(target_year, target_month)[1]
+                        day = min(today.day, days_in_month)
+                        execution_date = date(target_year, target_month, day)
+                        if execution_date >= today:
+                            execution_dates.append(execution_date)
             else:
                 # Récurrence "none" ou autre : créer seulement pour aujourd'hui
                 execution_dates.append(today)
