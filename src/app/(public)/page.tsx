@@ -9,9 +9,9 @@ import { LandingFooter } from "@/components/landing/Footer";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black fixed inset-0 overflow-y-auto">
       <LandingHeader />
-      <main>
+      <main className="bg-black">
         <LandingHero />
         <LandingProductShowcase />
         <LandingFeaturesGrid />
