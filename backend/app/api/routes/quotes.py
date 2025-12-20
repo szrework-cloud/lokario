@@ -333,6 +333,9 @@ def preview_quote_design(
         valid_until=None,  # Durée de validité du devis
         service_start_date=None,  # Date de début de prestation
         execution_duration=None,  # Durée ou délai d'exécution
+        discount_type=None,  # Type de réduction: 'percentage' ou 'fixed'
+        discount_value=None,  # Valeur de la réduction
+        discount_label=None,  # Libellé de la réduction
         lines=[demo_line1]
     )
     
