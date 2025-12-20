@@ -88,21 +88,30 @@ export async function apiGet<T>(path: string, token?: string | null): Promise<T>
       }
     }
     
-    // Si erreur 401 (Unauthorized), nettoyer l'auth et rediriger vers login
+    // Si erreur 401 (Unauthorized), gérer différemment selon la route
     if (res.status === 401) {
-      // Nettoyer le localStorage
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("auth_user");
-        // Rediriger vers la page de connexion après un court délai
-        setTimeout(() => {
-          window.location.href = "/login";
-        }, 100);
+      // Pour login/register, utiliser le message d'erreur du serveur
+      if (path === "/auth/login" || path === "/auth/register") {
+        const authError = new Error(message || "Email ou mot de passe incorrect");
+        (authError as any).status = 401;
+        (authError as any).isAuthError = true;
+        throw authError;
+      } else {
+        // Pour les autres routes, c'est une session expirée
+        // Nettoyer le localStorage
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("auth_user");
+          // Rediriger vers la page de connexion après un court délai
+          setTimeout(() => {
+            window.location.href = "/login";
+          }, 100);
+        }
+        const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+        (authError as any).status = 401;
+        (authError as any).isAuthError = true;
+        throw authError;
       }
-      const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
-      (authError as any).status = 401;
-      (authError as any).isAuthError = true;
-      throw authError;
     }
     
     // Pour les erreurs 422 sur /appointments/settings, retourner un objet vide
