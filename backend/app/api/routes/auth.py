@@ -601,13 +601,14 @@ def login(
     
     user = None
     last_error = None
+    db_query_succeeded = False  # Flag pour savoir si la requête DB a réussi
     current_db = db  # Utiliser la session initiale pour la première tentative
     
     def execute_query(db_session, email, result_queue, error_queue):
         """Exécute la requête dans un thread séparé avec timeout"""
         try:
             result = db_session.query(User).filter(User.email == email).first()
-            result_queue.put(result)
+            result_queue.put(result)  # Même si None (utilisateur n'existe pas), c'est un succès
         except Exception as e:
             error_queue.put(e)
     
@@ -626,16 +627,17 @@ def login(
             
             if query_thread.is_alive():
                 # Le thread est encore en vie = timeout
-                logger.warning(f"⏱️ Timeout de requête (10s) - tentative {attempt + 1}")
-                raise Exception("Query timeout after 10 seconds")
+                logger.warning(f"⏱️ Timeout de requête (15s) - tentative {attempt + 1}")
+                raise Exception("Query timeout after 15 seconds")
             
             # Vérifier s'il y a une erreur
             if not error_queue.empty():
                 raise error_queue.get()
             
-            # Récupérer le résultat
+            # Récupérer le résultat (peut être None si utilisateur n'existe pas)
             if not result_queue.empty():
-                user = result_queue.get()
+                user = result_queue.get()  # Peut être None
+                db_query_succeeded = True  # La requête DB a réussi
                 if attempt > 0:
                     logger.info(f"✅ Connexion réussie après {attempt} retry")
                 break  # Succès, sortir de la boucle
@@ -692,33 +694,35 @@ def login(
     
     # Si toutes les tentatives ont échoué
     if user is None:
-        error_msg = str(last_error) if last_error else "Erreur inconnue (timeout ou connexion fermée)"
-        logger.error(f"❌ Échec de connexion DB après 2 tentatives: {error_msg}")
-        
-        # Message d'erreur plus spécifique selon le type d'erreur
-        if last_error:
-            error_str = str(last_error).lower()
-            if "timeout" in error_str:
-                detail = "Le serveur met trop de temps à répondre. Veuillez réessayer dans quelques instants."
-            elif any(msg in error_str for msg in ["ssl", "connection", "network", "unreachable"]):
-                detail = "Problème de connexion avec le serveur. Veuillez réessayer dans quelques instants."
+        # Distinguer entre "requête DB échouée" et "utilisateur n'existe pas"
+        if db_query_succeeded:
+            # La requête DB a réussi mais l'utilisateur n'existe pas
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email ou mot de passe incorrect",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        else:
+            # La requête DB a échoué (timeout, erreur SSL, etc.)
+            error_msg = str(last_error) if last_error else "Erreur inconnue (timeout ou connexion fermée)"
+            logger.error(f"❌ Échec de connexion DB après 2 tentatives: {error_msg}")
+            
+            # Message d'erreur plus spécifique selon le type d'erreur
+            if last_error:
+                error_str = str(last_error).lower()
+                if "timeout" in error_str:
+                    detail = "Le serveur met trop de temps à répondre. Veuillez réessayer dans quelques instants."
+                elif any(msg in error_str for msg in ["ssl", "connection", "network", "unreachable"]):
+                    detail = "Problème de connexion avec le serveur. Veuillez réessayer dans quelques instants."
+                else:
+                    detail = "Service temporairement indisponible. Veuillez réessayer dans quelques instants."
             else:
                 detail = "Service temporairement indisponible. Veuillez réessayer dans quelques instants."
-        else:
-            detail = "Service temporairement indisponible. Veuillez réessayer dans quelques instants."
-        
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=detail
-        )
-    
-    # Vérifier si l'utilisateur existe
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email ou mot de passe incorrect",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+            
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=detail
+            )
     
     # Vérifier le mot de passe
     if not verify_password(login_data.password, user.hashed_password):
