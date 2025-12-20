@@ -33,7 +33,7 @@
   "exclude": [
     "node_modules",
     "src/components/landing/src",
-    "src/components/landing modifier/**/*",
+    "**/landing modifier/**",
     "src/components/landing/**/*.config.*",
     "src/components/landing/**/vite.config.*",
     "src/components/landing/**/tailwind.config.*"
