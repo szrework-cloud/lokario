@@ -68,7 +68,7 @@ def register(
     if user_data.role == "super_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Super admin creation is reserved"
+            detail="La création de compte administrateur est réservée. Veuillez contacter le support."
         )
     
     # Vérifier si l'email existe déjà (avec retry pour gérer erreurs SSL)
@@ -130,9 +130,17 @@ def register(
                 current_db = SessionLocal()
             else:
                 logger.error(f"❌ Erreur lors vérification email: {e}")
+                error_str = str(e).lower()
+                if "timeout" in error_str:
+                    detail = "Le serveur met trop de temps à répondre. Veuillez réessayer dans quelques instants."
+                elif any(msg in error_str for msg in ["ssl", "connection", "network"]):
+                    detail = "Problème de connexion avec le serveur. Veuillez réessayer dans quelques instants."
+                else:
+                    detail = "Service temporairement indisponible. Veuillez réessayer dans quelques instants."
+                
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Service temporairement indisponible. Veuillez réessayer."
+                    detail=detail
                 )
     
     if current_db != db:
@@ -144,7 +152,7 @@ def register(
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            detail="Cet email est déjà utilisé. Veuillez vous connecter ou utiliser un autre email."
         )
     
     # Déterminer le company_id
@@ -158,7 +166,7 @@ def register(
             logger.warning(f"❌ Entreprise introuvable avec le code: {user_data.company_code}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Entreprise avec le code {user_data.company_code} introuvable"
+                detail=f"Code entreprise invalide. Veuillez vérifier le code et réessayer."
             )
         company_id = company.id
         logger.info(f"✅ Entreprise trouvée: {company.name} (ID: {company_id})")
@@ -172,9 +180,16 @@ def register(
     is_valid, error_message = validate_password_strength(user_data.password)
     if not is_valid:
         logger.warning(f"❌ Mot de passe trop faible pour: {user_data.email}")
+        # Message d'erreur plus clair pour l'utilisateur
+        user_friendly_message = error_message
+        if "8 caractères" in error_message.lower():
+            user_friendly_message = "Le mot de passe doit contenir au moins 8 caractères."
+        elif "lettre" in error_message.lower() or "chiffre" in error_message.lower():
+            user_friendly_message = "Le mot de passe doit contenir au moins une lettre et un chiffre."
+        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_message
+            detail=user_friendly_message
         )
     logger.info(f"✅ Validation du mot de passe réussie pour: {user_data.email}")
     
@@ -221,7 +236,7 @@ def register(
             logger.warning(f"❌ Entreprise introuvable avec l'ID: {user_data.company_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Company with id {user_data.company_id} not found"
+                detail="Entreprise introuvable. Veuillez vérifier les informations et réessayer."
             )
         company_id = user_data.company_id
         logger.info(f"✅ Entreprise trouvée: {company.name} (ID: {company_id})")
@@ -309,9 +324,19 @@ def register(
                         commit_db.close()
                     except:
                         pass
+                
+                # Message d'erreur spécifique selon le type
+                error_str = str(e).lower()
+                if "timeout" in error_str:
+                    detail = "Le serveur met trop de temps à répondre. Veuillez réessayer dans quelques instants."
+                elif any(msg in error_str for msg in ["ssl", "connection", "network"]):
+                    detail = "Problème de connexion avec le serveur. Veuillez réessayer dans quelques instants."
+                else:
+                    detail = "Service temporairement indisponible. Veuillez réessayer dans quelques instants."
+                
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Service temporairement indisponible. Veuillez réessayer."
+                    detail=detail
                 )
     
     if commit_db != db:
@@ -321,9 +346,18 @@ def register(
             pass
     
     if not user_created:
+        # Déterminer le message d'erreur selon le type d'erreur
+        error_detail = "Impossible de créer votre compte. Veuillez réessayer dans quelques instants."
+        if last_error:
+            error_str = str(last_error).lower()
+            if "timeout" in error_str:
+                error_detail = "Le serveur met trop de temps à répondre. Veuillez réessayer dans quelques instants."
+            elif any(msg in error_str for msg in ["ssl", "connection", "network"]):
+                error_detail = "Problème de connexion avec le serveur. Veuillez réessayer dans quelques instants."
+        
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Impossible de créer l'utilisateur. Veuillez réessayer."
+            detail=error_detail
         )
     
     user = user_created
@@ -660,28 +694,52 @@ def login(
     if user is None:
         error_msg = str(last_error) if last_error else "Erreur inconnue (timeout ou connexion fermée)"
         logger.error(f"❌ Échec de connexion DB après 2 tentatives: {error_msg}")
+        
+        # Message d'erreur plus spécifique selon le type d'erreur
+        if last_error:
+            error_str = str(last_error).lower()
+            if "timeout" in error_str:
+                detail = "Le serveur met trop de temps à répondre. Veuillez réessayer dans quelques instants."
+            elif any(msg in error_str for msg in ["ssl", "connection", "network", "unreachable"]):
+                detail = "Problème de connexion avec le serveur. Veuillez réessayer dans quelques instants."
+            else:
+                detail = "Service temporairement indisponible. Veuillez réessayer dans quelques instants."
+        else:
+            detail = "Service temporairement indisponible. Veuillez réessayer dans quelques instants."
+        
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporairement indisponible. Veuillez réessayer."
+            detail=detail
         )
-    if not user or not verify_password(login_data.password, user.hashed_password):
+    
+    # Vérifier si l'utilisateur existe
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Email ou mot de passe incorrect",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    if not user.is_active:
+    # Vérifier le mot de passe
+    if not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email ou mot de passe incorrect",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Vérifier que l'email est vérifié
+    # Vérifier si le compte est actif
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Votre compte a été désactivé. Veuillez contacter l'administrateur."
+        )
+    
+    # Vérifier si l'email est vérifié
     if not user.email_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified. Please check your email and click the verification link."
+            detail="Votre email n'a pas été vérifié. Veuillez vérifier votre boîte mail et cliquer sur le lien de vérification."
         )
     
     # Créer le token JWT
