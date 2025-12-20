@@ -48,6 +48,7 @@ export type CompanySettings = {
 export type CompanyInfo = {
   id: number;
   name: string;
+  code?: string;
   sector?: string | null;
   slug?: string | null;
   is_active: boolean;

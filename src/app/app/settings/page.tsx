@@ -2431,13 +2431,28 @@ export default function SettingsPage() {
 
         {activeTab === "team" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-slate-600">
+            <div className="mb-4">
+              <p className="text-sm text-slate-600 mb-3">
                 Gérez les membres de votre équipe et leurs permissions.
               </p>
-              <button className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2">
-                Inviter un membre
-              </button>
+              {/* Code entreprise pour inviter des membres */}
+              {company?.code && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 mb-1">
+                        Code entreprise
+                      </p>
+                      <p className="text-2xl font-mono font-bold text-[#F97316]">
+                        {company.code}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Partagez ce code avec les nouveaux membres. Ils devront l'entrer dans le champ "Code entreprise" lors de l'inscription.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {teamError && (
