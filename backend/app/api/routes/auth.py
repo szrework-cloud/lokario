@@ -629,12 +629,17 @@ def login(
                 daemon=True
             )
             query_thread.start()
-            query_thread.join(timeout=8)  # Timeout de 8 secondes max (optimisé pour performance)
+            query_start = time.time()
+            query_thread.join(timeout=5)  # Timeout réduit à 5 secondes pour détecter les problèmes rapidement
+            query_elapsed = time.time() - query_start
             
             if query_thread.is_alive():
                 # Le thread est encore en vie = timeout
-                logger.warning(f"⏱️ Timeout de requête (15s) - tentative {attempt + 1}")
-                raise Exception("Query timeout after 15 seconds")
+                logger.warning(f"⏱️ Timeout de requête (5s) - tentative {attempt + 1}")
+                raise Exception("Query timeout after 5 seconds")
+            
+            if query_elapsed > 2.0:
+                logger.warning(f"⚠️ Requête login lente: {query_elapsed:.2f}s pour email: {login_data.email[:20]}...")
             
             # Vérifier s'il y a une erreur
             if not error_queue.empty():
@@ -646,6 +651,7 @@ def login(
                 db_query_succeeded = True  # La requête DB a réussi
                 if attempt > 0:
                     logger.info(f"✅ Connexion réussie après {attempt} retry")
+                # Si la requête a réussi (même si user est None), pas besoin de retry
                 break  # Succès, sortir de la boucle
             else:
                 raise Exception("No result and no error - unexpected state")
@@ -666,6 +672,11 @@ def login(
                 "broken pipe"
             ]) or "operationalerror" in error_str or "disconnectionerror" in error_str
             
+            # Si la requête a réussi mais user est None, pas besoin de retry
+            if db_query_succeeded and user is None:
+                logger.debug(f"✅ Requête DB réussie mais utilisateur n'existe pas: {login_data.email[:20]}...")
+                break  # Sortir immédiatement, pas de retry nécessaire
+            
             if attempt == 0 and is_connection_error:
                 # Première tentative échouée avec erreur de connexion -> 1 retry avec nouvelle session
                 logger.warning(f"⚠️ Erreur de connexion DB (tentative 1/2): {error_str[:100]}")
@@ -678,8 +689,8 @@ def login(
                 except:
                     pass
                 
-                # Attendre un peu avant de réessayer (200ms)
-                time.sleep(0.2)
+                # Attendre un peu avant de réessayer (réduit à 100ms)
+                time.sleep(0.1)
                 
                 # Créer une NOUVELLE session pour le retry
                 from app.db.session import SessionLocal
