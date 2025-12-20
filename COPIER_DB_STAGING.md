@@ -25,16 +25,42 @@ WHERE table_schema = 'public'
 ORDER BY table_name;
 ```
 
-#### Copier chaque table :
-Pour chaque table, exécutez dans production :
+#### Méthode simple : Utiliser pg_dump via Supabase SQL Editor
+
+**Option 1 : Générer le schéma complet**
+Dans Supabase SQL Editor de production, utilisez cette requête pour générer les commandes CREATE TABLE :
+
 ```sql
--- Exemple pour la table users
-SELECT 'CREATE TABLE ' || table_name || ' AS SELECT * FROM ' || table_name || ' WHERE 1=0;'
-FROM information_schema.tables 
-WHERE table_schema = 'public';
+-- Générer les commandes CREATE TABLE pour toutes les tables
+SELECT 
+    'CREATE TABLE ' || table_name || ' (' ||
+    string_agg(
+        column_name || ' ' || 
+        CASE 
+            WHEN data_type = 'character varying' THEN 'VARCHAR(' || COALESCE(character_maximum_length::text, '255') || ')'
+            WHEN data_type = 'character' THEN 'CHAR(' || COALESCE(character_maximum_length::text, '1') || ')'
+            WHEN data_type = 'numeric' THEN 'NUMERIC(' || COALESCE(numeric_precision::text, '') || ',' || COALESCE(numeric_scale::text, '0') || ')'
+            WHEN data_type = 'timestamp without time zone' THEN 'TIMESTAMP'
+            WHEN data_type = 'timestamp with time zone' THEN 'TIMESTAMPTZ'
+            ELSE UPPER(data_type)
+        END ||
+        CASE WHEN is_nullable = 'NO' THEN ' NOT NULL' ELSE '' END ||
+        CASE 
+            WHEN column_default IS NOT NULL THEN ' DEFAULT ' || column_default
+            ELSE ''
+        END,
+        ', '
+        ORDER BY ordinal_position
+    ) || ');' as create_table_statement
+FROM information_schema.columns
+WHERE table_schema = 'public'
+GROUP BY table_name
+ORDER BY table_name;
 ```
 
-Puis dans staging, créez les tables avec la même structure.
+**Option 2 : Méthode plus simple - Utiliser Supabase CLI ou pg_dump**
+
+La méthode la plus fiable est d'utiliser `pg_dump` en ligne de commande (voir Méthode 2 ci-dessous).
 
 ---
 
