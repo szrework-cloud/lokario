@@ -56,20 +56,21 @@ export async function apiPost<T>(
       }
     }
     
-    // Si erreur 401 (Unauthorized), gérer différemment selon la route
-    if (res.status === 401) {
-      // Pour login/register, utiliser le message d'erreur du serveur (email/mot de passe incorrect)
-      // Pour les autres routes, c'est une session expirée
+    // Si erreur 400 (Bad Request) ou 401 (Unauthorized), gérer différemment selon la route
+    if (res.status === 400 || res.status === 401) {
+      // Pour login/register, utiliser le message d'erreur du serveur
       if (path === "/auth/login" || path === "/auth/register") {
         // Utiliser le message du serveur, ou un message par défaut si vide
         const errorMessage = message && message !== "Erreur serveur" 
           ? message 
-          : "Email ou mot de passe incorrect";
+          : res.status === 400 
+            ? "Données invalides. Veuillez vérifier vos informations."
+            : "Email ou mot de passe incorrect";
         const authError = new Error(errorMessage);
-        (authError as any).status = 401;
+        (authError as any).status = res.status;
         (authError as any).isAuthError = true;
         throw authError;
-      } else {
+      } else if (res.status === 401) {
         // Session expirée pour les autres routes
         const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
         (authError as any).status = 401;

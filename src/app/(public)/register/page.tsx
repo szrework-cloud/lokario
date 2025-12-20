@@ -61,11 +61,15 @@ export default function RegisterPage() {
 
       // Mode avec backend
       const payload: any = {
-        email: email.toLowerCase(),
+        email: email.toLowerCase().trim(),
         password,
-        full_name: fullName || null,
         role: "owner",
       };
+
+      // Ajouter full_name seulement s'il est fourni (ne pas envoyer null)
+      if (fullName && fullName.trim() !== "") {
+        payload.full_name = fullName.trim();
+      }
 
       // Si un code entreprise est fourni, l'utiliser (pour créer un user dans une entreprise existante)
       if (companyCode && companyCode.trim() !== "") {
@@ -73,7 +77,7 @@ export default function RegisterPage() {
         payload.role = "user"; // Si code entreprise fourni, créer un user
       } else if (companyName && companyName.trim() !== "") {
         // Sinon, créer une nouvelle entreprise
-        payload.company_name = companyName;
+        payload.company_name = companyName.trim();
         payload.role = "owner";
       } else {
         setError("Veuillez fournir soit un nom d'entreprise, soit un code d'entreprise");
