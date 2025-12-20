@@ -37,7 +37,7 @@ else:
             # Le pooler gère automatiquement IPv4/IPv6, pas besoin de forcer IPv4
             connect_args = {
                 "sslmode": "require",
-                "connect_timeout": 5,
+                "connect_timeout": 3,  # Réduit de 5s à 3s pour détecter les problèmes plus rapidement
                 "application_name": "lokario_backend",
                 "target_session_attrs": "read-write",
             }
@@ -46,7 +46,7 @@ else:
             # Configuration pour connexion directe (non recommandé avec Railway)
             connect_args = {
                 "sslmode": "require",
-                "connect_timeout": 5,
+                "connect_timeout": 3,  # Réduit de 5s à 3s pour détecter les problèmes plus rapidement
                 "keepalives": 1,
                 "keepalives_idle": 30,
                 "keepalives_interval": 10,

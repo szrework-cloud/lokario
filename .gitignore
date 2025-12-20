@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 src/components/landing/src/**
 src/components/landing modifier/**
+
+# Database dumps
+schema_prod.sql
+schema_public_only.sql
+*.sql
