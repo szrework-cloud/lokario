@@ -536,31 +536,42 @@ def login(
         except Exception as e:
             last_error = e
             error_str = str(e).lower()
-            is_ssl_error = any(msg in error_str for msg in [
+            
+            # Détecter les erreurs de connexion (SSL, timeout, réseau, etc.)
+            is_connection_error = any(msg in error_str for msg in [
                 "ssl connection has been closed",
                 "connection closed",
-                "server closed the connection"
-            ])
+                "server closed the connection",
+                "timeout",
+                "network is unreachable",
+                "connection refused",
+                "connection reset",
+                "broken pipe"
+            ]) or "operationalerror" in error_str or "disconnectionerror" in error_str
             
-            if attempt == 0 and is_ssl_error:
-                # Première tentative échouée avec erreur SSL -> 1 retry avec nouvelle session
-                logger.warning(f"⚠️ Erreur SSL (tentative 1/2), création nouvelle session...")
+            if attempt == 0 and is_connection_error:
+                # Première tentative échouée avec erreur de connexion -> 1 retry avec nouvelle session
+                logger.warning(f"⚠️ Erreur de connexion DB (tentative 1/2): {error_str[:100]}")
+                logger.warning(f"⚠️ Création nouvelle session pour retry...")
                 
                 # Fermer l'ancienne session corrompue
                 try:
+                    current_db.rollback()
                     current_db.close()
                 except:
                     pass
                 
-                # Attendre très peu avant de réessayer (100ms seulement)
-                time.sleep(0.1)
+                # Attendre un peu avant de réessayer (200ms)
+                time.sleep(0.2)
                 
                 # Créer une NOUVELLE session pour le retry
                 from app.db.session import SessionLocal
                 current_db = SessionLocal()
                 logger.debug("🔄 Nouvelle session créée pour retry")
             else:
-                # Pas d'erreur SSL ou deuxième tentative -> échouer immédiatement
+                # Pas d'erreur de connexion ou deuxième tentative -> échouer immédiatement
+                if attempt == 0:
+                    logger.error(f"❌ Erreur non-connexion lors login: {error_str[:100]}")
                 break
     
     # Fermer la session si on a créé une nouvelle pour le retry
