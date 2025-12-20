@@ -58,12 +58,14 @@ export async function apiPost<T>(
         const errorMessage = message && message !== "Erreur serveur" 
           ? message 
           : "Email ou mot de passe incorrect";
+        console.log("[API] Erreur 401 sur login/register:", { path, message, errorMessage });
         const authError = new Error(errorMessage);
         (authError as any).status = 401;
         (authError as any).isAuthError = true;
         throw authError;
       } else {
         // Session expirée pour les autres routes
+        console.log("[API] Erreur 401 session expirée sur:", path);
         const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
         (authError as any).status = 401;
         (authError as any).isAuthError = true;
