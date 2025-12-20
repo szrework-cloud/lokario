@@ -34,9 +34,19 @@ export async function apiPost<T>(
         message = Array.isArray(errorBody.detail)
           ? errorBody.detail[0].msg ?? message
           : errorBody.detail;
+      } else if (errorBody.message) {
+        message = errorBody.message;
       }
     } catch {
-      // ignore
+      // Si on ne peut pas parser le JSON, essayer de récupérer le texte
+      try {
+        const text = await res.text();
+        if (text) {
+          message = text;
+        }
+      } catch {
+        // ignore
+      }
     }
     
     // Si erreur 401 (Unauthorized), gérer différemment selon la route
@@ -44,7 +54,11 @@ export async function apiPost<T>(
       // Pour login/register, utiliser le message d'erreur du serveur (email/mot de passe incorrect)
       // Pour les autres routes, c'est une session expirée
       if (path === "/auth/login" || path === "/auth/register") {
-        const authError = new Error(message || "Email ou mot de passe incorrect");
+        // Utiliser le message du serveur, ou un message par défaut si vide
+        const errorMessage = message && message !== "Erreur serveur" 
+          ? message 
+          : "Email ou mot de passe incorrect";
+        const authError = new Error(errorMessage);
         (authError as any).status = 401;
         (authError as any).isAuthError = true;
         throw authError;
