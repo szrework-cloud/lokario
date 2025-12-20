@@ -2436,23 +2436,27 @@ export default function SettingsPage() {
                 Gérez les membres de votre équipe et leurs permissions.
               </p>
               {/* Code entreprise pour inviter des membres */}
-              {company && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-900 mb-1">
-                        Code entreprise
-                      </p>
-                      <p className="text-2xl font-mono font-bold text-[#F97316]">
-                        {company.code || `ID: ${company.id}`}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-2">
-                        Partagez ce code avec les nouveaux membres. Ils devront l'entrer dans le champ "Code entreprise" lors de l'inscription.
-                      </p>
-                    </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-900 mb-1">
+                      Code entreprise
+                    </p>
+                    {company ? (
+                      <>
+                        <p className="text-2xl font-mono font-bold text-[#F97316]">
+                          {company.code || `ID: ${company.id}`}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-2">
+                          Partagez ce code avec les nouveaux membres. Ils devront l'entrer dans le champ "Code entreprise" lors de l'inscription.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-slate-400">Chargement...</p>
+                    )}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
 
             {teamError && (
