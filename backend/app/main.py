@@ -52,6 +52,14 @@ origins.extend([
     "https://lokario-staging.vercel.app",  # Au cas où il y aurait une autre variante
 ])
 
+# Ajouter l'URL du frontend depuis les variables d'environnement si définie
+frontend_url = settings.FRONTEND_URL
+if frontend_url and frontend_url not in origins:
+    # Nettoyer l'URL (enlever le trailing slash si présent)
+    frontend_url_clean = frontend_url.rstrip('/')
+    if frontend_url_clean.startswith('http://') or frontend_url_clean.startswith('https://'):
+        origins.append(frontend_url_clean)
+
 # Ajouter les origines de développement si on n'est pas en production
 if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
     origins.extend([
@@ -66,19 +74,50 @@ railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_UR
 if railway_url:
     origins.append(f"https://{railway_url}")
 
+# Fonction pour vérifier si une origine est autorisée (pour les previews Vercel)
+def is_origin_allowed(origin: str) -> bool:
+    """Vérifie si une origine est autorisée, y compris les previews Vercel en staging"""
+    if origin in origins:
+        return True
+    
+    # En staging/dev, autoriser toutes les URLs Vercel (pour les previews)
+    if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+        if origin.startswith("https://") and ".vercel.app" in origin:
+            return True
+    
+    return False
+
 # Log des origines autorisées pour debug
 logger.info(f"🌐 CORS - Origines autorisées: {origins}")
 logger.info(f"🌐 CORS - Environnement détecté: {settings.ENVIRONMENT}")
+logger.info(f"🌐 CORS - Preview Vercel autorisées en staging: {settings.ENVIRONMENT.lower() not in ['production', 'prod']}")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600,
-)
+# Configuration CORS avec support des previews Vercel
+# En staging/dev, utiliser allow_origin_regex pour autoriser toutes les previews Vercel
+# En production, utiliser allow_origins avec la liste fixe
+if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+    # Staging/dev : autoriser toutes les URLs Vercel via regex + les origines spécifiques
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"https://.*\.vercel\.app",
+        allow_origins=origins,  # Inclure aussi les origines spécifiques
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=3600,
+    )
+else:
+    # Production : seulement les origines spécifiques
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=3600,
+    )
 
 # Middleware pour logger les requêtes CORS et s'assurer que les headers sont toujours présents
 @app.middleware("http")
@@ -112,8 +151,15 @@ async def cors_debug_middleware(request: Request, call_next):
     
     # S'assurer que les headers CORS sont toujours présents
     if origin:
-        # Toujours ajouter les headers CORS, même s'ils existent déjà
-        response.headers["Access-Control-Allow-Origin"] = origin if origin in origins else "*"
+        # Vérifier si l'origine est autorisée (y compris les previews Vercel)
+        if is_origin_allowed(origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+        else:
+            # En staging/dev, autoriser quand même pour éviter les erreurs CORS
+            if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+                response.headers["Access-Control-Allow-Origin"] = origin
+            else:
+                response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
@@ -150,7 +196,15 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     sont toujours inclus, même en cas d'erreur.
     """
     origin = request.headers.get("origin")
-    if origin in origins:
+    if origin and is_origin_allowed(origin):
+        headers = {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    elif origin and settings.ENVIRONMENT.lower() not in ["production", "prod"] and ".vercel.app" in origin:
+        # Autoriser les previews Vercel en staging
         headers = {
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",
@@ -174,7 +228,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     sont toujours inclus.
     """
     origin = request.headers.get("origin")
-    if origin in origins:
+    if origin and is_origin_allowed(origin):
         headers = {
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",
@@ -214,7 +268,7 @@ async def response_validation_exception_handler(request: Request, exc: ResponseV
     logger.error("=" * 80)
 
     origin = request.headers.get("origin")
-    if origin in origins:
+    if origin and is_origin_allowed(origin):
         headers = {
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",
@@ -267,12 +321,29 @@ async def general_exception_handler(request: Request, exc: Exception):
     # Toujours inclure les headers CORS, même si l'origin n'est pas dans la liste
     # (pour éviter les erreurs CORS en plus de l'erreur 500)
     if origin:
-        headers = {
-            "Access-Control-Allow-Origin": origin if origin in origins else "*",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        }
+        if is_origin_allowed(origin):
+            headers = {
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            }
+        else:
+            # En staging/dev, autoriser quand même pour éviter les erreurs CORS
+            if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+                headers = {
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                }
+            else:
+                headers = {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                }
     else:
         headers = {}
     
@@ -378,7 +449,20 @@ async def options_handler(request: Request):
     Garantit que les headers CORS sont toujours renvoyés pour les requêtes preflight.
     """
     origin = request.headers.get("origin")
-    if origin and origin in origins:
+    if origin and is_origin_allowed(origin):
+        from fastapi.responses import Response
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+    # En staging/dev, autoriser quand même les previews Vercel
+    elif origin and settings.ENVIRONMENT.lower() not in ["production", "prod"] and ".vercel.app" in origin:
         from fastapi.responses import Response
         return Response(
             status_code=200,
