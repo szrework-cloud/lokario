@@ -39,12 +39,22 @@ export async function apiPost<T>(
       // ignore
     }
     
-    // Si erreur 401 (Unauthorized), créer une erreur spéciale
+    // Si erreur 401 (Unauthorized), gérer différemment selon la route
     if (res.status === 401) {
-      const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
-      (authError as any).status = 401;
-      (authError as any).isAuthError = true;
-      throw authError;
+      // Pour login/register, utiliser le message d'erreur du serveur (email/mot de passe incorrect)
+      // Pour les autres routes, c'est une session expirée
+      if (path === "/auth/login" || path === "/auth/register") {
+        const authError = new Error(message || "Email ou mot de passe incorrect");
+        (authError as any).status = 401;
+        (authError as any).isAuthError = true;
+        throw authError;
+      } else {
+        // Session expirée pour les autres routes
+        const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+        (authError as any).status = 401;
+        (authError as any).isAuthError = true;
+        throw authError;
+      }
     }
     
     throw new Error(message);
