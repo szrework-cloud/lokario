@@ -443,8 +443,7 @@ async def startup_event():
     asyncio.create_task(init_db_async())
     
     # Nettoyer automatiquement les tâches complétées (seulement en dev)
-    from app.core.config import settings
-    
+    # Note: settings est déjà importé au niveau du module
     if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
         # Seulement en développement/staging - en arrière-plan aussi
         async def cleanup_tasks_async():
