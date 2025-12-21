@@ -945,7 +945,7 @@ async def sync_integration(
                 
                 # Classification automatique dans un dossier avec ChatGPT
                 # Activée pour les nouvelles conversations uniquement (pas pour les mises à jour)
-                if not conversation.id or conversation.id == 0:  # Nouvelle conversation
+                if is_new_conversation:
                     try:
                         folder_id = classify_conversation_to_folder(
                             db=db,
@@ -955,9 +955,9 @@ async def sync_integration(
                         )
                         if folder_id:
                             conversation.folder_id = folder_id
-                            logger.info(f"[SYNC] Nouvelle conversation {conversation.id} classée dans le dossier {folder_id}")
+                            print(f"[SYNC] Nouvelle conversation {conversation.id} classée dans le dossier {folder_id}")
                     except Exception as e:
-                        logger.warning(f"[SYNC] Erreur lors de la classification IA: {e}")
+                        print(f"[SYNC] Erreur lors de la classification IA: {e}")
                         # Ne pas faire échouer la synchronisation si la classification échoue
                 
                 db.commit()
