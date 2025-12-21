@@ -142,22 +142,25 @@ function LoginForm() {
         return;
       }
 
-      // Vérifier le statut de suppression
+      // Vérifier le statut de suppression AVANT de sauvegarder l'auth et de rediriger
       try {
         const deletionStatus = await apiGet<{ deletion_in_progress: boolean }>("/users/me/deletion-status", data.access_token);
         
         if (deletionStatus.deletion_in_progress) {
-          // Si le compte est en cours de suppression, rediriger vers la page de restauration
+          // Si le compte est en cours de suppression, sauvegarder l'auth et rediriger vers /restore
           setAuth(data.access_token, user);
+          // Attendre un peu pour que l'auth soit sauvegardée
+          await new Promise(resolve => setTimeout(resolve, 100));
+          logger.log("🔄 Compte en cours de suppression, redirection vers /restore");
           window.location.href = "/restore";
-          return;
+          return; // IMPORTANT: arrêter ici pour éviter la redirection vers le dashboard
         }
       } catch (error) {
         // Si l'endpoint n'est pas disponible, continuer normalement
         console.warn("Impossible de vérifier le statut de suppression:", error);
       }
 
-      // Sauvegarder l'authentification
+      // Sauvegarder l'authentification (seulement si pas de suppression en cours)
       logger.log("🔐 Sauvegarde de l'authentification:", { 
         token: data.access_token?.substring(0, 20) + "...", 
         user: user.email,
