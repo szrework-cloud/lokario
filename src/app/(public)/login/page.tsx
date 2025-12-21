@@ -161,13 +161,22 @@ function LoginForm() {
           logger.log("✅ Pas de suppression en cours, connexion normale");
         }
       } catch (error: any) {
-        // Si l'endpoint échoue, logger l'erreur mais continuer (pour ne pas bloquer la connexion)
+        // Si l'endpoint échoue avec 403, c'est probablement que le compte est bloqué
+        // Dans ce cas, rediriger vers /restore
         logger.log("⚠️ Erreur lors de la vérification du statut de suppression:", error);
         console.error("Erreur complète:", error);
         console.error("Message:", error?.message);
         console.error("Status:", error?.status);
-        // Si c'est une erreur 403, c'est peut-être que le compte est bloqué, on continue quand même
-        // pour ne pas bloquer la connexion si l'endpoint a un problème
+        
+        if (error?.status === 403 || error?.message?.includes("Account deletion in progress")) {
+          // Si erreur 403 ou message indiquant suppression en cours, rediriger vers /restore
+          logger.log("⚠️ Erreur 403 détectée - compte probablement en suppression, redirection vers /restore");
+          setAuth(data.access_token, user);
+          await new Promise(resolve => setTimeout(resolve, 200));
+          window.location.replace("/restore");
+          return;
+        }
+        // Sinon, continuer normalement (pour ne pas bloquer la connexion si l'endpoint a un autre problème)
       }
 
       // Sauvegarder l'authentification (seulement si pas de suppression en cours)
