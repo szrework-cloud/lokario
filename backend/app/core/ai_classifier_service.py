@@ -180,17 +180,27 @@ class AIClassifierService:
             
             context_lower = context.lower()
             
+            # Chercher d'abord les patterns explicites d'expéditeur (priorité)
+            # Ex: "expéditeur contenant lokario" ou "from: lokario" ou "de lokario"
+            explicit_sender_patterns = re.findall(
+                r'(?:expéditeur|from|de|sender|envoyeur)[\s]+(?:contenant|containing|avec|with)?[\s]*([a-z0-9._%+-@]+)',
+                context_lower
+            )
+            
+            # Chercher aussi les patterns avec ":" ou "="
+            explicit_sender_patterns2 = re.findall(
+                r'(?:expéditeur|from|de|sender|envoyeur)[\s:=\-]+([a-z0-9._%+-@]+)',
+                context_lower
+            )
+            
             # Extraire tous les mots du context (minimum 3 caractères)
             words = re.findall(r'\b[a-z]{3,}\b', context_lower)
-            
-            # Chercher aussi des patterns explicites
-            explicit_keywords = re.findall(r'(?:expéditeur|from|de|sender|envoyeur)[\s:]+([a-z0-9._%+-@]+)', context_lower)
             
             # Extraire les emails
             emails = re.findall(r'\b([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})\b', context_lower)
             
-            # Combiner tous les mots-clés
-            all_keywords = words + explicit_keywords + emails
+            # Combiner tous les mots-clés (priorité aux patterns explicites)
+            all_keywords = explicit_sender_patterns + explicit_sender_patterns2 + words + emails
             
             # Filtrer les mots courants
             common_words = {'les', 'des', 'dans', 'pour', 'avec', 'sont', 'cette', 'tous', 'toutes', 'tout', 'toute', 'dans', 'pour', 'avec', 'mais', 'plus', 'peut', 'sont', 'sous', 'tout', 'tous', 'toutes', 'toute'}
@@ -247,7 +257,8 @@ class AIClassifierService:
         
         # Instructions
         prompt_parts.append("\n\nInstructions:")
-        prompt_parts.append("Pour chaque message, analyse le SUJET et le CONTENU pour déterminer dans quel dossier il doit être classé.")
+        prompt_parts.append("Pour chaque message, analyse le SUJET, le CONTENU et l'EXPÉDITEUR (champ 'De:') pour déterminer dans quel dossier il doit être classé.")
+        prompt_parts.append("Si le contexte d'un dossier mentionne un expéditeur spécifique (ex: 'expéditeur contenant lokario'), vérifie d'abord l'expéditeur du message avant d'analyser le contenu.")
         prompt_parts.append("Utilise uniquement le contexte fourni pour chaque dossier pour prendre ta décision.")
         prompt_parts.append("Sois PRÉCIS et n'utilise que les informations du contexte pour classifier.")
         prompt_parts.append("\nRéponds au format JSON suivant:")
@@ -449,7 +460,8 @@ class AIClassifierService:
         
         # Instructions
         prompt_parts.append("\nInstructions:")
-        prompt_parts.append("Analyse le SUJET et le CONTENU du message pour déterminer dans quel dossier il doit être classé.")
+        prompt_parts.append("Analyse le SUJET, le CONTENU et l'EXPÉDITEUR (champ 'De:') du message pour déterminer dans quel dossier il doit être classé.")
+        prompt_parts.append("Si le contexte d'un dossier mentionne un expéditeur spécifique (ex: 'expéditeur contenant lokario'), vérifie d'abord l'expéditeur du message avant d'analyser le contenu.")
         prompt_parts.append("Utilise uniquement le contexte fourni pour chaque dossier pour prendre ta décision.")
         prompt_parts.append("Sois PRÉCIS et n'utilise que les informations du contexte pour classifier.")
         prompt_parts.append("\nRéponds UNIQUEMENT avec l'ID du dossier (exemple: 5).")
