@@ -49,6 +49,7 @@ export default function InboxPage() {
   const [replyText, setReplyText] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [conversations, setConversations] = useState<InboxItem[]>([]);
+  const [allConversations, setAllConversations] = useState<InboxItem[]>([]); // Toutes les conversations pour calculer les compteurs
   const [selectedConversation, setSelectedConversation] = useState<InboxItem | null>(null);
   const [folders, setFolders] = useState<InboxFolder[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<number | "all" | "pending">("all");
@@ -81,16 +82,35 @@ export default function InboxPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const [conversationsData, foldersData] = await Promise.all([
+        // Charger toutes les conversations pour calculer les compteurs correctement
+        // (même si on filtre ensuite par dossier)
+        const [allConversationsData, foldersData] = await Promise.all([
           getConversations(token, {
-            folderId: activeFolderId === "all" ? undefined : activeFolderId === "pending" ? undefined : activeFolderId,
+            // Ne pas filtrer par dossier pour avoir tous les compteurs
+            folderId: undefined,
             status: statusFilter === "all" ? undefined : statusFilter,
             source: sourceFilter === "all" ? undefined : sourceFilter,
             search: searchQuery || undefined,
           }),
           getFolders(token),
         ]);
+        
+        // Filtrer les conversations selon le dossier actif pour l'affichage
+        let conversationsData = allConversationsData;
+        if (activeFolderId === "pending") {
+          conversationsData = allConversationsData.filter(
+            (c) => c.autoReplyPending && c.autoReplyMode === "approval"
+          );
+        } else if (activeFolderId === "all") {
+          // Inbox principal : afficher uniquement les conversations SANS dossier
+          conversationsData = allConversationsData.filter((c) => !c.folderId);
+        } else if (typeof activeFolderId === "number") {
+          conversationsData = allConversationsData.filter((c) => c.folderId === activeFolderId);
+        }
+        
         setConversations(conversationsData);
+        // Stocker toutes les conversations pour calculer les compteurs
+        setAllConversations(allConversationsData);
         setFolders(foldersData);
         
         // Sélectionner automatiquement la conversation depuis l'URL si disponible
@@ -205,23 +225,27 @@ export default function InboxPage() {
   }, [conversations]);
 
   // Calculer les counts pour la sidebar (par dossier)
+  // Utiliser allConversations pour avoir les vrais compteurs, pas seulement les conversations filtrées
   const folderCounts = useMemo(() => {
+    const conversationsForCounts = allConversations.length > 0 ? allConversations : conversations;
+    
     const result: Record<number | "all" | "pending", number> = {
-      all: conversations.length,
-      pending: conversations.filter(
+      // "all" = conversations SANS dossier
+      all: conversationsForCounts.filter((c) => !c.folderId).length,
+      pending: conversationsForCounts.filter(
         (c) => c.autoReplyPending && c.autoReplyMode === "approval"
       ).length,
     };
 
     // Counts par dossier
     folders.forEach((folder) => {
-      result[folder.id] = conversations.filter(
+      result[folder.id] = conversationsForCounts.filter(
         (c) => c.folderId === folder.id
       ).length;
     });
 
     return result;
-  }, [conversations, folders]);
+  }, [allConversations, conversations, folders]);
 
   // Filtrer les conversations (déjà fait côté API, mais on peut ajouter des filtres frontend si nécessaire)
   const filteredConversations = useMemo(() => {
