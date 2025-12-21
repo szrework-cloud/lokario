@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { AppTopBar } from "@/components/layout/AppTopBar";
@@ -37,6 +37,7 @@ export default function AppLayout({
 }) {
   const router = useRouter();
   const { user, token, isLoading, logout } = useAuth();
+  const [isCheckingDeletion, setIsCheckingDeletion] = useState(true);
   
   // Charger les settings automatiquement après login (une seule fois)
   useSettings(true);
@@ -49,10 +50,11 @@ export default function AppLayout({
       
       // Ne pas vérifier si on est déjà sur la page /restore ou /login
       if (currentPath === "/restore" || currentPath === "/login") {
+        setIsCheckingDeletion(false);
         return;
       }
 
-      // Vérifier le statut de suppression
+      // Vérifier le statut de suppression et BLOQUER l'accès si nécessaire
       const checkDeletionStatus = async () => {
         try {
           const { apiGet } = await import("@/lib/api");
@@ -61,50 +63,58 @@ export default function AppLayout({
           logger.log("📊 AppLayout: Statut reçu:", deletionStatus);
           
           if (deletionStatus && deletionStatus.deletion_in_progress) {
-            // Rediriger vers la page de restauration
-            logger.log("🔄 AppLayout: Compte en cours de suppression, redirection vers /restore");
+            // BLOQUER l'accès et rediriger vers /restore
+            logger.log("🔄 AppLayout: Compte en cours de suppression, BLOQUAGE et redirection vers /restore");
             window.location.replace("/restore");
             return;
           }
+          setIsCheckingDeletion(false);
         } catch (error: any) {
           // Si l'endpoint échoue avec 403, c'est probablement que le compte est bloqué
           logger.log("⚠️ AppLayout: Erreur lors de la vérification:", error);
           console.error("Détails:", error?.status, error?.message);
           
           if (error?.status === 403 || error?.message?.includes("Account deletion in progress")) {
-            // Si erreur 403, rediriger vers /restore
-            logger.log("🔄 AppLayout: Erreur 403 détectée, redirection vers /restore");
+            // Si erreur 403, BLOQUER l'accès et rediriger vers /restore
+            logger.log("🔄 AppLayout: Erreur 403 détectée, BLOQUAGE et redirection vers /restore");
             window.location.replace("/restore");
             return;
           }
           // Sinon, continuer normalement (peut être une erreur réseau)
           console.warn("Impossible de vérifier le statut de suppression:", error);
+          setIsCheckingDeletion(false);
         }
       };
 
       if (!token) {
         logger.log("❌ Pas de token, redirection vers /login");
         router.replace("/login");
+        setIsCheckingDeletion(false);
       } else if (user?.role === "super_admin") {
         // Rediriger les super_admin vers la page admin par défaut
         if (currentPath === "/app" || currentPath === "/app/") {
           logger.log("🔄 Super admin, redirection vers /admin/companies");
           router.replace("/admin/companies");
         }
+        setIsCheckingDeletion(false);
       } else {
         // Vérifier le statut de suppression pour les utilisateurs normaux
+        // BLOQUER l'accès jusqu'à ce que la vérification soit terminée
         checkDeletionStatus();
-        logger.log("✅ Authentification valide, accès autorisé");
       }
+    } else if (!isLoading && !token) {
+      setIsCheckingDeletion(false);
     }
   }, [isLoading, token, router, user]);
 
-  if (isLoading) {
+  if (isLoading || isCheckingDeletion) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F97316] mx-auto mb-3"></div>
-          <p className="text-sm text-[#64748B]">Chargement de votre espace...</p>
+          <p className="text-sm text-[#64748B]">
+            {isCheckingDeletion ? "Vérification du statut de votre compte..." : "Chargement de votre espace..."}
+          </p>
         </div>
       </div>
     );
