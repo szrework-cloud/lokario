@@ -45,6 +45,13 @@ export default function AppLayout({
     if (!isLoading && token) {
       logger.log("🔍 Vérification auth dans AppLayout:", { isLoading, hasToken: !!token, hasUser: !!user, userRole: user?.role });
       
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+      
+      // Ne pas vérifier si on est déjà sur la page /restore ou /login
+      if (currentPath === "/restore" || currentPath === "/login") {
+        return;
+      }
+
       // Vérifier le statut de suppression
       const checkDeletionStatus = async () => {
         try {
@@ -54,7 +61,7 @@ export default function AppLayout({
           if (deletionStatus.deletion_in_progress) {
             // Rediriger vers la page de restauration
             logger.log("🔄 Compte en cours de suppression, redirection vers /restore");
-            router.replace("/restore");
+            window.location.href = "/restore"; // Utiliser window.location.href pour forcer la redirection
             return;
           }
         } catch (error) {
@@ -68,18 +75,13 @@ export default function AppLayout({
         router.replace("/login");
       } else if (user?.role === "super_admin") {
         // Rediriger les super_admin vers la page admin par défaut
-        const currentPath = window.location.pathname;
         if (currentPath === "/app" || currentPath === "/app/") {
           logger.log("🔄 Super admin, redirection vers /admin/companies");
           router.replace("/admin/companies");
         }
       } else {
         // Vérifier le statut de suppression pour les utilisateurs normaux
-        // Ne pas vérifier si on est déjà sur la page /restore
-        const currentPath = window.location.pathname;
-        if (currentPath !== "/restore") {
-          checkDeletionStatus();
-        }
+        checkDeletionStatus();
         logger.log("✅ Authentification valide, accès autorisé");
       }
     }
