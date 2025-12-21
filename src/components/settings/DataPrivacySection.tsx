@@ -56,7 +56,7 @@ export function DataPrivacySection() {
   useEffect(() => {
     const loadDeletionStatus = async () => {
       try {
-        const status = await apiGet("/users/me/deletion-status", token);
+        const status = await apiGet<DeletionStatus>("/users/me/deletion-status", token);
         setDeletionStatus(status);
       } catch (error) {
         console.error("Erreur lors du chargement du statut de suppression:", error);
