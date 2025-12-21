@@ -35,12 +35,32 @@ def upgrade():
     4. Renommer la nouvelle table
     """
     
-    # Créer la nouvelle table avec la structure correcte
-    # Vérifier si la table existe déjà (pour éviter les erreurs en cas de re-exécution)
+    # Vérifier d'abord si la table followups existe et a déjà la bonne structure
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
     existing_tables = inspector.get_table_names()
+    
+    # Si followups existe, vérifier si elle a déjà la bonne structure (sans colonnes obsolètes)
+    if 'followups' in existing_tables:
+        try:
+            followups_columns = [col['name'] for col in inspector.get_columns('followups')]
+            # Vérifier si les colonnes obsolètes n'existent pas
+            obsolete_columns = ['is_automatic', 'delay_days', 'project_id', 'quote_id', 'invoice_id', 'message', 'sent_at']
+            has_obsolete = any(col in followups_columns for col in obsolete_columns)
+            
+            if not has_obsolete:
+                # La table a déjà la bonne structure, on n'a rien à faire
+                print("✅ Table followups a déjà la bonne structure, migration ignorée")
+                return
+        except Exception as e:
+            # Si on ne peut pas vérifier (transaction échouée), on continue quand même
+            # mais on va essayer de créer une nouvelle connexion
+            print(f"⚠️  Impossible de vérifier la structure: {e}, on continue...")
+            # Créer une nouvelle connexion pour éviter les problèmes de transaction
+            conn = op.get_bind()
+            inspector = inspect(conn)
+            existing_tables = inspector.get_table_names()
     
     if 'followups_new' not in existing_tables:
         op.create_table(
@@ -136,11 +156,19 @@ def upgrade():
             # Si followups_new n'existe pas, vérifier si followups a déjà la bonne structure
             # Si oui, on n'a rien à faire (migration déjà appliquée)
             if 'followups' in existing_tables:
-                # Vérifier si la table a déjà la structure nettoyée (pas de colonnes is_automatic, delay_days, etc.)
-                followups_columns = [col['name'] for col in inspector.get_columns('followups')]
-                if 'is_automatic' not in followups_columns and 'delay_days' not in followups_columns:
-                    # La table est déjà nettoyée, on n'a rien à faire
-                    return
+                try:
+                    # Vérifier si la table a déjà la structure nettoyée (pas de colonnes is_automatic, delay_days, etc.)
+                    followups_columns = [col['name'] for col in inspector.get_columns('followups')]
+                    obsolete_columns = ['is_automatic', 'delay_days', 'project_id', 'quote_id', 'invoice_id', 'message', 'sent_at']
+                    has_obsolete = any(col in followups_columns for col in obsolete_columns)
+                    
+                    if not has_obsolete:
+                        # La table est déjà nettoyée, on n'a rien à faire
+                        print("✅ Table followups a déjà la bonne structure, migration ignorée")
+                        return
+                except Exception as e:
+                    # Si on ne peut pas vérifier, on continue (peut-être que la table n'a pas encore été créée)
+                    print(f"⚠️  Impossible de vérifier la structure: {e}, on continue...")
         
         # Recréer les index
         op.create_index(op.f('ix_followups_id'), 'followups', ['id'], unique=False)
