@@ -17,43 +17,51 @@ depends_on = None
 
 
 def upgrade():
-    # Créer la table followups
-    op.create_table(
-        'followups',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('company_id', sa.Integer(), nullable=False),
-        sa.Column('client_id', sa.Integer(), nullable=False),
-        sa.Column('type', sa.String(), nullable=False),
-        sa.Column('source_type', sa.String(), nullable=False),
-        sa.Column('source_id', sa.Integer(), nullable=True),
-        sa.Column('source_label', sa.String(), nullable=False),
-        sa.Column('due_date', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('actual_date', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('status', sa.String(), nullable=False, server_default='À faire'),
-        sa.Column('amount', sa.Numeric(10, 2), nullable=True),
-        sa.Column('auto_enabled', sa.Boolean(), nullable=False, server_default='0'),
-        sa.Column('auto_frequency_days', sa.Integer(), nullable=True),
-        sa.Column('auto_stop_on_response', sa.Boolean(), nullable=False, server_default='1'),
-        sa.Column('auto_stop_on_paid', sa.Boolean(), nullable=False, server_default='1'),
-        sa.Column('auto_stop_on_refused', sa.Boolean(), nullable=False, server_default='1'),
-        sa.Column('created_by_id', sa.Integer(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
-        sa.ForeignKeyConstraint(['client_id'], ['clients.id'], ),
-        sa.ForeignKeyConstraint(['created_by_id'], ['users.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_followups_id'), 'followups', ['id'], unique=False)
-    op.create_index(op.f('ix_followups_company_id'), 'followups', ['company_id'], unique=False)
-    op.create_index(op.f('ix_followups_client_id'), 'followups', ['client_id'], unique=False)
-    op.create_index(op.f('ix_followups_type'), 'followups', ['type'], unique=False)
-    op.create_index(op.f('ix_followups_status'), 'followups', ['status'], unique=False)
-    op.create_index(op.f('ix_followups_due_date'), 'followups', ['due_date'], unique=False)
+    # Vérifier si les tables existent déjà (pour éviter les erreurs en cas de re-exécution)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
     
-    # Créer la table followup_history
-    op.create_table(
-        'followup_history',
+    # Créer la table followups si elle n'existe pas
+    if 'followups' not in existing_tables:
+        op.create_table(
+            'followups',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('company_id', sa.Integer(), nullable=False),
+            sa.Column('client_id', sa.Integer(), nullable=False),
+            sa.Column('type', sa.String(), nullable=False),
+            sa.Column('source_type', sa.String(), nullable=False),
+            sa.Column('source_id', sa.Integer(), nullable=True),
+            sa.Column('source_label', sa.String(), nullable=False),
+            sa.Column('due_date', sa.DateTime(timezone=True), nullable=False),
+            sa.Column('actual_date', sa.DateTime(timezone=True), nullable=True),
+            sa.Column('status', sa.String(), nullable=False, server_default='À faire'),
+            sa.Column('amount', sa.Numeric(10, 2), nullable=True),
+            sa.Column('auto_enabled', sa.Boolean(), nullable=False, server_default='0'),
+            sa.Column('auto_frequency_days', sa.Integer(), nullable=True),
+            sa.Column('auto_stop_on_response', sa.Boolean(), nullable=False, server_default='1'),
+            sa.Column('auto_stop_on_paid', sa.Boolean(), nullable=False, server_default='1'),
+            sa.Column('auto_stop_on_refused', sa.Boolean(), nullable=False, server_default='1'),
+            sa.Column('created_by_id', sa.Integer(), nullable=True),
+            sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
+            sa.ForeignKeyConstraint(['client_id'], ['clients.id'], ),
+            sa.ForeignKeyConstraint(['created_by_id'], ['users.id'], ),
+            sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_followups_id'), 'followups', ['id'], unique=False)
+        op.create_index(op.f('ix_followups_company_id'), 'followups', ['company_id'], unique=False)
+        op.create_index(op.f('ix_followups_client_id'), 'followups', ['client_id'], unique=False)
+        op.create_index(op.f('ix_followups_type'), 'followups', ['type'], unique=False)
+        op.create_index(op.f('ix_followups_status'), 'followups', ['status'], unique=False)
+        op.create_index(op.f('ix_followups_due_date'), 'followups', ['due_date'], unique=False)
+    
+    # Créer la table followup_history si elle n'existe pas
+    if 'followup_history' not in existing_tables:
+        op.create_table(
+            'followup_history',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('followup_id', sa.Integer(), nullable=False),
         sa.Column('company_id', sa.Integer(), nullable=False),
@@ -69,13 +77,13 @@ def upgrade():
         sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
         sa.ForeignKeyConstraint(['sent_by_id'], ['users.id'], ),
         sa.ForeignKeyConstraint(['conversation_id'], ['conversations.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_followup_history_id'), 'followup_history', ['id'], unique=False)
-    op.create_index(op.f('ix_followup_history_followup_id'), 'followup_history', ['followup_id'], unique=False)
-    op.create_index(op.f('ix_followup_history_company_id'), 'followup_history', ['company_id'], unique=False)
-    op.create_index(op.f('ix_followup_history_sent_at'), 'followup_history', ['sent_at'], unique=False)
-    op.create_index(op.f('ix_followup_history_conversation_id'), 'followup_history', ['conversation_id'], unique=False)
+            sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_followup_history_id'), 'followup_history', ['id'], unique=False)
+        op.create_index(op.f('ix_followup_history_followup_id'), 'followup_history', ['followup_id'], unique=False)
+        op.create_index(op.f('ix_followup_history_company_id'), 'followup_history', ['company_id'], unique=False)
+        op.create_index(op.f('ix_followup_history_sent_at'), 'followup_history', ['sent_at'], unique=False)
+        op.create_index(op.f('ix_followup_history_conversation_id'), 'followup_history', ['conversation_id'], unique=False)
 
 
 def downgrade():
