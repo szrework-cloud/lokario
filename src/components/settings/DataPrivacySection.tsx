@@ -100,11 +100,11 @@ export function DataPrivacySection() {
         days_remaining: response.days_remaining
       });
       
-      // Déconnexion et redirection après 3 secondes
+      // Déconnexion immédiate et redirection vers login
+      logout();
       setTimeout(() => {
-        logout();
-        window.location.href = "/";
-      }, 3000);
+        window.location.href = "/login?deletion=requested";
+      }, 1000);
     } catch (error: any) {
       console.error("Erreur lors de la suppression:", error);
       showToast("Erreur lors de la demande de suppression du compte", "error");

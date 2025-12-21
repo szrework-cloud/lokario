@@ -21,7 +21,7 @@ from app.db.models.company import Company
 from app.db.models.company_settings import CompanySettings
 from app.api.schemas.auth import Token, LoginRequest
 from app.api.schemas.user import UserCreate, UserRead
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, get_current_user_for_restore
 
 
 def generate_unique_company_code(db: Session) -> str:
@@ -783,6 +783,17 @@ def get_current_user_info(
 ):
     """
     Retourne les informations de l'utilisateur connecté.
+    """
+    return current_user
+
+
+@router.get("/me/restore", response_model=UserRead)
+def get_current_user_info_for_restore(
+    current_user: User = Depends(get_current_user_for_restore)
+):
+    """
+    Retourne les informations de l'utilisateur connecté, même si le compte est en cours de suppression.
+    Utilisé pour la page de restauration de compte.
     """
     return current_user
 
