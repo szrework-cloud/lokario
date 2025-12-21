@@ -120,8 +120,9 @@ export function DataPrivacySection() {
             </div>
             <p className="text-xs text-[#64748B] mb-2">
               La suppression de votre compte est définitive et irréversible. 
-              Toutes vos données seront supprimées dans un délai de 30 jours, 
-              sauf obligation légale de conservation.
+              <strong className="text-red-600"> Important :</strong> Exportez vos données avant de supprimer votre compte, 
+              car vous ne pourrez plus y accéder après la suppression. 
+              Les factures seront conservées pour obligations légales (10 ans) mais ne seront plus accessibles.
             </p>
             {!showDeleteConfirm ? (
               <AnimatedButton
@@ -138,10 +139,20 @@ export function DataPrivacySection() {
                   <p className="text-xs font-medium text-red-600 mb-2">
                     ⚠️ Attention : Cette action est irréversible
                   </p>
-                  <p className="text-xs text-[#64748B] mb-3">
+                  <p className="text-xs text-[#64748B] mb-2">
                     Êtes-vous sûr de vouloir supprimer votre compte ? 
                     Toutes vos données seront définitivement supprimées.
                   </p>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3">
+                    <p className="text-xs text-yellow-800 font-medium mb-1">
+                      ⚠️ Avez-vous exporté vos données ?
+                    </p>
+                    <p className="text-xs text-yellow-700">
+                      Après la suppression, vous ne pourrez plus accéder à vos données. 
+                      Les factures seront conservées pour obligations légales mais ne seront plus accessibles. 
+                      <strong> Assurez-vous d'avoir exporté vos données avant de continuer.</strong>
+                    </p>
+                  </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-[#0F172A] block">
                       Pour confirmer, tapez <span className="font-mono text-red-600">supprimer</span> :
