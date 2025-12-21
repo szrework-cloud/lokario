@@ -1452,34 +1452,32 @@ def update_folder(
             detail="Cannot modify system folders. System folders are read-only."
         )
     
-    # Vérifier si autoClassify était activé avant la modification
-    old_ai_rules = folder.ai_rules or {}
-    old_auto_classify = isinstance(old_ai_rules, dict) and old_ai_rules.get("autoClassify", False)
-    
     # Mettre à jour uniquement les champs fournis
     update_data = folder_data.model_dump(exclude_unset=True)
+    
+    # Vérifier si le contexte (ai_rules) a été modifié
+    context_changed = "ai_rules" in update_data
+    
     for field, value in update_data.items():
         setattr(folder, field, value)
     
     db.commit()
     db.refresh(folder)
     
-    # Vérifier si autoClassify est activé maintenant
-    new_ai_rules = folder.ai_rules or {}
-    new_auto_classify = isinstance(new_ai_rules, dict) and new_ai_rules.get("autoClassify", False)
-    
-    # Reclasser toutes les conversations si autoClassify est activé (nouveau ou modifié)
-    if new_auto_classify:
-        logger.info(f"[FOLDER UPDATE] Classification automatique activée, reclassification de toutes les conversations...")
-        from app.core.folder_ai_classifier import reclassify_all_conversations
-        try:
-            # Si autoClassify vient d'être activé, reclasser même celles déjà dans un dossier
-            force = not old_auto_classify
-            stats = reclassify_all_conversations(db=db, company_id=current_user.company_id, force=force)
-            logger.info(f"[FOLDER UPDATE] Reclassification terminée: {stats['classified']} conversation(s) classée(s)")
-        except Exception as e:
-            logger.error(f"[FOLDER UPDATE] Erreur lors de la reclassification: {e}")
-            # Ne pas faire échouer la modification du dossier si la reclassification échoue
+    # Toujours reclasser toutes les conversations lors de la modification d'un dossier
+    # Cela permet de reclasser les emails si le contexte a été modifié
+    logger.info(f"[FOLDER UPDATE] Reclassification de toutes les conversations après modification du dossier...")
+    from app.core.folder_ai_classifier import reclassify_all_conversations
+    try:
+        # Utiliser force=False pour ne reclasser que les conversations sans dossier
+        # Cela évite de déplacer des conversations déjà classées manuellement
+        stats = reclassify_all_conversations(db=db, company_id=current_user.company_id, force=False)
+        logger.info(f"[FOLDER UPDATE] Reclassification terminée: {stats['classified']} conversation(s) classée(s), {stats['total']} totale(s)")
+    except Exception as e:
+        logger.error(f"[FOLDER UPDATE] Erreur lors de la reclassification: {e}")
+        import traceback
+        traceback.print_exc()
+        # Ne pas faire échouer la modification du dossier si la reclassification échoue
     
     return folder
 
