@@ -801,23 +801,23 @@ async def sync_integration(
                 # Identifier ou créer le client (seulement si ce n'est pas une notification)
                 client = None
                 if from_email:
-                    # Vérifier si c'est une notification automatisée avant de créer un client
-                    ai_service = AIClassifierService()
-                    content_preview = email_data.get("content", "")[:200] if email_data.get("content") else ""
-                    is_notification = ai_service.is_notification_email(
-                        from_email=from_email,
-                        subject=email_data.get("subject"),
-                        content_preview=content_preview
-                    )
+                    # D'abord vérifier si le client existe déjà (optimisation : pas besoin d'IA si client existe)
+                    client = db.query(Client).filter(
+                        Client.company_id == company.id,
+                        Client.email == from_email
+                    ).first()
                     
-                    if not is_notification:
-                        # Chercher le client existant
-                        client = db.query(Client).filter(
-                            Client.company_id == company.id,
-                            Client.email == from_email
-                        ).first()
+                    # Si le client n'existe pas, vérifier avec l'IA si c'est une notification avant de créer
+                    if not client:
+                        ai_service = AIClassifierService()
+                        content_preview = email_data.get("content", "")[:200] if email_data.get("content") else ""
+                        is_notification = ai_service.is_notification_email(
+                            from_email=from_email,
+                            subject=email_data.get("subject"),
+                            content_preview=content_preview
+                        )
                         
-                        if not client:
+                        if not is_notification:
                             # Créer le client seulement si ce n'est pas une notification
                             client = Client(
                                 company_id=company.id,
@@ -828,8 +828,8 @@ async def sync_integration(
                             db.add(client)
                             db.flush()
                             print(f"[SYNC] ✅ Nouveau client créé: {client.name} ({client.email})")
-                    else:
-                        print(f"[SYNC] ⚠️ Email de notification détecté, client non créé: {from_email}")
+                        else:
+                            print(f"[SYNC] ⚠️ Email de notification détecté, client non créé: {from_email}")
                 
                 # Chercher ou créer une conversation
                 subject = email_data.get("subject", "")
@@ -1137,27 +1137,27 @@ async def sync_imap_emails(
                     print(f"[SYNC] ⚠️ Email filtré comme {filter_reason}: {email_data.get('subject', 'Sans sujet')[:50]} de {from_email}")
                     continue  # Skip cet email complètement - pas de stockage
                 
-                # Identifier ou créer le client
+                # Identifier ou créer le client (seulement si ce n'est pas une notification)
                 from_email = email_data.get("from", {}).get("email")
                 client = None
                 if from_email:
-                    # Vérifier si c'est une notification automatisée avant de créer un client
-                    ai_service = AIClassifierService()
-                    content_preview = email_data.get("content", "")[:200] if email_data.get("content") else ""
-                    is_notification = ai_service.is_notification_email(
-                        from_email=from_email,
-                        subject=email_data.get("subject"),
-                        content_preview=content_preview
-                    )
+                    # D'abord vérifier si le client existe déjà (optimisation : pas besoin d'IA si client existe)
+                    client = db.query(Client).filter(
+                        Client.company_id == company.id,
+                        Client.email == from_email
+                    ).first()
                     
-                    if not is_notification:
-                        # Chercher le client existant
-                        client = db.query(Client).filter(
-                            Client.company_id == company.id,
-                            Client.email == from_email
-                        ).first()
+                    # Si le client n'existe pas, vérifier avec l'IA si c'est une notification avant de créer
+                    if not client:
+                        ai_service = AIClassifierService()
+                        content_preview = email_data.get("content", "")[:200] if email_data.get("content") else ""
+                        is_notification = ai_service.is_notification_email(
+                            from_email=from_email,
+                            subject=email_data.get("subject"),
+                            content_preview=content_preview
+                        )
                         
-                        if not client:
+                        if not is_notification:
                             # Créer le client seulement si ce n'est pas une notification
                             client = Client(
                                 company_id=company.id,
@@ -1168,8 +1168,8 @@ async def sync_imap_emails(
                             db.add(client)
                             db.flush()
                             print(f"[SYNC IMAP] ✅ Nouveau client créé: {client.name} ({client.email})")
-                    else:
-                        print(f"[SYNC IMAP] ⚠️ Email de notification détecté, client non créé: {from_email}")
+                        else:
+                            print(f"[SYNC IMAP] ⚠️ Email de notification détecté, client non créé: {from_email}")
                 
                 # Chercher ou créer une conversation
                 subject = email_data.get("subject", "")
