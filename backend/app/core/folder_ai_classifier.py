@@ -165,19 +165,31 @@ def reclassify_all_conversations(db: Session, company_id: int, force: bool = Fal
             # Préparer les messages pour l'IA
             messages_data = []
             for conversation in batch:
-                last_message = db.query(InboxMessage).filter(
-                    InboxMessage.conversation_id == conversation.id
-                ).order_by(InboxMessage.created_at.desc()).first()
+                # Récupérer le premier message client (plus fiable pour l'expéditeur)
+                first_client_message = db.query(InboxMessage).filter(
+                    InboxMessage.conversation_id == conversation.id,
+                    InboxMessage.is_from_client == True
+                ).order_by(InboxMessage.created_at.asc()).first()
                 
-                if not last_message:
+                # Si pas de message client, prendre le dernier message
+                if not first_client_message:
+                    first_client_message = db.query(InboxMessage).filter(
+                        InboxMessage.conversation_id == conversation.id
+                    ).order_by(InboxMessage.created_at.desc()).first()
+                
+                if not first_client_message:
                     continue
+                
+                # Utiliser l'expéditeur du premier message client (plus fiable)
+                from_email = first_client_message.from_email or ""
+                from_phone = first_client_message.from_phone or ""
                 
                 messages_data.append({
                     "conversation_id": conversation.id,
-                    "content": (last_message.content or "")[:500],  # Tronquer pour économiser
+                    "content": (first_client_message.content or "")[:500],  # Tronquer pour économiser
                     "subject": conversation.subject or "" if conversation.source == "email" else "",
-                    "from_email": last_message.from_email or "",
-                    "from_phone": last_message.from_phone or ""
+                    "from_email": from_email,
+                    "from_phone": from_phone
                 })
             
             if not messages_data:

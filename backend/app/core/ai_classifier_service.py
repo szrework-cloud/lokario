@@ -203,13 +203,14 @@ class AIClassifierService:
             all_keywords = explicit_sender_patterns + explicit_sender_patterns2 + words + emails
             
             # Filtrer les mots courants
-            common_words = {'les', 'des', 'dans', 'pour', 'avec', 'sont', 'cette', 'tous', 'toutes', 'tout', 'toute', 'dans', 'pour', 'avec', 'mais', 'plus', 'peut', 'sont', 'sous', 'tout', 'tous', 'toutes', 'toute'}
+            common_words = {'les', 'des', 'dans', 'pour', 'avec', 'sont', 'cette', 'tous', 'toutes', 'tout', 'toute', 'dans', 'pour', 'avec', 'mais', 'plus', 'peut', 'sont', 'sous', 'tout', 'tous', 'toutes', 'toute', 'mettre', 'mails', 'mail', 'en'}
             all_keywords = [kw for kw in all_keywords if kw not in common_words]
             
             # Vérifier chaque mot-clé
             for keyword in all_keywords:
                 keyword_clean = keyword.strip('.,;:!?()[]{}').lower()
                 if len(keyword_clean) >= 3:
+                    # Vérifier si le mot-clé est dans l'expéditeur (email ou nom)
                     if keyword_clean in message_from_lower:
                         logger.info(f"[AI CLASSIFIER] ✅ Correspondance directe trouvée: '{keyword_clean}' dans expéditeur '{message_from}' → dossier '{folder['name']}' (ID: {folder['id']})")
                         return folder["id"]
