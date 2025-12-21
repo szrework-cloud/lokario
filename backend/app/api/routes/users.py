@@ -606,7 +606,13 @@ def delete_user_account(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Supprime le compte de l'utilisateur et toutes ses données (droit à l'oubli RGPD).
+    Supprime le compte de l'utilisateur et ses données (droit à l'oubli RGPD).
+    
+    Comportement:
+    - Si l'utilisateur est seul dans l'entreprise : supprime toutes les données de l'entreprise
+    - Si d'autres utilisateurs existent : supprime uniquement l'utilisateur (les données restent pour l'entreprise)
+    - Les factures sont anonymisées plutôt que supprimées (obligation légale de conservation 10 ans)
+    
     ATTENTION: Action irréversible.
     """
     # Récupérer l'utilisateur depuis la session actuelle pour éviter les conflits de session
@@ -627,106 +633,121 @@ def delete_user_account(
     
     company_id = user.company_id
     
+    # Vérifier s'il y a d'autres utilisateurs dans l'entreprise
+    other_users = db.query(User).filter(
+        User.company_id == company_id,
+        User.id != user_id
+    ).count()
+    
+    is_only_user = other_users == 0
+    
     try:
-        # Supprimer toutes les données de l'entreprise
-        # (On supprime les données, pas l'entreprise elle-même si d'autres utilisateurs existent)
-        
-        # Relances
-        followups = db.query(FollowUp).filter(FollowUp.company_id == company_id).all()
-        for followup in followups:
-            # Supprimer l'historique
-            history = db.query(FollowUpHistory).filter(FollowUpHistory.followup_id == followup.id).all()
-            for h in history:
-                db.delete(h)
-            db.delete(followup)
-        
-        # Projets
-        projects = db.query(Project).filter(Project.company_id == company_id).all()
-        for project in projects:
-            # Supprimer l'historique
-            history = db.query(ProjectHistory).filter(ProjectHistory.project_id == project.id).all()
-            for h in history:
-                db.delete(h)
-            db.delete(project)
-        
-        # Tâches
-        tasks = db.query(Task).filter(Task.company_id == company_id).all()
-        for task in tasks:
-            db.delete(task)
-        
-        # Conversations
-        conversations = db.query(Conversation).filter(Conversation.company_id == company_id).all()
-        for conversation in conversations:
-            # Supprimer les messages
-            messages = db.query(InboxMessage).filter(InboxMessage.conversation_id == conversation.id).all()
-            for message in messages:
-                # Supprimer les pièces jointes
-                attachments = db.query(MessageAttachment).filter(MessageAttachment.message_id == message.id).all()
-                for att in attachments:
-                    db.delete(att)
-                db.delete(message)
-            # Supprimer les notes internes
-            notes = db.query(InternalNote).filter(InternalNote.conversation_id == conversation.id).all()
-            for note in notes:
-                db.delete(note)
-            db.delete(conversation)
-        
-        # Devis
-        quotes = db.query(Quote).filter(Quote.company_id == company_id).all()
-        for quote in quotes:
-            # Supprimer les signatures
-            signatures = db.query(QuoteSignature).filter(QuoteSignature.quote_id == quote.id).all()
-            for sig in signatures:
-                audit_logs = db.query(QuoteSignatureAuditLog).filter(QuoteSignatureAuditLog.quote_id == quote.id).all()
-                for log in audit_logs:
-                    db.delete(log)
-                db.delete(sig)
-            # Supprimer les OTP
-            otps = db.query(QuoteOTP).filter(QuoteOTP.quote_id == quote.id).all()
-            for otp in otps:
-                db.delete(otp)
-            # Supprimer les lignes
-            lines = db.query(QuoteLine).filter(QuoteLine.quote_id == quote.id).all()
-            for line in lines:
-                db.delete(line)
-            db.delete(quote)
-        
-        # Factures
-        invoices = db.query(Invoice).filter(Invoice.company_id == company_id).all()
-        for invoice in invoices:
-            # Supprimer les paiements
-            payments = db.query(InvoicePayment).filter(InvoicePayment.invoice_id == invoice.id).all()
-            for payment in payments:
-                db.delete(payment)
-            # Supprimer les logs d'audit
-            audit_logs = db.query(InvoiceAuditLog).filter(InvoiceAuditLog.invoice_id == invoice.id).all()
-            for log in audit_logs:
-                db.delete(log)
-            # Supprimer les lignes
-            lines = db.query(InvoiceLine).filter(InvoiceLine.invoice_id == invoice.id).all()
-            for line in lines:
-                db.delete(line)
-            db.delete(invoice)
-        
-        # Clients
-        clients = db.query(Client).filter(Client.company_id == company_id).all()
-        for client in clients:
-            db.delete(client)
-        
-        # Rendez-vous
-        appointments = db.query(Appointment).filter(Appointment.company_id == company_id).all()
-        for appointment in appointments:
-            db.delete(appointment)
-        
-        # Supprimer l'utilisateur (utiliser l'objet de la session actuelle)
-        db.delete(user)
-        
-        db.commit()
-        
-        return {
-            "message": "Account and all data deleted successfully",
-            "deleted_at": datetime.now().isoformat()
-        }
+        if is_only_user:
+            # Si c'est le seul utilisateur, supprimer toutes les données de l'entreprise
+            # SAUF les factures qui doivent être conservées (obligation légale)
+            
+            # Relances
+            followups = db.query(FollowUp).filter(FollowUp.company_id == company_id).all()
+            for followup in followups:
+                # Supprimer l'historique
+                history = db.query(FollowUpHistory).filter(FollowUpHistory.followup_id == followup.id).all()
+                for h in history:
+                    db.delete(h)
+                db.delete(followup)
+            
+            # Projets
+            projects = db.query(Project).filter(Project.company_id == company_id).all()
+            for project in projects:
+                # Supprimer l'historique
+                history = db.query(ProjectHistory).filter(ProjectHistory.project_id == project.id).all()
+                for h in history:
+                    db.delete(h)
+                db.delete(project)
+            
+            # Tâches
+            tasks = db.query(Task).filter(Task.company_id == company_id).all()
+            for task in tasks:
+                db.delete(task)
+            
+            # Conversations
+            conversations = db.query(Conversation).filter(Conversation.company_id == company_id).all()
+            for conversation in conversations:
+                # Supprimer les messages
+                messages = db.query(InboxMessage).filter(InboxMessage.conversation_id == conversation.id).all()
+                for message in messages:
+                    # Supprimer les pièces jointes
+                    attachments = db.query(MessageAttachment).filter(MessageAttachment.message_id == message.id).all()
+                    for att in attachments:
+                        db.delete(att)
+                    db.delete(message)
+                # Supprimer les notes internes
+                notes = db.query(InternalNote).filter(InternalNote.conversation_id == conversation.id).all()
+                for note in notes:
+                    db.delete(note)
+                db.delete(conversation)
+            
+            # Devis
+            quotes = db.query(Quote).filter(Quote.company_id == company_id).all()
+            for quote in quotes:
+                # Supprimer les signatures
+                signatures = db.query(QuoteSignature).filter(QuoteSignature.quote_id == quote.id).all()
+                for sig in signatures:
+                    audit_logs = db.query(QuoteSignatureAuditLog).filter(QuoteSignatureAuditLog.quote_id == quote.id).all()
+                    for log in audit_logs:
+                        db.delete(log)
+                    db.delete(sig)
+                # Supprimer les OTP
+                otps = db.query(QuoteOTP).filter(QuoteOTP.quote_id == quote.id).all()
+                for otp in otps:
+                    db.delete(otp)
+                # Supprimer les lignes
+                lines = db.query(QuoteLine).filter(QuoteLine.quote_id == quote.id).all()
+                for line in lines:
+                    db.delete(line)
+                db.delete(quote)
+            
+            # Factures : ANONYMIser plutôt que supprimer (obligation légale de conservation 10 ans)
+            # On anonymise les données personnelles mais on garde les données comptables
+            invoices = db.query(Invoice).filter(Invoice.company_id == company_id).all()
+            for invoice in invoices:
+                # Anonymiser les données personnelles de l'utilisateur
+                # Les données comptables (montants, dates, etc.) restent pour obligations légales
+                if invoice.notes:
+                    invoice.notes = "[Données anonymisées - compte supprimé]"
+                # Les paiements et lignes restent (obligation comptable)
+                # Les logs d'audit restent (traçabilité légale)
+            
+            # Clients
+            clients = db.query(Client).filter(Client.company_id == company_id).all()
+            for client in clients:
+                db.delete(client)
+            
+            # Rendez-vous
+            appointments = db.query(Appointment).filter(Appointment.company_id == company_id).all()
+            for appointment in appointments:
+                db.delete(appointment)
+            
+            # Supprimer l'utilisateur (utiliser l'objet de la session actuelle)
+            db.delete(user)
+            
+            db.commit()
+            
+            return {
+                "message": "Account and all data deleted successfully. Invoices have been anonymized for legal compliance (10-year retention requirement).",
+                "deleted_at": datetime.now().isoformat(),
+                "invoices_anonymized": len(invoices)
+            }
+        else:
+            # S'il y a d'autres utilisateurs, on ne supprime QUE l'utilisateur
+            # Les données de l'entreprise restent pour les autres utilisateurs
+            db.delete(user)
+            db.commit()
+            
+            return {
+                "message": "Account deleted successfully. Company data has been preserved for other users.",
+                "deleted_at": datetime.now().isoformat(),
+                "other_users_count": other_users
+            }
     
     except Exception as e:
         db.rollback()
