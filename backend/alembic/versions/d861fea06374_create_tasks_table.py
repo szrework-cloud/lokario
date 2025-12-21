@@ -18,10 +18,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Créer la table tasks
-    # Note: SQLite ne supporte pas les ENUMs natifs, on utilise String à la place
-    op.create_table(
-        'tasks',
+    # Vérifier si la table existe déjà (pour éviter les erreurs en cas de re-exécution)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+    
+    if 'tasks' not in existing_tables:
+        # Créer la table tasks
+        # Note: SQLite ne supporte pas les ENUMs natifs, on utilise String à la place
+        op.create_table(
+            'tasks',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('company_id', sa.Integer(), nullable=False),
         
@@ -71,16 +78,16 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['conversation_id'], ['conversations.id'], ),
         sa.ForeignKeyConstraint(['created_by_id'], ['users.id'], ),
         
-        sa.PrimaryKeyConstraint('id')
-    )
-    
-    # Créer les index
-    op.create_index(op.f('ix_tasks_company_id'), 'tasks', ['company_id'], unique=False)
-    op.create_index(op.f('ix_tasks_assigned_to_id'), 'tasks', ['assigned_to_id'], unique=False)
-    op.create_index(op.f('ix_tasks_client_id'), 'tasks', ['client_id'], unique=False)
-    op.create_index(op.f('ix_tasks_project_id'), 'tasks', ['project_id'], unique=False)
-    op.create_index(op.f('ix_tasks_conversation_id'), 'tasks', ['conversation_id'], unique=False)
-    op.create_index(op.f('ix_tasks_due_date'), 'tasks', ['due_date'], unique=False)
+            sa.PrimaryKeyConstraint('id')
+        )
+        
+        # Créer les index
+        op.create_index(op.f('ix_tasks_company_id'), 'tasks', ['company_id'], unique=False)
+        op.create_index(op.f('ix_tasks_assigned_to_id'), 'tasks', ['assigned_to_id'], unique=False)
+        op.create_index(op.f('ix_tasks_client_id'), 'tasks', ['client_id'], unique=False)
+        op.create_index(op.f('ix_tasks_project_id'), 'tasks', ['project_id'], unique=False)
+        op.create_index(op.f('ix_tasks_conversation_id'), 'tasks', ['conversation_id'], unique=False)
+        op.create_index(op.f('ix_tasks_due_date'), 'tasks', ['due_date'], unique=False)
 
 
 def downgrade() -> None:
