@@ -1,20 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { useAuth } from "@/hooks/useAuth";
 import { apiGet, apiPost } from "@/lib/api";
-import { Download, Trash2, AlertTriangle } from "lucide-react";
+import { Download, Trash2, AlertTriangle, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
+
+interface DeletionStatus {
+  is_scheduled_for_deletion: boolean;
+  deletion_requested_at: string | null;
+  deletion_scheduled_at: string | null;
+  days_remaining: number | null;
+}
 
 export function DataPrivacySection() {
   const { user, token, logout } = useAuth();
   const { toast, showToast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deletionStatus, setDeletionStatus] = useState<DeletionStatus | null>(null);
+
+  // Charger le statut de suppression au montage
+  useEffect(() => {
+    const loadDeletionStatus = async () => {
+      try {
+        const status = await apiGet("/users/me/deletion-status", token);
+        setDeletionStatus(status);
+      } catch (error) {
+        console.error("Erreur lors du chargement du statut:", error);
+      }
+    };
+    if (token) {
+      loadDeletionStatus();
+    }
+  }, [token]);
 
   const handleExportData = async () => {
     setIsExporting(true);
@@ -52,23 +76,42 @@ export function DataPrivacySection() {
 
     setIsDeleting(true);
     try {
-      // Appel API pour supprimer le compte
-      await apiPost("/users/me/delete", {}, token);
+      // Appel API pour demander la suppression (délai de grâce de 30 jours)
+      const response = await apiPost("/users/me/delete", {}, token);
       
-      showToast("Votre compte a été supprimé avec succès", "success");
+      showToast(
+        `Suppression programmée. Votre compte sera supprimé dans ${response.days_remaining} jours. Vous pouvez le récupérer avant cette date.`,
+        "success"
+      );
       
-      // Déconnexion et redirection
-      setTimeout(() => {
-        logout();
-        window.location.href = "/";
-      }, 2000);
-    } catch (error: any) {
-      console.error("Erreur lors de la suppression:", error);
-      showToast("Erreur lors de la suppression du compte", "error");
-    } finally {
-      setIsDeleting(false);
+      // Recharger le statut
+      const status = await apiGet("/users/me/deletion-status", token);
+      setDeletionStatus(status);
+      
       setShowDeleteConfirm(false);
       setDeleteConfirmText("");
+    } catch (error: any) {
+      console.error("Erreur lors de la suppression:", error);
+      showToast("Erreur lors de la demande de suppression", "error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleRestoreAccount = async () => {
+    setIsRestoring(true);
+    try {
+      await apiPost("/users/me/restore", {}, token);
+      showToast("Votre compte a été restauré avec succès", "success");
+      
+      // Recharger le statut
+      const status = await apiGet("/users/me/deletion-status", token);
+      setDeletionStatus(status);
+    } catch (error: any) {
+      console.error("Erreur lors de la restauration:", error);
+      showToast("Erreur lors de la restauration du compte", "error");
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -110,38 +153,93 @@ export function DataPrivacySection() {
             </div>
           </div>
 
+          {/* Statut de suppression en cours */}
+          {deletionStatus?.is_scheduled_for_deletion && (
+            <div className="border border-orange-200 rounded-lg p-4 bg-orange-50">
+              <div className="flex items-start gap-2 mb-2">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-orange-800 mb-1">
+                    Suppression programmée
+                  </h4>
+                  <p className="text-xs text-orange-700 mb-3">
+                    Votre compte est programmé pour être supprimé le{" "}
+                    <strong>
+                      {deletionStatus.deletion_scheduled_at
+                        ? new Date(deletionStatus.deletion_scheduled_at).toLocaleDateString("fr-FR", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })
+                        : "date inconnue"}
+                    </strong>
+                    {deletionStatus.days_remaining !== null && (
+                      <> ({deletionStatus.days_remaining} jour{deletionStatus.days_remaining > 1 ? "s" : ""} restant{deletionStatus.days_remaining > 1 ? "s" : ""})</>
+                    )}
+                  </p>
+                  <p className="text-xs text-orange-700 mb-3">
+                    Vous pouvez toujours accéder à vos données et récupérer votre compte avant cette date.
+                  </p>
+                  <AnimatedButton
+                    variant="secondary"
+                    onClick={handleRestoreAccount}
+                    disabled={isRestoring}
+                    loading={isRestoring}
+                    className="text-xs py-1.5 px-3"
+                  >
+                    <RotateCcw className="w-3 h-3 mr-1.5" />
+                    {isRestoring ? "Restauration..." : "Récupérer mon compte"}
+                  </AnimatedButton>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Suppression de compte */}
           <div className="border border-red-200 rounded-lg p-3 bg-red-50">
             <div className="flex items-start gap-2 mb-1.5">
               <AlertTriangle className="w-4 h-4 text-red-600" />
               <h4 className="text-xs font-semibold text-[#0F172A]">
-                Supprimer mon compte
+                {deletionStatus?.is_scheduled_for_deletion ? "Annuler la suppression" : "Supprimer mon compte"}
               </h4>
             </div>
             <p className="text-xs text-[#64748B] mb-2">
-              La suppression de votre compte est définitive et irréversible. 
-              <strong className="text-red-600"> Important :</strong> Exportez vos données avant de supprimer votre compte, 
-              car vous ne pourrez plus y accéder après la suppression. 
-              Les factures seront conservées pour obligations légales (10 ans) mais ne seront plus accessibles.
+              {deletionStatus?.is_scheduled_for_deletion ? (
+                <>
+                  Votre compte est déjà programmé pour suppression. 
+                  Utilisez le bouton "Récupérer mon compte" ci-dessus pour annuler.
+                </>
+              ) : (
+                <>
+                  La suppression de votre compte sera effective après un délai de grâce de 30 jours. 
+                  <strong className="text-red-600"> Important :</strong> Exportez vos données avant de demander la suppression, 
+                  car vous ne pourrez plus y accéder après la suppression définitive. 
+                  Les factures seront conservées pour obligations légales (10 ans) mais ne seront plus accessibles.
+                  <br />
+                  <strong>Vous pourrez récupérer votre compte pendant les 30 jours suivant la demande.</strong>
+                </>
+              )}
             </p>
-            {!showDeleteConfirm ? (
-              <AnimatedButton
-                variant="danger"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="text-xs py-1.5 px-3"
-              >
-                <Trash2 className="w-3 h-3 mr-1.5" />
-                Supprimer mon compte
-              </AnimatedButton>
-            ) : (
+            {!deletionStatus?.is_scheduled_for_deletion && (
+              <>
+                {!showDeleteConfirm ? (
+                  <AnimatedButton
+                    variant="danger"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="text-xs py-1.5 px-3"
+                  >
+                    <Trash2 className="w-3 h-3 mr-1.5" />
+                    Demander la suppression
+                  </AnimatedButton>
+                ) : (
               <div className="space-y-3">
                 <div className="p-3 bg-white rounded-lg border border-red-200">
                   <p className="text-xs font-medium text-red-600 mb-2">
                     ⚠️ Attention : Cette action est irréversible
                   </p>
                   <p className="text-xs text-[#64748B] mb-2">
-                    Êtes-vous sûr de vouloir supprimer votre compte ? 
-                    Toutes vos données seront définitivement supprimées.
+                    Êtes-vous sûr de vouloir demander la suppression de votre compte ? 
+                    Votre compte sera supprimé dans 30 jours. Vous pourrez le récupérer avant cette date.
                   </p>
                   <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3">
                     <p className="text-xs text-yellow-800 font-medium mb-1">
@@ -187,10 +285,12 @@ export function DataPrivacySection() {
                     loading={isDeleting}
                     className="text-xs py-1.5 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isDeleting ? "Suppression..." : "Confirmer la suppression"}
+                    {isDeleting ? "Demande en cours..." : "Confirmer la demande"}
                   </AnimatedButton>
                 </div>
               </div>
+                )}
+              </>
             )}
           </div>
 

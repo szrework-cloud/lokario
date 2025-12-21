@@ -94,6 +94,7 @@ async def get_current_active_user(
 ) -> User:
     """
     Dépendance pour vérifier que l'utilisateur est actif.
+    Permet l'accès même si le compte est en attente de suppression (pour permettre la récupération).
     """
     import sys
     import logging
@@ -106,7 +107,9 @@ async def get_current_active_user(
         print(f"[DEPS] get_current_active_user appelé pour user {current_user.id}", file=sys.stderr, flush=True)
         logger.info(f"[DEPS] get_current_active_user appelé pour user {current_user.id}")
     
-    if not current_user.is_active:
+    # Permettre l'accès même si le compte est en attente de suppression (pour permettre la récupération)
+    # Mais bloquer si le compte est complètement désactivé
+    if not current_user.is_active and not current_user.deletion_requested_at:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 

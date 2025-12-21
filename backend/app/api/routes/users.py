@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.db.session import get_db
 from app.db.models.user import User
 from app.db.models.company import Company
@@ -606,14 +606,17 @@ def delete_user_account(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Supprime le compte de l'utilisateur et ses données (droit à l'oubli RGPD).
+    Demande la suppression du compte de l'utilisateur (délai de grâce de 30 jours).
     
     Comportement:
-    - Si l'utilisateur est seul dans l'entreprise : supprime toutes les données de l'entreprise
-    - Si d'autres utilisateurs existent : supprime uniquement l'utilisateur (les données restent pour l'entreprise)
-    - Les factures sont anonymisées plutôt que supprimées (obligation légale de conservation 10 ans)
+    - Le compte est marqué pour suppression dans 30 jours
+    - L'utilisateur peut toujours se connecter et récupérer son compte pendant ce délai
+    - Après 30 jours, le compte sera définitivement supprimé par un job automatique
+    - Si l'utilisateur est seul dans l'entreprise : toutes les données seront supprimées
+    - Si d'autres utilisateurs existent : seul l'utilisateur sera supprimé
+    - Les factures seront anonymisées plutôt que supprimées (obligation légale de conservation 10 ans)
     
-    ATTENTION: Action irréversible.
+    L'utilisateur peut annuler la suppression via /users/me/restore avant la date de suppression.
     """
     # Récupérer l'utilisateur depuis la session actuelle pour éviter les conflits de session
     user_id = current_user.id
@@ -625,24 +628,29 @@ def delete_user_account(
             detail="User not found"
         )
     
-    if not user.company_id:
-        # Si pas d'entreprise, supprimer juste l'utilisateur
-        db.delete(user)
-        db.commit()
-        return {"message": "Account deleted successfully"}
+    # Vérifier si une suppression est déjà en cours
+    if user.deletion_requested_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Account deletion already requested. Scheduled for: {user.deletion_scheduled_at.isoformat() if user.deletion_scheduled_at else 'unknown'}"
+        )
     
-    company_id = user.company_id
+    # Marquer le compte pour suppression dans 30 jours
+    now = datetime.now()
+    deletion_scheduled_at = now + timedelta(days=30)
     
-    # Vérifier s'il y a d'autres utilisateurs dans l'entreprise
-    other_users = db.query(User).filter(
-        User.company_id == company_id,
-        User.id != user_id
-    ).count()
+    user.deletion_requested_at = now
+    user.deletion_scheduled_at = deletion_scheduled_at
     
-    is_only_user = other_users == 0
+    db.commit()
+    db.refresh(user)
     
-    try:
-        if is_only_user:
+    return {
+        "message": "Account deletion requested. Your account will be permanently deleted in 30 days. You can restore it before then.",
+        "deletion_requested_at": user.deletion_requested_at.isoformat(),
+        "deletion_scheduled_at": user.deletion_scheduled_at.isoformat(),
+        "days_remaining": 30
+    }
             # Si c'est le seul utilisateur, supprimer toutes les données de l'entreprise
             # SAUF les factures qui doivent être conservées (obligation légale)
             
@@ -755,4 +763,35 @@ def delete_user_account(
             status_code=500,
             detail=f"Error deleting account: {str(e)}"
         )
+
+
+@router.get("/me/deletion-status")
+def get_deletion_status(
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Retourne le statut de suppression du compte de l'utilisateur.
+    """
+    if not current_user.deletion_requested_at:
+        return {
+            "is_scheduled_for_deletion": False,
+            "deletion_requested_at": None,
+            "deletion_scheduled_at": None,
+            "days_remaining": None
+        }
+    
+    now = datetime.now()
+    if current_user.deletion_scheduled_at:
+        days_remaining = (current_user.deletion_scheduled_at - now).days
+        if days_remaining < 0:
+            days_remaining = 0
+    else:
+        days_remaining = None
+    
+    return {
+        "is_scheduled_for_deletion": True,
+        "deletion_requested_at": current_user.deletion_requested_at.isoformat(),
+        "deletion_scheduled_at": current_user.deletion_scheduled_at.isoformat() if current_user.deletion_scheduled_at else None,
+        "days_remaining": days_remaining
+    }
 
