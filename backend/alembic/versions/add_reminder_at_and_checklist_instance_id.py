@@ -18,14 +18,30 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Ajouter reminder_at à la table tasks
-    op.add_column('tasks', sa.Column('reminder_at', sa.DateTime(timezone=True), nullable=True))
+    # Vérifier si les colonnes existent déjà (pour éviter les erreurs en cas de re-exécution)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
     
-    # Ajouter checklist_instance_id à la table tasks
-    op.add_column('tasks', sa.Column('checklist_instance_id', sa.Integer(), nullable=True))
-    
-    # Créer l'index pour checklist_instance_id
-    op.create_index(op.f('ix_tasks_checklist_instance_id'), 'tasks', ['checklist_instance_id'], unique=False)
+    # Obtenir les colonnes existantes de la table tasks
+    if 'tasks' in inspector.get_table_names():
+        existing_columns = [col['name'] for col in inspector.get_columns('tasks')]
+        
+        # Ajouter reminder_at à la table tasks si elle n'existe pas
+        if 'reminder_at' not in existing_columns:
+            op.add_column('tasks', sa.Column('reminder_at', sa.DateTime(timezone=True), nullable=True))
+        
+        # Ajouter checklist_instance_id à la table tasks si elle n'existe pas
+        if 'checklist_instance_id' not in existing_columns:
+            op.add_column('tasks', sa.Column('checklist_instance_id', sa.Integer(), nullable=True))
+        
+        # Créer l'index pour checklist_instance_id (vérifier s'il existe déjà)
+        existing_indexes = [idx['name'] for idx in inspector.get_indexes('tasks')]
+        if 'ix_tasks_checklist_instance_id' not in existing_indexes:
+            op.create_index(op.f('ix_tasks_checklist_instance_id'), 'tasks', ['checklist_instance_id'], unique=False)
+    else:
+        # Si la table n'existe pas, on ne peut pas ajouter de colonnes
+        pass
     
     # Créer la foreign key pour checklist_instance_id
     # Note: SQLite a des limitations avec ALTER TABLE, donc on utilise try/except
