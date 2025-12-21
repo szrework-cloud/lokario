@@ -95,5 +95,3 @@ def downgrade():
     op.drop_table('followups')
 
 
-
-

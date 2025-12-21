@@ -36,8 +36,15 @@ def upgrade():
     """
     
     # Créer la nouvelle table avec la structure correcte
-    op.create_table(
-        'followups_new',
+    # Vérifier si la table existe déjà (pour éviter les erreurs en cas de re-exécution)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+    
+    if 'followups_new' not in existing_tables:
+        op.create_table(
+            'followups_new',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('company_id', sa.Integer(), nullable=False),
         sa.Column('client_id', sa.Integer(), nullable=False),
@@ -63,60 +70,70 @@ def upgrade():
         sa.PrimaryKeyConstraint('id')
     )
     
-    # Copier les données de l'ancienne table vers la nouvelle
-    # Mapper les anciennes colonnes vers les nouvelles
-    # Note: Les colonnes auto_* n'existent peut-être pas encore, donc on utilise les anciennes ou des valeurs par défaut
-    op.execute("""
-        INSERT INTO followups_new (
-            id, company_id, client_id, type, source_type, source_id, source_label,
-            due_date, actual_date, status, amount,
-            auto_enabled, auto_frequency_days,
-            auto_stop_on_response, auto_stop_on_paid, auto_stop_on_refused,
-            created_by_id, created_at, updated_at
-        )
-        SELECT 
-            id, company_id, client_id, type, 
-            COALESCE(source_type, 'manual') as source_type,
-            source_id, 
-            COALESCE(source_label, '') as source_label,
-            due_date, actual_date, status, amount,
-            -- Mapper is_automatic vers auto_enabled (ou 0 par défaut)
-            COALESCE(
-                CASE WHEN is_automatic IS NOT NULL THEN is_automatic ELSE 0 END,
-                0
-            ) as auto_enabled,
-            -- Mapper delay_days vers auto_frequency_days
-            delay_days as auto_frequency_days,
-            -- Valeurs par défaut pour auto_stop_*
-            1 as auto_stop_on_response,
-            1 as auto_stop_on_paid,
-            1 as auto_stop_on_refused,
-            NULL as created_by_id,  -- Cette colonne n'existe peut-être pas non plus
-            created_at, updated_at
-        FROM followups
-    """)
-    
-    # Supprimer les index de l'ancienne table
-    op.drop_index('ix_followups_id', table_name='followups')
-    op.drop_index('ix_followups_company_id', table_name='followups')
-    op.drop_index('ix_followups_client_id', table_name='followups')
-    op.drop_index('ix_followups_type', table_name='followups')
-    op.drop_index('ix_followups_status', table_name='followups')
-    op.drop_index('ix_followups_due_date', table_name='followups')
-    
-    # Supprimer l'ancienne table
-    op.drop_table('followups')
-    
-    # Renommer la nouvelle table
-    op.rename_table('followups_new', 'followups')
-    
-    # Recréer les index
-    op.create_index(op.f('ix_followups_id'), 'followups', ['id'], unique=False)
-    op.create_index(op.f('ix_followups_company_id'), 'followups', ['company_id'], unique=False)
-    op.create_index(op.f('ix_followups_client_id'), 'followups', ['client_id'], unique=False)
-    op.create_index(op.f('ix_followups_type'), 'followups', ['type'], unique=False)
-    op.create_index(op.f('ix_followups_status'), 'followups', ['status'], unique=False)
-    op.create_index(op.f('ix_followups_due_date'), 'followups', ['due_date'], unique=False)
+        # Copier les données de l'ancienne table vers la nouvelle
+        # Mapper les anciennes colonnes vers les nouvelles
+        # Note: Les colonnes auto_* n'existent peut-être pas encore, donc on utilise les anciennes ou des valeurs par défaut
+        try:
+            op.execute("""
+                INSERT INTO followups_new (
+                    id, company_id, client_id, type, source_type, source_id, source_label,
+                    due_date, actual_date, status, amount,
+                    auto_enabled, auto_frequency_days,
+                    auto_stop_on_response, auto_stop_on_paid, auto_stop_on_refused,
+                    created_by_id, created_at, updated_at
+                )
+                SELECT 
+                    id, company_id, client_id, type, 
+                    COALESCE(source_type, 'manual') as source_type,
+                    source_id, 
+                    COALESCE(source_label, '') as source_label,
+                    due_date, actual_date, status, amount,
+                    -- Mapper is_automatic vers auto_enabled (ou 0 par défaut)
+                    COALESCE(
+                        CASE WHEN is_automatic IS NOT NULL THEN is_automatic ELSE 0 END,
+                        0
+                    ) as auto_enabled,
+                    -- Mapper delay_days vers auto_frequency_days
+                    delay_days as auto_frequency_days,
+                    -- Valeurs par défaut pour auto_stop_*
+                    1 as auto_stop_on_response,
+                    1 as auto_stop_on_paid,
+                    1 as auto_stop_on_refused,
+                    NULL as created_by_id,  -- Cette colonne n'existe peut-être pas non plus
+                    created_at, updated_at
+                FROM followups
+            """)
+        except Exception:
+            # Si la table followups n'existe pas ou si les colonnes n'existent pas, on continue
+            pass
+        
+        # Supprimer les index de l'ancienne table (si elle existe)
+        try:
+            op.drop_index('ix_followups_id', table_name='followups')
+            op.drop_index('ix_followups_company_id', table_name='followups')
+            op.drop_index('ix_followups_client_id', table_name='followups')
+            op.drop_index('ix_followups_type', table_name='followups')
+            op.drop_index('ix_followups_status', table_name='followups')
+            op.drop_index('ix_followups_due_date', table_name='followups')
+        except Exception:
+            pass
+        
+        # Supprimer l'ancienne table (si elle existe)
+        try:
+            op.drop_table('followups')
+        except Exception:
+            pass
+        
+        # Renommer la nouvelle table
+        op.rename_table('followups_new', 'followups')
+        
+        # Recréer les index
+        op.create_index(op.f('ix_followups_id'), 'followups', ['id'], unique=False)
+        op.create_index(op.f('ix_followups_company_id'), 'followups', ['company_id'], unique=False)
+        op.create_index(op.f('ix_followups_client_id'), 'followups', ['client_id'], unique=False)
+        op.create_index(op.f('ix_followups_type'), 'followups', ['type'], unique=False)
+        op.create_index(op.f('ix_followups_status'), 'followups', ['status'], unique=False)
+        op.create_index(op.f('ix_followups_due_date'), 'followups', ['due_date'], unique=False)
 
 
 def downgrade():
