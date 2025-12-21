@@ -33,42 +33,42 @@ def upgrade() -> None:
     if 'invoice_lines' not in existing_tables:
         op.create_table(
             'invoice_lines',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('invoice_id', sa.Integer(), nullable=False),
-        sa.Column('description', sa.Text(), nullable=False),
-        sa.Column('quantity', sa.Numeric(10, 3), nullable=False, server_default='1'),
-        sa.Column('unit_price_ht', sa.Numeric(10, 2), nullable=False),
-        sa.Column('tax_rate', sa.Numeric(5, 2), nullable=False),
-        sa.Column('subtotal_ht', sa.Numeric(10, 2), nullable=False),
-        sa.Column('tax_amount', sa.Numeric(10, 2), nullable=False),
-        sa.Column('total_ttc', sa.Numeric(10, 2), nullable=False),
-        sa.Column('order', sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(['invoice_id'], ['invoices.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id')
-    )
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('invoice_id', sa.Integer(), nullable=False),
+            sa.Column('description', sa.Text(), nullable=False),
+            sa.Column('quantity', sa.Numeric(10, 3), nullable=False, server_default='1'),
+            sa.Column('unit_price_ht', sa.Numeric(10, 2), nullable=False),
+            sa.Column('tax_rate', sa.Numeric(5, 2), nullable=False),
+            sa.Column('subtotal_ht', sa.Numeric(10, 2), nullable=False),
+            sa.Column('tax_amount', sa.Numeric(10, 2), nullable=False),
+            sa.Column('total_ttc', sa.Numeric(10, 2), nullable=False),
+            sa.Column('order', sa.Integer(), nullable=False),
+            sa.ForeignKeyConstraint(['invoice_id'], ['invoices.id'], ondelete='CASCADE'),
+            sa.PrimaryKeyConstraint('id')
+        )
         op.create_index(op.f('ix_invoice_lines_invoice_id'), 'invoice_lines', ['invoice_id'], unique=False)
     
     # Créer la table invoice_audit_logs si elle n'existe pas
     if 'invoice_audit_logs' not in existing_tables:
         op.create_table(
             'invoice_audit_logs',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('invoice_id', sa.Integer(), nullable=False),
-        sa.Column('user_id', sa.Integer(), nullable=False),
-        sa.Column('action', sa.String(length=50), nullable=False),
-        sa.Column('field_name', sa.String(length=100), nullable=True),
-        sa.Column('old_value', sa.Text(), nullable=True),
-        sa.Column('new_value', sa.Text(), nullable=True),
-        sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('ip_address', sa.String(length=45), nullable=True),
-        sa.Column('user_agent', sa.String(length=500), nullable=True),
-        sa.ForeignKeyConstraint(['invoice_id'], ['invoices.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_invoice_audit_logs_invoice_id'), 'invoice_audit_logs', ['invoice_id'], unique=False)
-    op.create_index(op.f('ix_invoice_audit_logs_user_id'), 'invoice_audit_logs', ['user_id'], unique=False)
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('invoice_id', sa.Integer(), nullable=False),
+            sa.Column('user_id', sa.Integer(), nullable=False),
+            sa.Column('action', sa.String(length=50), nullable=False),
+            sa.Column('field_name', sa.String(length=100), nullable=True),
+            sa.Column('old_value', sa.Text(), nullable=True),
+            sa.Column('new_value', sa.Text(), nullable=True),
+            sa.Column('description', sa.Text(), nullable=True),
+            sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+            sa.Column('ip_address', sa.String(length=45), nullable=True),
+            sa.Column('user_agent', sa.String(length=500), nullable=True),
+            sa.ForeignKeyConstraint(['invoice_id'], ['invoices.id'], ondelete='CASCADE'),
+            sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
+            sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_invoice_audit_logs_invoice_id'), 'invoice_audit_logs', ['invoice_id'], unique=False)
+        op.create_index(op.f('ix_invoice_audit_logs_user_id'), 'invoice_audit_logs', ['user_id'], unique=False)
         op.create_index(op.f('ix_invoice_audit_logs_timestamp'), 'invoice_audit_logs', ['timestamp'], unique=False)
     
     # Modifier l'enum InvoiceStatus pour ajouter BROUILLON (uniquement pour PostgreSQL)
