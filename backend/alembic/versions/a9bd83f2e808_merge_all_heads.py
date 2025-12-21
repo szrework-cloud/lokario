@@ -1,7 +1,7 @@
 """merge_all_heads
 
 Revision ID: a9bd83f2e808
-Revises: add_billing_line_templates, add_chatbot_tables, add_client_vat_fields, add_notifications_table, e7f8g9h0i1j2, cleanup_followups_table
+Revises: add_billing_line_templates, add_chatbot_tables, add_client_vat_fields, add_notifications_table, e7f8g9h0i1j2, cleanup_followups_table, a1b2c3d4e5f6
 Create Date: 2025-12-21 11:25:46.364530
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'a9bd83f2e808'
-down_revision: Union[str, None] = ('add_billing_line_templates', 'add_chatbot_tables', 'add_client_vat_fields', 'add_notifications_table', 'e7f8g9h0i1j2', 'cleanup_followups_table')
+down_revision: Union[str, None] = ('add_billing_line_templates', 'add_chatbot_tables', 'add_client_vat_fields', 'add_notifications_table', 'e7f8g9h0i1j2', 'cleanup_followups_table', 'a1b2c3d4e5f6')
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
