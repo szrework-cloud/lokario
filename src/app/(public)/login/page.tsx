@@ -133,6 +133,21 @@ function LoginForm() {
         return;
       }
 
+      // Vérifier le statut de suppression
+      try {
+        const deletionStatus = await apiGet<{ deletion_in_progress: boolean }>("/users/me/deletion-status", data.access_token);
+        
+        if (deletionStatus.deletion_in_progress) {
+          // Si le compte est en cours de suppression, rediriger vers la page de restauration
+          setAuth(data.access_token, user);
+          window.location.href = "/restore";
+          return;
+        }
+      } catch (error) {
+        // Si l'endpoint n'est pas disponible, continuer normalement
+        console.warn("Impossible de vérifier le statut de suppression:", error);
+      }
+
       // Sauvegarder l'authentification
       logger.log("🔐 Sauvegarde de l'authentification:", { 
         token: data.access_token?.substring(0, 20) + "...", 
