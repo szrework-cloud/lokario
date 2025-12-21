@@ -136,13 +136,20 @@ def upgrade() -> None:
         op.add_column('invoices', sa.Column('total_ttc', sa.Numeric(10, 2), nullable=True))
     
     # Migrer les données existantes : copier amount vers total_ttc et calculer subtotal_ht et total_tax
-    op.execute("""
-        UPDATE invoices 
-        SET total_ttc = amount,
-            subtotal_ht = amount / 1.20,
-            total_tax = amount - (amount / 1.20)
-        WHERE total_ttc IS NULL
-    """)
+    # Vérifier que la table invoices existe et a la colonne amount
+    if 'invoices' in existing_tables:
+        try:
+            invoice_columns = [col['name'] for col in inspector.get_columns('invoices')]
+            if 'amount' in invoice_columns and 'total_ttc' in invoice_columns:
+                op.execute("""
+                    UPDATE invoices 
+                    SET total_ttc = amount,
+                        subtotal_ht = amount / 1.20,
+                        total_tax = amount - (amount / 1.20)
+                    WHERE total_ttc IS NULL
+                """)
+        except:
+            pass  # Ignorer si la migration échoue (peut-être que la colonne amount n'existe pas)
     
     # Conditions
     if 'payment_terms' not in existing_columns:

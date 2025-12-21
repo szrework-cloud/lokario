@@ -43,8 +43,10 @@ def upgrade() -> None:
     if 'created_by_id' not in existing_columns_tasks:
         op.add_column('tasks', sa.Column('created_by_id', sa.Integer(), nullable=True))
     
-    # Créer les index pour les nouveaux champs (si la colonne existe)
-    if 'conversation_id' in existing_columns_tasks or 'conversation_id' not in existing_columns_tasks:
+    # Créer les index pour les nouveaux champs (si la colonne existe ou vient d'être créée)
+    # Mettre à jour existing_columns_tasks après l'ajout des colonnes
+    updated_columns_tasks = [col['name'] for col in inspector.get_columns('tasks')] if 'tasks' in existing_tables else []
+    if 'conversation_id' in updated_columns_tasks:
         try:
             op.create_index(op.f('ix_tasks_conversation_id'), 'tasks', ['conversation_id'], unique=False)
         except:
@@ -83,15 +85,15 @@ def upgrade() -> None:
     # Créer la table checklist_instances si elle n'existe pas
     if 'checklist_instances' not in existing_tables:
         op.create_table('checklist_instances',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('template_id', sa.Integer(), nullable=False),
-        sa.Column('company_id', sa.Integer(), nullable=False),
-        sa.Column('assigned_to_id', sa.Integer(), nullable=True),
-        sa.Column('started_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('completed_items', sa.Text(), nullable=True),
-        sa.Column('status', sa.String(), nullable=False, server_default='en_cours'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('template_id', sa.Integer(), nullable=False),
+            sa.Column('company_id', sa.Integer(), nullable=False),
+            sa.Column('assigned_to_id', sa.Integer(), nullable=True),
+            sa.Column('started_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+            sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
+            sa.Column('completed_items', sa.Text(), nullable=True),
+            sa.Column('status', sa.String(), nullable=False, server_default='en_cours'),
+            sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
             sa.PrimaryKeyConstraint('id')
         )
         
