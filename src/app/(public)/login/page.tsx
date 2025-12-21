@@ -143,21 +143,31 @@ function LoginForm() {
       }
 
       // Vérifier le statut de suppression AVANT de sauvegarder l'auth et de rediriger
+      logger.log("🔍 Vérification du statut de suppression pour:", user.email);
       try {
         const deletionStatus = await apiGet<{ deletion_in_progress: boolean }>("/users/me/deletion-status", data.access_token);
+        logger.log("📊 Statut de suppression reçu:", deletionStatus);
         
-        if (deletionStatus.deletion_in_progress) {
+        if (deletionStatus && deletionStatus.deletion_in_progress === true) {
           // Si le compte est en cours de suppression, sauvegarder l'auth et rediriger vers /restore
+          logger.log("⚠️ Compte en cours de suppression détecté! Redirection vers /restore");
           setAuth(data.access_token, user);
           // Attendre un peu pour que l'auth soit sauvegardée
-          await new Promise(resolve => setTimeout(resolve, 100));
-          logger.log("🔄 Compte en cours de suppression, redirection vers /restore");
-          window.location.href = "/restore";
+          await new Promise(resolve => setTimeout(resolve, 200));
+          // Utiliser window.location.replace pour forcer la redirection
+          window.location.replace("/restore");
           return; // IMPORTANT: arrêter ici pour éviter la redirection vers le dashboard
+        } else {
+          logger.log("✅ Pas de suppression en cours, connexion normale");
         }
-      } catch (error) {
-        // Si l'endpoint n'est pas disponible, continuer normalement
-        console.warn("Impossible de vérifier le statut de suppression:", error);
+      } catch (error: any) {
+        // Si l'endpoint échoue, logger l'erreur mais continuer (pour ne pas bloquer la connexion)
+        logger.log("⚠️ Erreur lors de la vérification du statut de suppression:", error);
+        console.error("Erreur complète:", error);
+        console.error("Message:", error?.message);
+        console.error("Status:", error?.status);
+        // Si c'est une erreur 403, c'est peut-être que le compte est bloqué, on continue quand même
+        // pour ne pas bloquer la connexion si l'endpoint a un problème
       }
 
       // Sauvegarder l'authentification (seulement si pas de suppression en cours)
