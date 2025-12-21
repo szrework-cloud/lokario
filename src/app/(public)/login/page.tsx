@@ -125,7 +125,16 @@ function LoginForm() {
         }
       }
 
-      const user = await apiGet<CurrentUser>("/auth/me", data.access_token);
+      // Utiliser /auth/me/restore pour récupérer l'utilisateur même si suppression en cours
+      // Cela permet de récupérer l'utilisateur et de vérifier le statut de suppression
+      let user: CurrentUser;
+      try {
+        user = await apiGet<CurrentUser>("/auth/me/restore", data.access_token);
+      } catch (error: any) {
+        setError("Erreur lors de la récupération des informations utilisateur");
+        setLoading(false);
+        return;
+      }
 
       if (!user || !user.id) {
         setError("Erreur lors de la récupération des informations utilisateur");
