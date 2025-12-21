@@ -17,29 +17,37 @@ depends_on = None
 
 
 def upgrade():
-    # Créer la table appointment_types
-    op.create_table(
-        'appointment_types',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('company_id', sa.Integer(), nullable=False),
-        sa.Column('name', sa.String(), nullable=False),
-        sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('duration_minutes', sa.Integer(), nullable=False, server_default='30'),
-        sa.Column('buffer_before_minutes', sa.Integer(), nullable=True),
-        sa.Column('buffer_after_minutes', sa.Integer(), nullable=True),
-        sa.Column('employees_allowed_ids', sa.Text(), nullable=True),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-        sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_appointment_types_id'), 'appointment_types', ['id'], unique=False)
-    op.create_index(op.f('ix_appointment_types_company_id'), 'appointment_types', ['company_id'], unique=False)
+    # Vérifier si les tables existent déjà (pour éviter les erreurs en cas de re-exécution)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+    
+    # Créer la table appointment_types si elle n'existe pas
+    if 'appointment_types' not in existing_tables:
+        op.create_table(
+            'appointment_types',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('company_id', sa.Integer(), nullable=False),
+            sa.Column('name', sa.String(), nullable=False),
+            sa.Column('description', sa.Text(), nullable=True),
+            sa.Column('duration_minutes', sa.Integer(), nullable=False, server_default='30'),
+            sa.Column('buffer_before_minutes', sa.Integer(), nullable=True),
+            sa.Column('buffer_after_minutes', sa.Integer(), nullable=True),
+            sa.Column('employees_allowed_ids', sa.Text(), nullable=True),
+            sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
+            sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+            sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+            sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
+            sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_appointment_types_id'), 'appointment_types', ['id'], unique=False)
+        op.create_index(op.f('ix_appointment_types_company_id'), 'appointment_types', ['company_id'], unique=False)
 
-    # Créer la table appointments
-    op.create_table(
-        'appointments',
+    # Créer la table appointments si elle n'existe pas
+    if 'appointments' not in existing_tables:
+        op.create_table(
+            'appointments',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('company_id', sa.Integer(), nullable=False),
         sa.Column('client_id', sa.Integer(), nullable=False),
@@ -59,16 +67,16 @@ def upgrade():
         sa.ForeignKeyConstraint(['employee_id'], ['users.id'], ),
         sa.ForeignKeyConstraint(['conversation_id'], ['conversations.id'], ),
         sa.ForeignKeyConstraint(['created_by_id'], ['users.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_appointments_id'), 'appointments', ['id'], unique=False)
-    op.create_index(op.f('ix_appointments_company_id'), 'appointments', ['company_id'], unique=False)
-    op.create_index(op.f('ix_appointments_client_id'), 'appointments', ['client_id'], unique=False)
-    op.create_index(op.f('ix_appointments_type_id'), 'appointments', ['type_id'], unique=False)
-    op.create_index(op.f('ix_appointments_employee_id'), 'appointments', ['employee_id'], unique=False)
-    op.create_index(op.f('ix_appointments_conversation_id'), 'appointments', ['conversation_id'], unique=False)
-    op.create_index(op.f('ix_appointments_start_date_time'), 'appointments', ['start_date_time'], unique=False)
-    op.create_index(op.f('ix_appointments_status'), 'appointments', ['status'], unique=False)
+            sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_appointments_id'), 'appointments', ['id'], unique=False)
+        op.create_index(op.f('ix_appointments_company_id'), 'appointments', ['company_id'], unique=False)
+        op.create_index(op.f('ix_appointments_client_id'), 'appointments', ['client_id'], unique=False)
+        op.create_index(op.f('ix_appointments_type_id'), 'appointments', ['type_id'], unique=False)
+        op.create_index(op.f('ix_appointments_employee_id'), 'appointments', ['employee_id'], unique=False)
+        op.create_index(op.f('ix_appointments_conversation_id'), 'appointments', ['conversation_id'], unique=False)
+        op.create_index(op.f('ix_appointments_start_date_time'), 'appointments', ['start_date_time'], unique=False)
+        op.create_index(op.f('ix_appointments_status'), 'appointments', ['status'], unique=False)
 
 
 def downgrade():
