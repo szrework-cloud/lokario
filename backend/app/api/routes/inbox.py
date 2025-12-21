@@ -121,20 +121,60 @@ def get_conversations(
             )
         )
     
+    # Charger les relations nécessaires en une seule requête (eager loading)
+    from sqlalchemy.orm import joinedload
+    query = query.options(
+        joinedload(Conversation.client),
+        joinedload(Conversation.assigned_to),
+        joinedload(Conversation.folder)
+    )
+    
     # Trier par dernière activité
     conversations = query.order_by(
         Conversation.last_message_at.desc().nullslast(),
         Conversation.created_at.desc()
     ).offset(skip).limit(limit).all()
     
+    # Récupérer tous les premiers messages clients en une seule requête (optimisation N+1)
+    conversation_ids = [conv.id for conv in conversations]
+    first_client_messages = {}
+    if conversation_ids:
+        # Requête optimisée : récupérer le premier message client pour chaque conversation
+        from sqlalchemy import func
+        from sqlalchemy.orm import aliased
+        
+        # Sous-requête pour trouver la date minimale pour chaque conversation
+        min_dates = (
+            db.query(
+                InboxMessage.conversation_id,
+                func.min(InboxMessage.created_at).label('min_date')
+            )
+            .filter(
+                InboxMessage.conversation_id.in_(conversation_ids),
+                InboxMessage.is_from_client == True
+            )
+            .group_by(InboxMessage.conversation_id)
+            .subquery()
+        )
+        
+        # Récupérer les messages correspondants
+        messages = db.query(InboxMessage).join(
+            min_dates,
+            and_(
+                InboxMessage.conversation_id == min_dates.c.conversation_id,
+                InboxMessage.created_at == min_dates.c.min_date,
+                InboxMessage.is_from_client == True
+            )
+        ).all()
+        
+        for msg in messages:
+            if msg.conversation_id not in first_client_messages:
+                first_client_messages[msg.conversation_id] = msg
+    
     # Enrichir avec les noms et récupérer email/téléphone du premier message du client
     result = []
     for conv in conversations:
-        # Récupérer le premier message du client (is_from_client=True)
-        first_client_message = db.query(InboxMessage).filter(
-            InboxMessage.conversation_id == conv.id,
-            InboxMessage.is_from_client == True
-        ).order_by(InboxMessage.created_at.asc()).first()
+        first_client_message = first_client_messages.get(conv.id)
         
         conv_dict = {
             "id": conv.id,
