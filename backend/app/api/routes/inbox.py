@@ -1400,25 +1400,20 @@ def create_folder(
     logger.info(f"[FOLDER CREATE] Dossier créé: {folder.name} (ID: {folder.id})")
     logger.info(f"[FOLDER CREATE] ai_rules reçus: {folder_data.ai_rules}")
     
-    # Si la classification automatique est activée pour ce dossier, reclasser toutes les conversations
-    ai_rules = folder_data.ai_rules or {}
-    logger.info(f"[FOLDER CREATE] Vérification condition - ai_rules: {ai_rules}, type: {type(ai_rules)}")
-    
-    if isinstance(ai_rules, dict) and ai_rules.get("autoClassify", False):
-        logger.info(f"[FOLDER CREATE] ✅ Classification automatique activée, reclassification de toutes les conversations (y compris celles déjà classées)...")
-        from app.core.folder_ai_classifier import reclassify_all_conversations
-        try:
-            # Utiliser force=True pour reclasser même les conversations déjà dans un dossier
-            # Cela permet de reclasser les conversations dans "divers" vers le nouveau dossier
-            stats = reclassify_all_conversations(db=db, company_id=current_user.company_id, force=True)
-            logger.info(f"[FOLDER CREATE] Reclassification terminée: {stats['classified']} conversation(s) classée(s), {stats['total']} totale(s)")
-        except Exception as e:
-            logger.error(f"[FOLDER CREATE] ❌ Erreur lors de la reclassification: {e}")
-            import traceback
-            traceback.print_exc()
-            # Ne pas faire échouer la création du dossier si la reclassification échoue
-    else:
-        logger.info(f"[FOLDER CREATE] ⚠️  Classification automatique non activée - autoClassify: {ai_rules.get('autoClassify') if isinstance(ai_rules, dict) else 'N/A'}")
+    # Toujours reclasser toutes les conversations lors de la création d'un nouveau dossier
+    # Cela permet de classer les emails existants dans le nouveau dossier si ils correspondent
+    logger.info(f"[FOLDER CREATE] ✅ Reclassification de toutes les conversations pour le nouveau dossier...")
+    from app.core.folder_ai_classifier import reclassify_all_conversations
+    try:
+        # Utiliser force=False pour ne reclasser que les conversations sans dossier
+        # Cela évite de déplacer des conversations déjà classées manuellement
+        stats = reclassify_all_conversations(db=db, company_id=current_user.company_id, force=False)
+        logger.info(f"[FOLDER CREATE] Reclassification terminée: {stats['classified']} conversation(s) classée(s), {stats['total']} totale(s)")
+    except Exception as e:
+        logger.error(f"[FOLDER CREATE] ❌ Erreur lors de la reclassification: {e}")
+        import traceback
+        traceback.print_exc()
+        # Ne pas faire échouer la création du dossier si la reclassification échoue
     
     return folder
 
