@@ -118,14 +118,29 @@ def upgrade():
         except Exception:
             pass
         
-        # Supprimer l'ancienne table (si elle existe)
-        try:
-            op.drop_table('followups')
-        except Exception:
-            pass
-        
-        # Renommer la nouvelle table
-        op.rename_table('followups_new', 'followups')
+        # Vérifier si followups_new existe avant de renommer
+        if 'followups_new' in existing_tables:
+            # Supprimer l'ancienne table (si elle existe)
+            try:
+                op.drop_table('followups')
+            except Exception:
+                pass
+            
+            # Renommer la nouvelle table
+            try:
+                op.rename_table('followups_new', 'followups')
+            except Exception:
+                # Si le rename échoue, peut-être que followups_new n'existe plus ou followups existe déjà
+                pass
+        else:
+            # Si followups_new n'existe pas, vérifier si followups a déjà la bonne structure
+            # Si oui, on n'a rien à faire (migration déjà appliquée)
+            if 'followups' in existing_tables:
+                # Vérifier si la table a déjà la structure nettoyée (pas de colonnes is_automatic, delay_days, etc.)
+                followups_columns = [col['name'] for col in inspector.get_columns('followups')]
+                if 'is_automatic' not in followups_columns and 'delay_days' not in followups_columns:
+                    # La table est déjà nettoyée, on n'a rien à faire
+                    return
         
         # Recréer les index
         op.create_index(op.f('ix_followups_id'), 'followups', ['id'], unique=False)
