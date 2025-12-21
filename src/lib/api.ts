@@ -128,6 +128,13 @@ export async function apiGet<T>(path: string, token?: string | null): Promise<T>
         (authError as any).status = 401;
         (authError as any).isAuthError = true;
         throw authError;
+      } else if (path === "/users/me/deletion-status" || path === "/users/me/restore" || path === "/auth/me/restore") {
+        // Pour les endpoints de restauration, ne pas rediriger vers login
+        // car l'utilisateur peut avoir un compte en suppression
+        const authError = new Error(message || "Erreur d'authentification");
+        (authError as any).status = 401;
+        (authError as any).isAuthError = true;
+        throw authError;
       } else {
         // Pour les autres routes, c'est une session expirée
         // Nettoyer le localStorage
