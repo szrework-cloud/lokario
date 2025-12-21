@@ -17,9 +17,16 @@ depends_on = None
 
 
 def upgrade():
-    # Créer la table chatbot_conversations
-    op.create_table(
-        'chatbot_conversations',
+    # Vérifier si les tables existent déjà
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+    
+    # Créer la table chatbot_conversations si elle n'existe pas
+    if 'chatbot_conversations' not in existing_tables:
+        op.create_table(
+            'chatbot_conversations',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('company_id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.Integer(), nullable=False),
@@ -36,11 +43,12 @@ def upgrade():
     op.create_index(op.f('ix_chatbot_conversations_company_id'), 'chatbot_conversations', ['company_id'], unique=False)
     op.create_index(op.f('ix_chatbot_conversations_user_id'), 'chatbot_conversations', ['user_id'], unique=False)
     op.create_index('ix_chatbot_conversations_company_user', 'chatbot_conversations', ['company_id', 'user_id'], unique=False)
-    op.create_index('ix_chatbot_conversations_last_message_at', 'chatbot_conversations', ['last_message_at'], unique=False)
+        op.create_index('ix_chatbot_conversations_last_message_at', 'chatbot_conversations', ['last_message_at'], unique=False)
 
-    # Créer la table chatbot_messages
-    op.create_table(
-        'chatbot_messages',
+    # Créer la table chatbot_messages si elle n'existe pas
+    if 'chatbot_messages' not in existing_tables:
+        op.create_table(
+            'chatbot_messages',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('conversation_id', sa.Integer(), nullable=False),
         sa.Column('role', sa.String(), nullable=False),
@@ -56,11 +64,12 @@ def upgrade():
     op.create_index(op.f('ix_chatbot_messages_id'), 'chatbot_messages', ['id'], unique=False)
     op.create_index(op.f('ix_chatbot_messages_conversation_id'), 'chatbot_messages', ['conversation_id'], unique=False)
     op.create_index('ix_chatbot_messages_created_at', 'chatbot_messages', ['created_at'], unique=False)
-    op.create_index('ix_chatbot_messages_conversation_created', 'chatbot_messages', ['conversation_id', 'created_at'], unique=False)
+        op.create_index('ix_chatbot_messages_conversation_created', 'chatbot_messages', ['conversation_id', 'created_at'], unique=False)
 
-    # Créer la table chatbot_context_cache
-    op.create_table(
-        'chatbot_context_cache',
+    # Créer la table chatbot_context_cache si elle n'existe pas
+    if 'chatbot_context_cache' not in existing_tables:
+        op.create_table(
+            'chatbot_context_cache',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('company_id', sa.Integer(), nullable=False),
         sa.Column('context_data', sa.JSON() if hasattr(sa, 'JSON') else sa.Text(), nullable=False),
@@ -68,10 +77,10 @@ def upgrade():
         sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('company_id')
-    )
-    op.create_index(op.f('ix_chatbot_context_cache_id'), 'chatbot_context_cache', ['id'], unique=False)
-    op.create_index(op.f('ix_chatbot_context_cache_company_id'), 'chatbot_context_cache', ['company_id'], unique=True)
+            sa.UniqueConstraint('company_id')
+        )
+        op.create_index(op.f('ix_chatbot_context_cache_id'), 'chatbot_context_cache', ['id'], unique=False)
+        op.create_index(op.f('ix_chatbot_context_cache_company_id'), 'chatbot_context_cache', ['company_id'], unique=True)
 
 
 def downgrade():

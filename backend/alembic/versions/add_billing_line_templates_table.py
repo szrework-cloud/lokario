@@ -21,8 +21,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Créer la table billing_line_templates
-    try:
+    # Vérifier si la table existe déjà
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+    
+    # Créer la table billing_line_templates si elle n'existe pas
+    if 'billing_line_templates' not in existing_tables:
         op.create_table(
             'billing_line_templates',
             sa.Column('id', sa.Integer(), nullable=False),
@@ -37,9 +43,6 @@ def upgrade() -> None:
         )
         op.create_index(op.f('ix_billing_line_templates_id'), 'billing_line_templates', ['id'], unique=False)
         op.create_index(op.f('ix_billing_line_templates_company_id'), 'billing_line_templates', ['company_id'], unique=False)
-    except Exception:
-        # La table existe peut-être déjà, continuer
-        pass
 
 
 def downgrade() -> None:

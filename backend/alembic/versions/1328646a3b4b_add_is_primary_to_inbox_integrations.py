@@ -19,8 +19,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Ajouter la colonne is_primary à inbox_integrations
-    op.add_column('inbox_integrations', sa.Column('is_primary', sa.Boolean(), nullable=False, server_default='0'))
+    # Vérifier si la colonne existe déjà
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_columns = [col['name'] for col in inspector.get_columns('inbox_integrations')] if 'inbox_integrations' in inspector.get_table_names() else []
+    
+    # Ajouter la colonne is_primary à inbox_integrations si elle n'existe pas
+    if 'is_primary' not in existing_columns:
+        op.add_column('inbox_integrations', sa.Column('is_primary', sa.Boolean(), nullable=False, server_default='0'))
     # Par défaut, la première boîte active devient principale (on le fera dans le code si nécessaire)
 
 

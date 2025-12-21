@@ -19,9 +19,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Créer la table inbox_integrations
-    op.create_table(
-        'inbox_integrations',
+    # Vérifier si la table existe déjà
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+    
+    # Créer la table inbox_integrations si elle n'existe pas
+    if 'inbox_integrations' not in existing_tables:
+        op.create_table(
+            'inbox_integrations',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('company_id', sa.Integer(), nullable=False),
         sa.Column('integration_type', sa.String(), nullable=False),
@@ -44,9 +51,9 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_inbox_integrations_company_id'), 'inbox_integrations', ['company_id'], unique=False)
+            sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_inbox_integrations_company_id'), 'inbox_integrations', ['company_id'], unique=False)
 
 
 def downgrade() -> None:

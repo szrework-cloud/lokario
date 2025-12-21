@@ -17,9 +17,16 @@ depends_on = None
 
 
 def upgrade():
-    # Créer la table notifications
-    op.create_table(
-        'notifications',
+    # Vérifier si la table existe déjà
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+    
+    # Créer la table notifications si elle n'existe pas
+    if 'notifications' not in existing_tables:
+        op.create_table(
+            'notifications',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('company_id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.Integer(), nullable=True),
@@ -35,14 +42,14 @@ def upgrade():
         sa.Column('read_at', sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_notifications_id'), 'notifications', ['id'], unique=False)
-    op.create_index(op.f('ix_notifications_company_id'), 'notifications', ['company_id'], unique=False)
-    op.create_index(op.f('ix_notifications_user_id'), 'notifications', ['user_id'], unique=False)
-    op.create_index(op.f('ix_notifications_type'), 'notifications', ['type'], unique=False)
-    op.create_index(op.f('ix_notifications_read'), 'notifications', ['read'], unique=False)
-    op.create_index(op.f('ix_notifications_created_at'), 'notifications', ['created_at'], unique=False)
+            sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_notifications_id'), 'notifications', ['id'], unique=False)
+        op.create_index(op.f('ix_notifications_company_id'), 'notifications', ['company_id'], unique=False)
+        op.create_index(op.f('ix_notifications_user_id'), 'notifications', ['user_id'], unique=False)
+        op.create_index(op.f('ix_notifications_type'), 'notifications', ['type'], unique=False)
+        op.create_index(op.f('ix_notifications_read'), 'notifications', ['read'], unique=False)
+        op.create_index(op.f('ix_notifications_created_at'), 'notifications', ['created_at'], unique=False)
 
 
 def downgrade():
