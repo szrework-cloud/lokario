@@ -19,6 +19,8 @@ class User(Base):
     email_verification_token_expires_at = Column(DateTime(timezone=True), nullable=True)  # Expiration du token
     password_reset_token = Column(String, unique=True, nullable=True, index=True)  # Token pour réinitialisation mot de passe
     password_reset_token_expires_at = Column(DateTime(timezone=True), nullable=True)  # Expiration du token de réinitialisation
+    deletion_requested_at = Column(DateTime(timezone=True), nullable=True)  # Date de demande de suppression
+    deletion_scheduled_at = Column(DateTime(timezone=True), nullable=True, index=True)  # Date de suppression définitive (30 jours après)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Permissions pour les tâches (pour les users uniquement, les owners/admins ont tous les droits)

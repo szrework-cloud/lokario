@@ -287,3 +287,5 @@ class FollowUpHistoryRead(BaseModel):
 5. Le système doit calculer automatiquement les relances à créer (devis non répondu, factures impayées, etc.)
 
 
+
+

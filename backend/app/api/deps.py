@@ -93,7 +93,7 @@ async def get_current_active_user(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """
-    Dépendance pour vérifier que l'utilisateur est actif.
+    Dépendance pour vérifier que l'utilisateur est actif et n'est pas en cours de suppression.
     """
     import sys
     import logging
@@ -108,6 +108,26 @@ async def get_current_active_user(
     
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    
+    # Bloquer l'accès si le compte est en cours de suppression
+    if current_user.deletion_requested_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account deletion in progress. Please restore your account to continue."
+        )
+    
+    return current_user
+
+
+async def get_current_user_for_restore(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Dépendance pour les endpoints de restauration qui permet l'accès même si deletion_requested_at est défini.
+    """
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    
     return current_user
 
 

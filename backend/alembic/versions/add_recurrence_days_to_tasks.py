@@ -18,8 +18,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Ajouter recurrence_days à la table tasks (Text pour stocker JSON)
-    op.add_column('tasks', sa.Column('recurrence_days', sa.Text(), nullable=True))
+    # Vérifier si la colonne existe déjà (pour éviter les erreurs en cas de re-exécution)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    
+    # Obtenir les colonnes existantes de la table tasks
+    if 'tasks' in inspector.get_table_names():
+        existing_columns = [col['name'] for col in inspector.get_columns('tasks')]
+        
+        # Ajouter recurrence_days à la table tasks (Text pour stocker JSON) si elle n'existe pas
+        if 'recurrence_days' not in existing_columns:
+            op.add_column('tasks', sa.Column('recurrence_days', sa.Text(), nullable=True))
 
 
 def downgrade() -> None:

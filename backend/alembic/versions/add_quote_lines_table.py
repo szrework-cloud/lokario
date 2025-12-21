@@ -15,7 +15,7 @@ from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision: str = 'add_quote_lines'
-down_revision: Union[str, None] = 'a1b2c3d4e5f6'
+down_revision: Union[str, None] = 'a1b2c3d4e5f7'  # Référence à add_invoice_conformity (renommé)
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -38,8 +38,11 @@ def upgrade() -> None:
     if 'total_ttc' not in columns:
         op.add_column('quotes', sa.Column('total_ttc', sa.Numeric(10, 2), nullable=True))
     
+    # Vérifier si la table existe déjà
+    existing_tables = inspector.get_table_names()
+    
     # Créer la table quote_lines si elle n'existe pas
-    try:
+    if 'quote_lines' not in existing_tables:
         op.create_table(
             'quote_lines',
             sa.Column('id', sa.Integer(), nullable=False),
@@ -56,9 +59,6 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint('id')
         )
         op.create_index(op.f('ix_quote_lines_quote_id'), 'quote_lines', ['quote_id'], unique=False)
-    except Exception:
-        # La table existe peut-être déjà, continuer
-        pass
     
     # Note: SQLite ne supporte pas les ENUMs natifs, donc pas besoin de modifier l'enum
     # Le statut 'brouillon' sera stocké comme string dans SQLite
