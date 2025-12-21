@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime
 from app.db.session import get_db
 from app.db.models.user import User
 from app.db.models.company import Company
@@ -17,7 +17,7 @@ from app.db.models.followup import FollowUp, FollowUpHistory
 from app.db.models.conversation import Conversation, InboxMessage, MessageAttachment, InternalNote
 from app.db.models.appointment import Appointment
 from app.api.schemas.user import UserRead, UserUpdate, UserWithCompany, UserPermissionsUpdate
-from app.api.deps import get_current_active_user, get_current_super_admin
+from app.api.deps import get_current_active_user, get_current_super_admin, get_current_user, get_current_user_for_restore
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -606,19 +606,19 @@ def delete_user_account(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Demande la suppression du compte de l'utilisateur (délai de grâce de 30 jours).
+    Marque le compte pour suppression avec une période de grâce de 30 jours.
     
     Comportement:
-    - Le compte est marqué pour suppression dans 30 jours
-    - L'utilisateur peut toujours se connecter et récupérer son compte pendant ce délai
-    - Après 30 jours, le compte sera définitivement supprimé par un job automatique
-    - Si l'utilisateur est seul dans l'entreprise : toutes les données seront supprimées
-    - Si d'autres utilisateurs existent : seul l'utilisateur sera supprimé
-    - Les factures seront anonymisées plutôt que supprimées (obligation légale de conservation 10 ans)
+    - Marque le compte pour suppression (deletion_requested_at = maintenant)
+    - Calcule la date de suppression définitive (deletion_scheduled_at = maintenant + 30 jours)
+    - L'utilisateur ne pourra plus accéder à son compte pendant cette période
+    - Un cron job supprimera définitivement le compte après 30 jours
     
-    L'utilisateur peut annuler la suppression via /users/me/restore avant la date de suppression.
+    L'utilisateur peut restaurer son compte pendant les 30 jours via /users/me/restore
     """
-    # Récupérer l'utilisateur depuis la session actuelle pour éviter les conflits de session
+    from datetime import timedelta
+    
+    # Récupérer l'utilisateur depuis la session actuelle
     user_id = current_user.id
     user = db.query(User).filter(User.id == user_id).first()
     
@@ -628,169 +628,109 @@ def delete_user_account(
             detail="User not found"
         )
     
-    # Vérifier si une suppression est déjà en cours
-    if user.deletion_requested_at:
+    # Vérifier si la suppression est déjà en cours
+    if user.deletion_requested_at is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Account deletion already requested. Scheduled for: {user.deletion_scheduled_at.isoformat() if user.deletion_scheduled_at else 'unknown'}"
+            detail="Account deletion already in progress. Use /users/me/restore to cancel."
         )
     
-    # Marquer le compte pour suppression dans 30 jours
-    now = datetime.now()
-    deletion_scheduled_at = now + timedelta(days=30)
-    
-    user.deletion_requested_at = now
-    user.deletion_scheduled_at = deletion_scheduled_at
-    
-    db.commit()
-    db.refresh(user)
-    
-    return {
-        "message": "Account deletion requested. Your account will be permanently deleted in 30 days. You can restore it before then.",
-        "deletion_requested_at": user.deletion_requested_at.isoformat(),
-        "deletion_scheduled_at": user.deletion_scheduled_at.isoformat(),
-        "days_remaining": 30
-    }
-            # Si c'est le seul utilisateur, supprimer toutes les données de l'entreprise
-            # SAUF les factures qui doivent être conservées (obligation légale)
-            
-            # Relances
-            followups = db.query(FollowUp).filter(FollowUp.company_id == company_id).all()
-            for followup in followups:
-                # Supprimer l'historique
-                history = db.query(FollowUpHistory).filter(FollowUpHistory.followup_id == followup.id).all()
-                for h in history:
-                    db.delete(h)
-                db.delete(followup)
-            
-            # Projets
-            projects = db.query(Project).filter(Project.company_id == company_id).all()
-            for project in projects:
-                # Supprimer l'historique
-                history = db.query(ProjectHistory).filter(ProjectHistory.project_id == project.id).all()
-                for h in history:
-                    db.delete(h)
-                db.delete(project)
-            
-            # Tâches
-            tasks = db.query(Task).filter(Task.company_id == company_id).all()
-            for task in tasks:
-                db.delete(task)
-            
-            # Conversations
-            conversations = db.query(Conversation).filter(Conversation.company_id == company_id).all()
-            for conversation in conversations:
-                # Supprimer les messages
-                messages = db.query(InboxMessage).filter(InboxMessage.conversation_id == conversation.id).all()
-                for message in messages:
-                    # Supprimer les pièces jointes
-                    attachments = db.query(MessageAttachment).filter(MessageAttachment.message_id == message.id).all()
-                    for att in attachments:
-                        db.delete(att)
-                    db.delete(message)
-                # Supprimer les notes internes
-                notes = db.query(InternalNote).filter(InternalNote.conversation_id == conversation.id).all()
-                for note in notes:
-                    db.delete(note)
-                db.delete(conversation)
-            
-            # Devis
-            quotes = db.query(Quote).filter(Quote.company_id == company_id).all()
-            for quote in quotes:
-                # Supprimer les signatures
-                signatures = db.query(QuoteSignature).filter(QuoteSignature.quote_id == quote.id).all()
-                for sig in signatures:
-                    audit_logs = db.query(QuoteSignatureAuditLog).filter(QuoteSignatureAuditLog.quote_id == quote.id).all()
-                    for log in audit_logs:
-                        db.delete(log)
-                    db.delete(sig)
-                # Supprimer les OTP
-                otps = db.query(QuoteOTP).filter(QuoteOTP.quote_id == quote.id).all()
-                for otp in otps:
-                    db.delete(otp)
-                # Supprimer les lignes
-                lines = db.query(QuoteLine).filter(QuoteLine.quote_id == quote.id).all()
-                for line in lines:
-                    db.delete(line)
-                db.delete(quote)
-            
-            # Factures : ANONYMIser plutôt que supprimer (obligation légale de conservation 10 ans)
-            # On anonymise les données personnelles mais on garde les données comptables
-            invoices = db.query(Invoice).filter(Invoice.company_id == company_id).all()
-            for invoice in invoices:
-                # Anonymiser les données personnelles de l'utilisateur
-                # Les données comptables (montants, dates, etc.) restent pour obligations légales
-                if invoice.notes:
-                    invoice.notes = "[Données anonymisées - compte supprimé]"
-                # Les paiements et lignes restent (obligation comptable)
-                # Les logs d'audit restent (traçabilité légale)
-            
-            # Clients
-            clients = db.query(Client).filter(Client.company_id == company_id).all()
-            for client in clients:
-                db.delete(client)
-            
-            # Rendez-vous
-            appointments = db.query(Appointment).filter(Appointment.company_id == company_id).all()
-            for appointment in appointments:
-                db.delete(appointment)
-            
-            # Supprimer l'utilisateur (utiliser l'objet de la session actuelle)
-            db.delete(user)
-            
-            db.commit()
-            
-            return {
-                "message": "Account and all data deleted successfully. Invoices have been anonymized for legal compliance (10-year retention requirement).",
-                "deleted_at": datetime.now().isoformat(),
-                "invoices_anonymized": len(invoices)
-            }
-        else:
-            # S'il y a d'autres utilisateurs, on ne supprime QUE l'utilisateur
-            # Les données de l'entreprise restent pour les autres utilisateurs
-            db.delete(user)
-            db.commit()
-            
-            return {
-                "message": "Account deleted successfully. Company data has been preserved for other users.",
-                "deleted_at": datetime.now().isoformat(),
-                "other_users_count": other_users
-            }
+    try:
+        # Marquer le compte pour suppression
+        now = datetime.now()
+        user.deletion_requested_at = now
+        user.deletion_scheduled_at = now + timedelta(days=30)
+        
+        db.commit()
+        db.refresh(user)
+        
+        return {
+            "message": "Account deletion requested. Your account will be permanently deleted in 30 days. You can restore it before then using /users/me/restore",
+            "deletion_requested_at": user.deletion_requested_at.isoformat(),
+            "deletion_scheduled_at": user.deletion_scheduled_at.isoformat(),
+            "days_remaining": 30
+        }
     
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=500,
-            detail=f"Error deleting account: {str(e)}"
+            detail=f"Error requesting account deletion: {str(e)}"
+        )
+
+
+@router.post("/me/restore")
+def restore_user_account(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_for_restore)  # Permet l'accès même si deletion_requested_at est défini
+):
+    """
+    Restaure un compte en cours de suppression.
+    
+    Annule la demande de suppression et restaure l'accès au compte.
+    """
+    user_id = current_user.id
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if user.deletion_requested_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No deletion request in progress"
+        )
+    
+    try:
+        # Annuler la suppression
+        user.deletion_requested_at = None
+        user.deletion_scheduled_at = None
+        
+        db.commit()
+        db.refresh(user)
+        
+        return {
+            "message": "Account restoration successful. Your account has been restored and you can now access it normally.",
+            "restored_at": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error restoring account: {str(e)}"
         )
 
 
 @router.get("/me/deletion-status")
 def get_deletion_status(
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user_for_restore)  # Permet l'accès même si deletion_requested_at est défini
 ):
     """
-    Retourne le statut de suppression du compte de l'utilisateur.
+    Retourne le statut de suppression du compte.
     """
-    if not current_user.deletion_requested_at:
+    from datetime import datetime, timedelta
+    
+    if current_user.deletion_requested_at is None:
         return {
-            "is_scheduled_for_deletion": False,
+            "deletion_in_progress": False,
             "deletion_requested_at": None,
             "deletion_scheduled_at": None,
             "days_remaining": None
         }
     
     now = datetime.now()
+    days_remaining = None
     if current_user.deletion_scheduled_at:
-        days_remaining = (current_user.deletion_scheduled_at - now).days
-        if days_remaining < 0:
-            days_remaining = 0
-    else:
-        days_remaining = None
+        delta = current_user.deletion_scheduled_at - now
+        days_remaining = max(0, delta.days)
     
     return {
-        "is_scheduled_for_deletion": True,
-        "deletion_requested_at": current_user.deletion_requested_at.isoformat(),
+        "deletion_in_progress": True,
+        "deletion_requested_at": current_user.deletion_requested_at.isoformat() if current_user.deletion_requested_at else None,
         "deletion_scheduled_at": current_user.deletion_scheduled_at.isoformat() if current_user.deletion_scheduled_at else None,
         "days_remaining": days_remaining
     }
