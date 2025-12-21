@@ -712,7 +712,7 @@ def get_deletion_status(
     """
     Retourne le statut de suppression du compte.
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     
     if current_user.deletion_requested_at is None:
         return {
@@ -722,10 +722,15 @@ def get_deletion_status(
             "days_remaining": None
         }
     
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     days_remaining = None
     if current_user.deletion_scheduled_at:
-        delta = current_user.deletion_scheduled_at - now
+        # S'assurer que deletion_scheduled_at a un timezone pour la comparaison
+        scheduled_at = current_user.deletion_scheduled_at
+        if scheduled_at.tzinfo is None:
+            # Si pas de timezone, supposer UTC
+            scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+        delta = scheduled_at - now
         days_remaining = max(0, delta.days)
     
     return {
