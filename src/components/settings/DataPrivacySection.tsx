@@ -15,6 +15,13 @@ interface DeletionStatus {
   days_remaining: number | null;
 }
 
+interface DeletionResponse {
+  message: string;
+  deletion_requested_at: string;
+  deletion_scheduled_at: string;
+  days_remaining: number;
+}
+
 export function DataPrivacySection() {
   const { user, token, logout } = useAuth();
   const { toast, showToast } = useToast();
@@ -78,7 +85,7 @@ export function DataPrivacySection() {
     setIsDeleting(true);
     try {
       // Appel API pour marquer le compte pour suppression
-      const response = await apiPost("/users/me/delete", {}, token);
+      const response = await apiPost<DeletionResponse>("/users/me/delete", {}, token);
       
       showToast(
         `Suppression programmée. Votre compte sera supprimé dans 30 jours. Vous pouvez le restaurer avant cette date.`,
