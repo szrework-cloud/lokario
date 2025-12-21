@@ -36,24 +36,58 @@ export default function RestoreAccountPage() {
 
   useEffect(() => {
     const loadStatus = async () => {
-      if (!token) {
-        // Si pas de token, rediriger vers login
+      // Attendre un peu pour que le token soit chargé
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Vérifier le token depuis localStorage directement
+      const localToken = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+      const tokenToUse = token || localToken;
+      
+      if (!tokenToUse) {
+        // Si vraiment pas de token, rediriger vers login
+        console.log("⚠️ Restore: Pas de token, redirection vers login");
         window.location.href = "/login";
         return;
       }
 
       try {
-        const deletionStatus = await apiGet<DeletionStatus>("/users/me/deletion-status", token);
+        console.log("🔍 Restore: Vérification du statut de suppression...");
+        const deletionStatus = await apiGet<DeletionStatus>("/users/me/deletion-status", tokenToUse);
+        console.log("📊 Restore: Statut reçu:", deletionStatus);
         setStatus(deletionStatus);
         
         if (!deletionStatus.deletion_in_progress) {
           // Si pas de suppression en cours, rediriger vers le dashboard
+          console.log("✅ Restore: Pas de suppression, redirection vers dashboard");
           window.location.href = "/app/dashboard";
+        } else {
+          console.log("⚠️ Restore: Suppression en cours, affichage du formulaire");
         }
       } catch (error: any) {
-        console.error("Erreur lors du chargement du statut:", error);
-        // Si erreur 403, c'est normal (compte bloqué), continuer
-        if (error?.status !== 403) {
+        console.error("⚠️ Restore: Erreur lors du chargement du statut:", error);
+        console.error("Status:", error?.status, "Message:", error?.message);
+        
+        // Si erreur 403 ou 500, c'est probablement que le compte est bloqué
+        // Dans ce cas, on affiche quand même le formulaire (on assume que c'est une suppression)
+        if (error?.status === 403 || error?.status === 500) {
+          console.log("⚠️ Restore: Erreur 403/500 - compte probablement en suppression, affichage du formulaire");
+          // Afficher un statut par défaut pour permettre la restauration
+          setStatus({
+            deletion_in_progress: true,
+            deletion_requested_at: null,
+            deletion_scheduled_at: null,
+            days_remaining: null
+          });
+        } else if (error?.status === 401) {
+          // Si erreur 401, le token est peut-être invalide, mais on essaie quand même
+          console.log("⚠️ Restore: Erreur 401 - token peut-être invalide, mais on continue");
+          setStatus({
+            deletion_in_progress: true,
+            deletion_requested_at: null,
+            deletion_scheduled_at: null,
+            days_remaining: null
+          });
+        } else {
           setError("Erreur lors du chargement du statut de suppression");
         }
       } finally {
