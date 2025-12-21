@@ -56,16 +56,28 @@ export default function AppLayout({
       const checkDeletionStatus = async () => {
         try {
           const { apiGet } = await import("@/lib/api");
+          logger.log("🔍 AppLayout: Vérification du statut de suppression...");
           const deletionStatus = await apiGet<{ deletion_in_progress: boolean }>("/users/me/deletion-status", token);
+          logger.log("📊 AppLayout: Statut reçu:", deletionStatus);
           
-          if (deletionStatus.deletion_in_progress) {
+          if (deletionStatus && deletionStatus.deletion_in_progress) {
             // Rediriger vers la page de restauration
-            logger.log("🔄 Compte en cours de suppression, redirection vers /restore");
-            window.location.href = "/restore"; // Utiliser window.location.href pour forcer la redirection
+            logger.log("🔄 AppLayout: Compte en cours de suppression, redirection vers /restore");
+            window.location.replace("/restore");
             return;
           }
-        } catch (error) {
-          // Si l'endpoint échoue, continuer normalement (peut être une erreur réseau)
+        } catch (error: any) {
+          // Si l'endpoint échoue avec 403, c'est probablement que le compte est bloqué
+          logger.log("⚠️ AppLayout: Erreur lors de la vérification:", error);
+          console.error("Détails:", error?.status, error?.message);
+          
+          if (error?.status === 403 || error?.message?.includes("Account deletion in progress")) {
+            // Si erreur 403, rediriger vers /restore
+            logger.log("🔄 AppLayout: Erreur 403 détectée, redirection vers /restore");
+            window.location.replace("/restore");
+            return;
+          }
+          // Sinon, continuer normalement (peut être une erreur réseau)
           console.warn("Impossible de vérifier le statut de suppression:", error);
         }
       };
