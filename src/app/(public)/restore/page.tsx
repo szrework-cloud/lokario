@@ -38,7 +38,7 @@ export default function RestoreAccountPage() {
     const loadStatus = async () => {
       if (!token) {
         // Si pas de token, rediriger vers login
-        router.push("/login");
+        window.location.href = "/login";
         return;
       }
 
@@ -48,18 +48,21 @@ export default function RestoreAccountPage() {
         
         if (!deletionStatus.deletion_in_progress) {
           // Si pas de suppression en cours, rediriger vers le dashboard
-          router.push("/app/dashboard");
+          window.location.href = "/app/dashboard";
         }
       } catch (error: any) {
         console.error("Erreur lors du chargement du statut:", error);
-        setError("Erreur lors du chargement du statut de suppression");
+        // Si erreur 403, c'est normal (compte bloqué), continuer
+        if (error?.status !== 403) {
+          setError("Erreur lors du chargement du statut de suppression");
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     loadStatus();
-  }, [token, router]);
+  }, [token]);
 
   const handleRestore = async (e: FormEvent) => {
     e.preventDefault();
@@ -76,7 +79,7 @@ export default function RestoreAccountPage() {
       
       // Rediriger vers le dashboard après 2 secondes
       setTimeout(() => {
-        router.push("/app/dashboard");
+        window.location.href = "/app/dashboard";
       }, 2000);
     } catch (error: any) {
       console.error("Erreur lors de la restauration:", error);
