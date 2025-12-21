@@ -19,54 +19,73 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    from sqlalchemy import inspect
+    
     connection = op.get_bind()
+    inspector = inspect(connection)
+    existing_tables = inspector.get_table_names()
     
     # Vérifier quelles colonnes existent déjà
-    result = connection.execute(sa.text("PRAGMA table_info(users)"))
-    existing_columns = [row[1] for row in result]
+    if 'users' in existing_tables:
+        existing_columns = [col['name'] for col in inspector.get_columns('users')]
+    else:
+        existing_columns = []
     
-    # SQLite ne supporte pas ALTER COLUMN pour changer nullable
-    # Si les colonnes n'existent pas, on crée une nouvelle table
+    # Détecter le type de base de données
+    dialect = connection.dialect.name
+    
     if 'email_verified' not in existing_columns:
-        # Créer une nouvelle table avec le schéma complet
-        op.create_table(
-            'users_new',
-            sa.Column('id', sa.Integer(), nullable=False),
-            sa.Column('email', sa.String(), nullable=False),
-            sa.Column('hashed_password', sa.String(), nullable=False),
-            sa.Column('full_name', sa.String(), nullable=True),
-            sa.Column('role', sa.String(), nullable=False),
-            sa.Column('company_id', sa.Integer(), nullable=True),
-            sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
-            sa.Column('email_verified', sa.Boolean(), nullable=False, server_default='1'),
-            sa.Column('email_verification_token', sa.String(), nullable=True),
-            sa.Column('email_verification_token_expires_at', sa.DateTime(timezone=True), nullable=True),
-            sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-            sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
-            sa.PrimaryKeyConstraint('id')
-        )
-        
-        # Copier les données (email_verified = True pour les utilisateurs existants)
-        connection.execute(sa.text("""
-            INSERT INTO users_new 
-            (id, email, hashed_password, full_name, role, company_id, is_active, 
-             email_verified, email_verification_token, email_verification_token_expires_at, created_at)
-            SELECT 
-                id, email, hashed_password, full_name, role, company_id, is_active,
-                1 as email_verified,
-                NULL as email_verification_token,
-                NULL as email_verification_token_expires_at,
-                created_at
-            FROM users
-        """))
-        
-        # Supprimer l'ancienne table et renommer la nouvelle
-        op.drop_table('users')
-        op.rename_table('users_new', 'users')
-        
-        # Créer les index
-        op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
-        op.create_index(op.f('ix_users_email_verification_token'), 'users', ['email_verification_token'], unique=True)
+        if dialect == 'postgresql':
+            # PostgreSQL : utiliser ALTER TABLE pour ajouter les colonnes
+            op.add_column('users', sa.Column('email_verified', sa.Boolean(), nullable=False, server_default='true'))
+            op.add_column('users', sa.Column('email_verification_token', sa.String(), nullable=True))
+            op.add_column('users', sa.Column('email_verification_token_expires_at', sa.DateTime(timezone=True), nullable=True))
+            
+            # Créer les index
+            try:
+                op.create_index(op.f('ix_users_email_verification_token'), 'users', ['email_verification_token'], unique=True)
+            except:
+                pass  # L'index existe peut-être déjà
+        else:
+            # SQLite : créer une nouvelle table (méthode originale)
+            op.create_table(
+                'users_new',
+                sa.Column('id', sa.Integer(), nullable=False),
+                sa.Column('email', sa.String(), nullable=False),
+                sa.Column('hashed_password', sa.String(), nullable=False),
+                sa.Column('full_name', sa.String(), nullable=True),
+                sa.Column('role', sa.String(), nullable=False),
+                sa.Column('company_id', sa.Integer(), nullable=True),
+                sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
+                sa.Column('email_verified', sa.Boolean(), nullable=False, server_default='1'),
+                sa.Column('email_verification_token', sa.String(), nullable=True),
+                sa.Column('email_verification_token_expires_at', sa.DateTime(timezone=True), nullable=True),
+                sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+                sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
+                sa.PrimaryKeyConstraint('id')
+            )
+            
+            # Copier les données (email_verified = True pour les utilisateurs existants)
+            connection.execute(sa.text("""
+                INSERT INTO users_new 
+                (id, email, hashed_password, full_name, role, company_id, is_active, 
+                 email_verified, email_verification_token, email_verification_token_expires_at, created_at)
+                SELECT 
+                    id, email, hashed_password, full_name, role, company_id, is_active,
+                    1 as email_verified,
+                    NULL as email_verification_token,
+                    NULL as email_verification_token_expires_at,
+                    created_at
+                FROM users
+            """))
+            
+            # Supprimer l'ancienne table et renommer la nouvelle
+            op.drop_table('users')
+            op.rename_table('users_new', 'users')
+            
+            # Créer les index
+            op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
+            op.create_index(op.f('ix_users_email_verification_token'), 'users', ['email_verification_token'], unique=True)
     else:
         # Les colonnes existent déjà, juste créer l'index si nécessaire
         try:
