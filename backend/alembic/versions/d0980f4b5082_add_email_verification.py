@@ -37,15 +37,21 @@ def upgrade() -> None:
     if 'email_verified' not in existing_columns:
         if dialect == 'postgresql':
             # PostgreSQL : utiliser ALTER TABLE pour ajouter les colonnes
-            op.add_column('users', sa.Column('email_verified', sa.Boolean(), nullable=False, server_default='true'))
-            op.add_column('users', sa.Column('email_verification_token', sa.String(), nullable=True))
-            op.add_column('users', sa.Column('email_verification_token_expires_at', sa.DateTime(timezone=True), nullable=True))
+            # Vérifier chaque colonne individuellement
+            if 'email_verified' not in existing_columns:
+                op.add_column('users', sa.Column('email_verified', sa.Boolean(), nullable=False, server_default='true'))
+            if 'email_verification_token' not in existing_columns:
+                op.add_column('users', sa.Column('email_verification_token', sa.String(), nullable=True))
+            if 'email_verification_token_expires_at' not in existing_columns:
+                op.add_column('users', sa.Column('email_verification_token_expires_at', sa.DateTime(timezone=True), nullable=True))
             
-            # Créer les index
-            try:
-                op.create_index(op.f('ix_users_email_verification_token'), 'users', ['email_verification_token'], unique=True)
-            except:
-                pass  # L'index existe peut-être déjà
+            # Créer les index (vérifier s'ils existent déjà)
+            existing_indexes = [idx['name'] for idx in inspector.get_indexes('users')] if 'users' in existing_tables else []
+            if 'ix_users_email_verification_token' not in existing_indexes:
+                try:
+                    op.create_index(op.f('ix_users_email_verification_token'), 'users', ['email_verification_token'], unique=True)
+                except Exception:
+                    pass  # L'index existe peut-être déjà
         else:
             # SQLite : créer une nouvelle table (méthode originale)
             op.create_table(
