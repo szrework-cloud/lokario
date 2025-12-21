@@ -42,8 +42,27 @@ export default function AppLayout({
   useSettings(true);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && token) {
       logger.log("🔍 Vérification auth dans AppLayout:", { isLoading, hasToken: !!token, hasUser: !!user, userRole: user?.role });
+      
+      // Vérifier le statut de suppression
+      const checkDeletionStatus = async () => {
+        try {
+          const { apiGet } = await import("@/lib/api");
+          const deletionStatus = await apiGet<{ deletion_in_progress: boolean }>("/users/me/deletion-status", token);
+          
+          if (deletionStatus.deletion_in_progress) {
+            // Rediriger vers la page de restauration
+            logger.log("🔄 Compte en cours de suppression, redirection vers /restore");
+            router.replace("/restore");
+            return;
+          }
+        } catch (error) {
+          // Si l'endpoint échoue, continuer normalement (peut être une erreur réseau)
+          console.warn("Impossible de vérifier le statut de suppression:", error);
+        }
+      };
+
       if (!token) {
         logger.log("❌ Pas de token, redirection vers /login");
         router.replace("/login");
@@ -55,6 +74,12 @@ export default function AppLayout({
           router.replace("/admin/companies");
         }
       } else {
+        // Vérifier le statut de suppression pour les utilisateurs normaux
+        // Ne pas vérifier si on est déjà sur la page /restore
+        const currentPath = window.location.pathname;
+        if (currentPath !== "/restore") {
+          checkDeletionStatus();
+        }
         logger.log("✅ Authentification valide, accès autorisé");
       }
     }
