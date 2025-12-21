@@ -70,14 +70,22 @@ export default function AppLayout({
           }
           setIsCheckingDeletion(false);
         } catch (error: any) {
-          // Si l'endpoint échoue avec 403, c'est probablement que le compte est bloqué
+          // Si l'endpoint échoue avec 403 ou 500, c'est probablement que le compte est bloqué
           logger.log("⚠️ AppLayout: Erreur lors de la vérification:", error);
           console.error("Détails:", error?.status, error?.message);
           
-          if (error?.status === 403 || error?.message?.includes("Account deletion in progress")) {
-            // Si erreur 403, BLOQUER l'accès et rediriger vers /restore
-            logger.log("🔄 AppLayout: Erreur 403 détectée, BLOQUAGE et redirection vers /restore");
+          if (error?.status === 403 || error?.status === 500 || error?.message?.includes("Account deletion in progress")) {
+            // Si erreur 403 ou 500, BLOQUER l'accès et rediriger vers /restore
+            // (500 peut arriver si l'endpoint a un problème, mais on assume que c'est un compte en suppression)
+            logger.log("🔄 AppLayout: Erreur détectée (403/500), BLOQUAGE et redirection vers /restore");
             window.location.replace("/restore");
+            return;
+          }
+          // Si erreur 401, ne pas rediriger vers login ici, laisser AppLayout gérer
+          if (error?.status === 401) {
+            logger.log("⚠️ AppLayout: Erreur 401 - session peut-être expirée");
+            // Ne pas rediriger automatiquement, laisser le code continuer
+            setIsCheckingDeletion(false);
             return;
           }
           // Sinon, continuer normalement (peut être une erreur réseau)
