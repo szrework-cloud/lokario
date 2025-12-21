@@ -495,3 +495,97 @@ class AIClassifierService:
                 return folder['id']
         
         return None
+    
+    def is_notification_email(
+        self,
+        from_email: str,
+        subject: Optional[str],
+        content_preview: str
+    ) -> bool:
+        """
+        Détermine si un email est une notification automatisée ou provient d'un vrai client.
+        
+        Args:
+            from_email: Email de l'expéditeur
+            subject: Sujet de l'email
+            content_preview: Début du contenu (premiers 200 caractères)
+        
+        Returns:
+            True si c'est une notification, False si c'est un vrai client
+        """
+        if not self.enabled:
+            # Si l'IA n'est pas disponible, utiliser une détection basique par patterns
+            if not from_email:
+                return True
+            
+            from_email_lower = from_email.lower()
+            notification_patterns = [
+                "noreply@", "no-reply@", "notifications@", "notification@",
+                "automated@", "system@", "service@", "donotreply@"
+            ]
+            
+            for pattern in notification_patterns:
+                if pattern in from_email_lower:
+                    return True
+            
+            return False
+        
+        try:
+            # Construire le prompt hybride
+            prompt = f"""Analyse cet email et détermine s'il provient d'un VRAI CLIENT (personne réelle) ou d'une NOTIFICATION AUTOMATISÉE (service, bot, newsletter).
+
+Expéditeur: {from_email}
+Sujet: {subject or "(sans sujet)"}
+Contenu (début): {content_preview[:200]}
+
+Indicateurs NOTIFICATION: noreply@, no-reply@, notifications@, services automatisés (Amazon, PayPal, etc.)
+Indicateurs VRAI CLIENT: email personnel, message personnalisé, demande spécifique
+
+Réponds UNIQUEMENT: "client" ou "notification" """
+            
+            # Appeler ChatGPT
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un assistant qui analyse les emails pour déterminer s'ils proviennent d'un vrai client ou d'une notification automatisée. Réponds uniquement avec 'client' ou 'notification', sans explication."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.2,  # Très déterministe
+                max_tokens=10  # Réponse très courte
+            )
+            
+            # Parser la réponse
+            result = response.choices[0].message.content.strip().lower()
+            
+            # Retourner True si c'est une notification
+            return "notification" in result
+            
+        except Exception as e:
+            error_str = str(e)
+            # Gérer les erreurs de rate limiting
+            if "429" in error_str or "rate limit" in error_str.lower():
+                logger.warning(f"⚠️  Limite d'appels IA atteinte (429). Utilisation de la détection basique par patterns.")
+            else:
+                logger.error(f"Error during notification detection: {e}")
+            
+            # Fallback: détection basique par patterns
+            if not from_email:
+                return True
+            
+            from_email_lower = from_email.lower()
+            notification_patterns = [
+                "noreply@", "no-reply@", "notifications@", "notification@",
+                "automated@", "system@", "service@", "donotreply@"
+            ]
+            
+            for pattern in notification_patterns:
+                if pattern in from_email_lower:
+                    return True
+            
+            return False
