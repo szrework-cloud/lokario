@@ -14,6 +14,7 @@ export function DataPrivacySection() {
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const handleExportData = async () => {
     setIsExporting(true);
@@ -43,6 +44,12 @@ export function DataPrivacySection() {
 
 
   const handleDeleteAccount = async () => {
+    // Vérifier que l'utilisateur a bien tapé "supprimer"
+    if (deleteConfirmText.toLowerCase().trim() !== "supprimer") {
+      showToast("Veuillez taper 'supprimer' pour confirmer", "error");
+      return;
+    }
+
     setIsDeleting(true);
     try {
       // Appel API pour supprimer le compte
@@ -61,6 +68,7 @@ export function DataPrivacySection() {
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
+      setDeleteConfirmText("");
     }
   };
 
@@ -125,20 +133,37 @@ export function DataPrivacySection() {
                 Supprimer mon compte
               </AnimatedButton>
             ) : (
-              <div className="space-y-2">
-                <div className="p-2 bg-white rounded-lg border border-red-200">
-                  <p className="text-xs font-medium text-red-600 mb-1">
+              <div className="space-y-3">
+                <div className="p-3 bg-white rounded-lg border border-red-200">
+                  <p className="text-xs font-medium text-red-600 mb-2">
                     ⚠️ Attention : Cette action est irréversible
                   </p>
-                  <p className="text-xs text-[#64748B]">
+                  <p className="text-xs text-[#64748B] mb-3">
                     Êtes-vous sûr de vouloir supprimer votre compte ? 
                     Toutes vos données seront définitivement supprimées.
                   </p>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-[#0F172A] block">
+                      Pour confirmer, tapez <span className="font-mono text-red-600">supprimer</span> :
+                    </label>
+                    <input
+                      type="text"
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                      placeholder="Tapez 'supprimer' pour confirmer"
+                      disabled={isDeleting}
+                      className="w-full px-3 py-2 text-xs border border-[#E5E7EB] rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      autoFocus
+                    />
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <AnimatedButton
                     variant="secondary"
-                    onClick={() => setShowDeleteConfirm(false)}
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setDeleteConfirmText("");
+                    }}
                     disabled={isDeleting}
                     className="text-xs py-1.5 px-3"
                   >
@@ -147,9 +172,9 @@ export function DataPrivacySection() {
                   <AnimatedButton
                     variant="danger"
                     onClick={handleDeleteAccount}
-                    disabled={isDeleting}
+                    disabled={isDeleting || deleteConfirmText.toLowerCase().trim() !== "supprimer"}
                     loading={isDeleting}
-                    className="text-xs py-1.5 px-3"
+                    className="text-xs py-1.5 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isDeleting ? "Suppression..." : "Confirmer la suppression"}
                   </AnimatedButton>
