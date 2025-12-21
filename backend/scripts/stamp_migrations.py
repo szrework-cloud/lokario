@@ -13,9 +13,16 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, inspect, text
-from alembic.config import Config
-from alembic import command
 from app.core.config import settings
+
+# Imports Alembic (peuvent échouer si pas dans le bon environnement)
+try:
+    from alembic.config import Config as AlembicConfig
+    from alembic import command
+    ALEMBIC_AVAILABLE = True
+except ImportError:
+    ALEMBIC_AVAILABLE = False
+    print("⚠️  Alembic non disponible, utilisation de SQL direct")
 
 def check_column_exists(inspector, table_name, column_name):
     """Vérifie si une colonne existe dans une table"""
@@ -97,12 +104,45 @@ def main():
     print(f"\n📌 Dernière migration détectée: {last_migration}")
     print(f"\n🎯 Marquage de la migration {last_migration} comme version actuelle...")
     
-    # Utiliser alembic stamp pour marquer la migration
-    alembic_cfg = Config("alembic.ini")
-    command.stamp(alembic_cfg, last_migration)
+    # Utiliser alembic stamp ou SQL direct
+    if ALEMBIC_AVAILABLE:
+        try:
+            # Changer vers le répertoire backend pour trouver alembic.ini
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            original_dir = os.getcwd()
+            os.chdir(backend_dir)
+            
+            alembic_cfg = AlembicConfig("alembic.ini")
+            command.stamp(alembic_cfg, last_migration)
+            
+            os.chdir(original_dir)
+            print(f"✅ Migration {last_migration} marquée comme complétée avec Alembic!")
+        except Exception as e:
+            print(f"⚠️  Erreur avec Alembic: {e}")
+            print("🔄 Utilisation de SQL direct...")
+            _stamp_with_sql(engine, last_migration)
+    else:
+        _stamp_with_sql(engine, last_migration)
     
-    print(f"✅ Migration {last_migration} marquée comme complétée!")
     print("\n💡 Vous pouvez maintenant exécuter: alembic upgrade head")
+
+def _stamp_with_sql(engine, version):
+    """Marque la migration avec SQL direct"""
+    with engine.connect() as conn:
+        # Créer la table si elle n'existe pas
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS alembic_version (
+                version_num VARCHAR(32) NOT NULL PRIMARY KEY
+            )
+        """))
+        conn.commit()
+        
+        # Supprimer toutes les versions et insérer la nouvelle
+        conn.execute(text("DELETE FROM alembic_version"))
+        conn.execute(text("INSERT INTO alembic_version (version_num) VALUES (:version)"), {"version": version})
+        conn.commit()
+    
+    print(f"✅ Migration {version} marquée comme complétée avec SQL direct!")
 
 if __name__ == "__main__":
     main()
