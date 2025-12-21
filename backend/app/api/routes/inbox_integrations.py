@@ -944,11 +944,21 @@ async def sync_integration(
                     conversation.status = new_status
                 
                 # Classification automatique dans un dossier avec ChatGPT
-                # DÉSACTIVÉ lors de la synchronisation pour éviter trop d'appels IA
-                # La classification se fait uniquement :
-                # - Pour les nouveaux messages reçus (inbox_webhooks.py, inbox.py)
-                # - Lors de la création/modification d'un dossier (avec reclassification)
-                # PAS lors de la synchronisation
+                # Activée pour les nouvelles conversations uniquement (pas pour les mises à jour)
+                if not conversation.id or conversation.id == 0:  # Nouvelle conversation
+                    try:
+                        folder_id = classify_conversation_to_folder(
+                            db=db,
+                            conversation=conversation,
+                            message=message,
+                            company_id=company.id
+                        )
+                        if folder_id:
+                            conversation.folder_id = folder_id
+                            logger.info(f"[SYNC] Nouvelle conversation {conversation.id} classée dans le dossier {folder_id}")
+                    except Exception as e:
+                        logger.warning(f"[SYNC] Erreur lors de la classification IA: {e}")
+                        # Ne pas faire échouer la synchronisation si la classification échoue
                 
                 db.commit()
                 
