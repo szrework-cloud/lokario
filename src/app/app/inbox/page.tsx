@@ -68,6 +68,7 @@ export default function InboxPage() {
   const [isReplyMinimized, setIsReplyMinimized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [selectedConversationIds, setSelectedConversationIds] = useState<Set<number>>(new Set());
@@ -497,17 +498,18 @@ export default function InboxPage() {
     }
   };
 
+  const handleBulkDeleteClick = () => {
+    if (selectedConversationIds.size === 0) return;
+    setShowBulkDeleteConfirm(true);
+  };
+
   const handleBulkDelete = async () => {
     if (selectedConversationIds.size === 0 || !token) return;
     
     const idsArray = Array.from(selectedConversationIds);
-    const confirmed = window.confirm(
-      `Êtes-vous sûr de vouloir supprimer ${idsArray.length} conversation(s) ? Cette action est irréversible.`
-    );
-    
-    if (!confirmed) return;
-    
     setIsDeleting(true);
+    setShowBulkDeleteConfirm(false);
+    
     try {
       const result = await deleteConversationsBulk(idsArray, token);
       setDeleteSuccess(result.message);
@@ -658,7 +660,7 @@ export default function InboxPage() {
                   Annuler
                 </button>
                 <button
-                  onClick={handleBulkDelete}
+                  onClick={handleBulkDeleteClick}
                   disabled={selectedConversationIds.size === 0 || isDeleting}
                   className="px-4 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
