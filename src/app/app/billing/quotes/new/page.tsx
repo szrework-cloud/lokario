@@ -7,7 +7,6 @@ import { Quote, BillingLine, BillingHistoryEvent, BillingTimelineEvent } from "@
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { calculateSubtotal, calculateTax, calculateTotal, calculateLineTotal, formatAmount, generateQuoteNumber } from "@/components/billing/utils";
 import { DescriptionAutocomplete } from "@/components/billing/DescriptionAutocomplete";
-import { TicketUploadModal } from "@/components/billing/TicketUploadModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import { getClients } from "@/services/clientsService";
@@ -83,7 +82,6 @@ export default function NewQuotePage() {
     status: "brouillon",
     attachments: [],
   });
-  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
 
   // Forcer toutes les lignes à 0% de TVA si auto-entrepreneur
   useEffect(() => {
@@ -863,11 +861,6 @@ export default function NewQuotePage() {
         </Card>
       </div>
 
-      <TicketUploadModal
-        isOpen={isTicketModalOpen}
-        onClose={() => setIsTicketModalOpen(false)}
-        onAnalyze={handleTicketAnalyze}
-      />
     </>
   );
 }
