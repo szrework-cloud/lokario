@@ -495,6 +495,36 @@ export async function updateConversation(
 }
 
 /**
+ * Supprime plusieurs conversations en une seule opération
+ */
+export async function deleteConversationsBulk(
+  conversationIds: number[],
+  token: string | null
+): Promise<{ message: string; deleted_count: number }> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const isMockMode = !apiUrl || apiUrl.trim() === "";
+
+  if (isMockMode) {
+    logger.log("[MOCK] deleteConversationsBulk", conversationIds);
+    return {
+      message: `${conversationIds.length} conversation(s) supprimée(s) avec succès`,
+      deleted_count: conversationIds.length
+    };
+  }
+
+  // FastAPI attend ?conversation_ids=1&conversation_ids=2&conversation_ids=3
+  const params = new URLSearchParams();
+  conversationIds.forEach(id => params.append("conversation_ids", id.toString()));
+
+  const response = await apiDelete<{ message: string; deleted_count: number }>(
+    `/inbox/conversations/bulk?${params.toString()}`,
+    token
+  );
+
+  return response;
+}
+
+/**
  * Supprime une conversation
  */
 export async function deleteConversation(

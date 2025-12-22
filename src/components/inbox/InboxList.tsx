@@ -8,6 +8,9 @@ interface InboxListProps {
   onSelect: (id: number) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  isSelectionMode?: boolean;
+  selectedIds?: Set<number>;
+  onToggleSelection?: (id: number) => void;
 }
 
 export function InboxList({
@@ -16,6 +19,9 @@ export function InboxList({
   onSelect,
   hasMore,
   onLoadMore,
+  isSelectionMode = false,
+  selectedIds = new Set(),
+  onToggleSelection,
 }: InboxListProps) {
   return (
     <div className="space-y-2 h-full overflow-y-auto">
@@ -30,7 +36,16 @@ export function InboxList({
               <InboxConversation
                 conversation={conversation}
                 isSelected={selectedId === conversation.id}
-                onClick={() => onSelect(conversation.id)}
+                onClick={() => {
+                  if (isSelectionMode && onToggleSelection) {
+                    onToggleSelection(conversation.id);
+                  } else {
+                    onSelect(conversation.id);
+                  }
+                }}
+                isSelectionMode={isSelectionMode}
+                isChecked={selectedIds.has(conversation.id)}
+                onToggleCheck={() => onToggleSelection?.(conversation.id)}
               />
               <div className="px-2 pb-1">
                 <ClassificationStatusBadge item={conversation} />

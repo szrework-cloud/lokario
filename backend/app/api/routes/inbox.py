@@ -730,6 +730,57 @@ async def delete_conversation(
     return
 
 
+@router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
+def delete_conversations_bulk(
+    conversation_ids: List[int] = Query(..., description="Liste des IDs des conversations à supprimer (peut être répété plusieurs fois)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Supprime plusieurs conversations en une seule opération.
+    Utilisez ?conversation_ids=1&conversation_ids=2&conversation_ids=3 pour passer plusieurs IDs.
+    """
+    if current_user.company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not attached to a company"
+        )
+    
+    if not conversation_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Aucune conversation à supprimer"
+        )
+    
+    # Vérifier que toutes les conversations appartiennent à l'entreprise de l'utilisateur
+    conversations = db.query(Conversation).filter(
+        Conversation.id.in_(conversation_ids),
+        Conversation.company_id == current_user.company_id
+    ).all()
+    
+    if len(conversations) != len(conversation_ids):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Certaines conversations n'existent pas ou ne vous appartiennent pas"
+        )
+    
+    deleted_count = 0
+    for conversation in conversations:
+        # Supprimer les messages associés
+        db.query(InboxMessage).filter(InboxMessage.conversation_id == conversation.id).delete()
+        # Supprimer les notes internes
+        db.query(InternalNote).filter(InternalNote.conversation_id == conversation.id).delete()
+        # Supprimer la conversation
+        db.delete(conversation)
+        deleted_count += 1
+    
+    db.commit()
+    
+    return {
+        "message": f"{deleted_count} conversation(s) supprimée(s) avec succès",
+        "deleted_count": deleted_count
+    }
+
 @router.delete("/conversations", status_code=status.HTTP_200_OK)
 def delete_all_conversations(
     db: Session = Depends(get_db),

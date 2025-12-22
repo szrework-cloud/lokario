@@ -33,6 +33,7 @@ import {
   addMessage,
   updateConversation,
   deleteConversation,
+  deleteConversationsBulk,
   getFolders,
 } from "@/services/inboxService";
 import Link from "next/link";
@@ -69,6 +70,8 @@ export default function InboxPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+  const [selectedConversationIds, setSelectedConversationIds] = useState<Set<number>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   // Charger les conversations et dossiers
   useEffect(() => {
@@ -473,6 +476,65 @@ export default function InboxPage() {
     }
   };
 
+  // Gestion de la sélection multiple
+  const toggleSelection = (conversationId: number) => {
+    setSelectedConversationIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(conversationId)) {
+        newSet.delete(conversationId);
+      } else {
+        newSet.add(conversationId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedConversationIds.size === filteredConversations.length) {
+      setSelectedConversationIds(new Set());
+    } else {
+      setSelectedConversationIds(new Set(filteredConversations.map((c) => c.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedConversationIds.size === 0 || !token) return;
+    
+    const idsArray = Array.from(selectedConversationIds);
+    const confirmed = window.confirm(
+      `Êtes-vous sûr de vouloir supprimer ${idsArray.length} conversation(s) ? Cette action est irréversible.`
+    );
+    
+    if (!confirmed) return;
+    
+    setIsDeleting(true);
+    try {
+      const result = await deleteConversationsBulk(idsArray, token);
+      setDeleteSuccess(result.message);
+      
+      // Retirer les conversations supprimées de la liste
+      setConversations((prev) => prev.filter((c) => !selectedConversationIds.has(c.id)));
+      setAllConversations((prev) => prev.filter((c) => !selectedConversationIds.has(c.id)));
+      
+      // Réinitialiser la sélection
+      setSelectedConversationIds(new Set());
+      setIsSelectionMode(false);
+      
+      // Si la conversation sélectionnée était supprimée, la désélectionner
+      if (selectedId && selectedConversationIds.has(selectedId)) {
+        setSelectedId(undefined);
+        setSelectedConversation(null);
+      }
+      
+      showToast(result.message, "success");
+    } catch (err: any) {
+      console.error("Erreur lors de la suppression en masse:", err);
+      showToast(err.message || "Erreur lors de la suppression en masse", "error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <PageTransition>
       <PageTitle title="Boîte de réception" />
@@ -586,11 +648,23 @@ export default function InboxPage() {
                   />
                 </div>
               ) : (
-                <div className="p-2">
+                <div className="p-2 relative">
+                  {/* Bouton pour activer le mode sélection */}
+                  {!isSelectionMode && (
+                    <button
+                      onClick={() => setIsSelectionMode(true)}
+                      className="absolute top-2 right-2 z-10 px-3 py-1.5 rounded-lg border border-[#E5E7EB] bg-white text-sm text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#0F172A] shadow-sm"
+                    >
+                      Sélectionner
+                    </button>
+                  )}
                   <InboxList
                     conversations={filteredConversations}
                     selectedId={selectedId}
                     onSelect={setSelectedId}
+                    isSelectionMode={isSelectionMode}
+                    selectedIds={selectedConversationIds}
+                    onToggleSelection={toggleSelection}
                   />
                 </div>
               )}

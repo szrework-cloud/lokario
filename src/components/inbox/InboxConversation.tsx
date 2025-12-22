@@ -5,12 +5,18 @@ interface InboxConversationProps {
   conversation: InboxItem;
   isSelected: boolean;
   onClick: () => void;
+  isSelectionMode?: boolean;
+  isChecked?: boolean;
+  onToggleCheck?: () => void;
 }
 
 export function InboxConversation({
   conversation,
   isSelected,
   onClick,
+  isSelectionMode = false,
+  isChecked = false,
+  onToggleCheck,
 }: InboxConversationProps) {
   const statusVariant: Record<string, "error" | "success" | "warning" | "default"> = {
     "À répondre": "error",
@@ -58,6 +64,21 @@ export function InboxConversation({
       <Card className={isSelected ? "" : "hover:shadow-md"}>
         <div className="p-4">
           <div className="flex items-start gap-3 mb-2">
+            {/* Checkbox en mode sélection */}
+            {isSelectionMode && (
+              <div className="flex-shrink-0 pt-1">
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    onToggleCheck?.();
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 text-[#F97316] border-gray-300 rounded focus:ring-[#F97316] cursor-pointer"
+                />
+              </div>
+            )}
             {/* Avatar */}
             <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-[#F97316] to-[#EA580C] flex items-center justify-center text-white text-xs font-semibold">
               {getInitials(conversation.client)}
