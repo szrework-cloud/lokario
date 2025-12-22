@@ -89,37 +89,33 @@ def is_origin_allowed(origin: str) -> bool:
     return False
 
 # Configuration CORS simplifiée et robuste (approche standard en entreprise)
-# En staging/dev, autoriser toutes les origines via fonction callable
+# En staging/dev, autoriser toutes les origines via middleware personnalisé
 # En production, seulement les origines spécifiques
 
-# Fonction pour déterminer si une origine est autorisée
-# IMPORTANT: La signature doit être (origin: str) -> bool pour FastAPI CORSMiddleware
-def allow_origin_func(origin: str) -> bool:
-    """Fonction pour déterminer si une origine est autorisée"""
-    if not origin:
-        return False
+# Middleware CORS personnalisé pour staging/dev (autoriser toutes les origines)
+@app.middleware("http")
+async def cors_middleware_custom(request: Request, call_next):
+    """Middleware CORS personnalisé pour autoriser toutes les origines en staging/dev"""
+    origin = request.headers.get("origin")
+    
+    response = await call_next(request)
     
     # En staging/dev, autoriser toutes les origines
     if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-        return True
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Max-Age"] = "3600"
     
-    # En production, seulement les origines spécifiques
-    return origin in origins
+    return response
 
 if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-    # Staging/dev : utiliser une fonction callable pour autoriser toutes les origines
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_func=allow_origin_func,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["*"],
-        max_age=3600,
-    )
-    logger.info("🌐 CORS configuré pour staging/dev : toutes les origines autorisées via fonction")
+    # Staging/dev : middleware personnalisé gère tout, pas besoin de CORSMiddleware
+    logger.info("🌐 CORS configuré pour staging/dev : middleware personnalisé (toutes les origines)")
 else:
-    # Production : seulement les origines spécifiques
+    # Production : utiliser CORSMiddleware standard avec origines spécifiques
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
