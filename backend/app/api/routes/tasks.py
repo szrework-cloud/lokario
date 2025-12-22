@@ -845,15 +845,15 @@ def update_task(
         
         # Gérer le mapping category -> type
         if "category" in update_data:
-        category = update_data.pop("category")
-        category_map = {
-            "Interne": TaskType.INTERNE,
-            "Client": TaskType.CLIENT,
-            "Fournisseur": TaskType.FOURNISSEUR,
-            "Administratif": TaskType.INTERNE,
-        }
-        if category in category_map:
-            update_data["type"] = category_map[category]
+            category = update_data.pop("category")
+            category_map = {
+                "Interne": TaskType.INTERNE,
+                "Client": TaskType.CLIENT,
+                "Fournisseur": TaskType.FOURNISSEUR,
+                "Administratif": TaskType.INTERNE,
+            }
+            if category in category_map:
+                update_data["type"] = category_map[category]
         
         # Gérer le mapping type string -> Enum
         if "type" in update_data and isinstance(update_data["type"], str):
