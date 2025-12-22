@@ -603,18 +603,8 @@ def create_task(
     current_user: User = Depends(get_current_active_user)
 ):
     """Crée une nouvelle tâche"""
-    # Pour les super_admins, vérifier qu'un company_id est fourni dans les données
-    if current_user.role == "super_admin" and current_user.company_id is None:
-        # Les super_admins doivent spécifier un company_id dans task_data
-        if not hasattr(task_data, 'company_id') or task_data.company_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Super admin must specify a company_id when creating tasks"
-            )
-        company_id = task_data.company_id
-    else:
-        _check_company_access(current_user)
-        company_id = current_user.company_id
+    _check_company_access(current_user)
+    company_id = current_user.company_id
     
     # Si l'utilisateur est un "user" et qu'aucune assignation n'est spécifiée, assigner automatiquement à lui
     assigned_to_id = task_data.assigned_to_id
