@@ -519,69 +519,8 @@ async def startup_event():
     logger.info("✅ Application démarrée (startup non-bloquant)")
 
 
-@app.options("/{full_path:path}")
-async def options_handler(request: Request):
-    """
-    Handler explicite pour les requêtes OPTIONS (preflight CORS).
-    Garantit que les headers CORS sont toujours renvoyés pour les requêtes preflight.
-    Ce handler est appelé si le middleware CORS ne gère pas la requête.
-    """
-    from fastapi.responses import Response
-    origin = request.headers.get("origin")
-    
-    # Toujours retourner les headers CORS pour les requêtes OPTIONS
-    # Même si l'origine n'est pas dans la liste, on l'autorise en staging/dev
-    if origin:
-        # En staging/dev, autoriser toutes les URLs Vercel
-        if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-            if origin.startswith("https://") and ".vercel.app" in origin:
-                return Response(
-                    status_code=200,
-                    headers={
-                        "Access-Control-Allow-Origin": origin,
-                        "Access-Control-Allow-Credentials": "true",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                        "Access-Control-Allow-Headers": "*",
-                        "Access-Control-Max-Age": "3600",
-                    }
-                )
-        
-        # Vérifier si l'origine est autorisée
-        if is_origin_allowed(origin):
-            return Response(
-                status_code=200,
-                headers={
-                    "Access-Control-Allow-Origin": origin,
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Max-Age": "3600",
-                }
-            )
-        
-        # En staging/dev, autoriser quand même pour éviter les erreurs CORS
-        if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-            return Response(
-                status_code=200,
-                headers={
-                    "Access-Control-Allow-Origin": origin,
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Max-Age": "3600",
-                }
-            )
-    
-    # Par défaut, retourner 200 avec headers CORS minimaux
-    headers = {
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-        "Access-Control-Allow-Headers": "*",
-    }
-    if origin:
-        headers["Access-Control-Allow-Origin"] = origin
-        headers["Access-Control-Allow-Credentials"] = "true"
-    
-    return Response(status_code=200, headers=headers)
+# Le handler OPTIONS explicite n'est plus nécessaire car le middleware log_options_requests
+# gère maintenant les requêtes OPTIONS directement et répond immédiatement avec les headers CORS
 
 
 @app.get("/health")
