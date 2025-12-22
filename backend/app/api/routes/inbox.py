@@ -740,7 +740,7 @@ async def delete_conversation(
 
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
 async def delete_conversations_bulk(
-    conversation_ids: List[int] = Query(..., description="Liste des IDs des conversations à supprimer"),
+    conversation_ids: List[str] = Query(..., description="Liste des IDs des conversations à supprimer (peut être des strings)"),
     delete_on_imap: bool = Query(True, description="Supprimer aussi l'email sur le serveur IMAP"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -750,7 +750,16 @@ async def delete_conversations_bulk(
     Utilise la même logique que la suppression individuelle pour chaque conversation.
     Les IDs sont passés en query parameters pour éviter les problèmes avec les body JSON dans DELETE.
     """
-    logger.info(f"[DELETE BULK] IDs reçus: {conversation_ids}, delete_on_imap: {delete_on_imap}")
+    # Convertir les strings en entiers
+    try:
+        conversation_ids_int = [int(id_str) for id_str in conversation_ids]
+    except (ValueError, TypeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"IDs invalides: {conversation_ids}. Tous les IDs doivent être des nombres entiers. Erreur: {e}"
+        )
+    
+    logger.info(f"[DELETE BULK] IDs reçus (strings): {conversation_ids}, convertis (int): {conversation_ids_int}, delete_on_imap: {delete_on_imap}")
     
     if current_user.company_id is None:
         raise HTTPException(
