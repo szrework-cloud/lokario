@@ -738,6 +738,149 @@ async def delete_conversation(
     return
 
 
+# Modèle Pydantic pour la suppression en masse (approche entreprise)
+class BulkDeleteRequest(BaseModel):
+    conversation_ids: List[int]
+    delete_on_imap: bool = True
+
+
+# Fonction helper pour la logique de suppression en masse (réutilisable)
+async def _delete_conversations_bulk_logic(
+    conversation_ids: List[int],
+    delete_on_imap: bool,
+    db: Session,
+    current_user: User
+) -> dict:
+    """
+    Logique commune pour la suppression en masse de conversations.
+    Utilisée par les endpoints DELETE (query params) et POST (body JSON).
+    """
+    if current_user.company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not attached to a company"
+        )
+    
+    if not conversation_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Aucune conversation à supprimer"
+        )
+    
+    # Récupérer les intégrations IMAP actives de l'entreprise (une seule fois pour toutes les conversations)
+    integrations = []
+    if delete_on_imap:
+        integrations = db.query(InboxIntegration).filter(
+            InboxIntegration.company_id == current_user.company_id,
+            InboxIntegration.integration_type == "imap",
+            InboxIntegration.is_active == True
+        ).all()
+    
+    deleted_count = 0
+    errors = []
+    
+    # Pour chaque conversation, utiliser la même logique que delete_conversation
+    for conversation_id in conversation_ids:
+        try:
+            conversation = db.query(Conversation).filter(
+                Conversation.id == conversation_id,
+                Conversation.company_id == current_user.company_id
+            ).first()
+            
+            if not conversation:
+                errors.append(f"Conversation {conversation_id} non trouvée")
+                continue
+            
+            # Si c'est une conversation email et qu'on veut supprimer sur IMAP
+            if delete_on_imap and conversation.source == "email":
+                # Récupérer tous les messages de la conversation avec un external_id (Message-ID)
+                messages = db.query(InboxMessage).filter(
+                    InboxMessage.conversation_id == conversation_id,
+                    InboxMessage.external_id.isnot(None)
+                ).all()
+                
+                # Pour chaque message, essayer de le supprimer sur IMAP
+                for message in messages:
+                    if not message.external_id:
+                        continue
+                    
+                    # Essayer de trouver l'intégration correspondante
+                    integration = None
+                    if message.external_metadata and message.external_metadata.get("to"):
+                        to_email = message.external_metadata.get("to")
+                        for integ in integrations:
+                            if integ.email_address and to_email and integ.email_address.lower() in to_email.lower():
+                                integration = integ
+                                break
+                    
+                    # Si pas trouvé, prendre la première intégration active
+                    if not integration and integrations:
+                        integration = integrations[0]
+                    
+                    # Supprimer sur IMAP si on a trouvé une intégration
+                    deleted = False
+                    if integration and integration.email_address and integration.email_password:
+                        try:
+                            # Décrypter le mot de passe (comme dans inbox_integrations.py)
+                            encryption_service = get_encryption_service()
+                            decrypted_password = encryption_service.decrypt(integration.email_password) if integration.email_password else None
+                            
+                            if decrypted_password:
+                                deleted = await delete_email_imap_async(
+                                    imap_server=integration.imap_server or "imap.gmail.com",
+                                    imap_port=integration.imap_port or 993,
+                                    email_address=integration.email_address,
+                                    password=decrypted_password,
+                                    message_id=message.external_id,
+                                    use_ssl=integration.use_ssl if integration.use_ssl is not None else True
+                                )
+                            if deleted:
+                                print(f"[DELETE BULK] Email {message.external_id} supprimé sur IMAP avec succès")
+                        except Exception as e:
+                            print(f"[DELETE BULK] Erreur lors de la suppression IMAP pour {message.external_id}: {e}")
+                            # On continue même en cas d'erreur IMAP
+            
+            # Les messages et notes seront supprimés automatiquement grâce à cascade
+            # (comme dans delete_conversation)
+            db.delete(conversation)
+            deleted_count += 1
+            
+        except Exception as e:
+            errors.append(f"Erreur lors de la suppression de la conversation {conversation_id}: {str(e)}")
+            logger.error(f"Erreur lors de la suppression de la conversation {conversation_id}: {e}")
+            continue
+    
+    db.commit()
+    
+    if errors:
+        logger.warning(f"Erreurs lors de la suppression en masse: {errors}")
+    
+    return {
+        "message": f"{deleted_count} conversation(s) supprimée(s) avec succès" + (f" ({len(errors)} erreur(s))" if errors else ""),
+        "deleted_count": deleted_count,
+        "errors": errors if errors else None
+    }
+
+
+@router.post("/conversations/bulk-delete", status_code=status.HTTP_200_OK)
+async def delete_conversations_bulk_post(
+    request: BulkDeleteRequest,  # ← Validation Pydantic automatique !
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Supprime plusieurs conversations en une seule opération (approche entreprise standard).
+    Utilise POST avec body JSON pour une validation automatique avec Pydantic.
+    """
+    logger.info(f"[DELETE BULK POST] IDs reçus: {request.conversation_ids}, delete_on_imap: {request.delete_on_imap}")
+    return await _delete_conversations_bulk_logic(
+        conversation_ids=request.conversation_ids,
+        delete_on_imap=request.delete_on_imap,
+        db=db,
+        current_user=current_user
+    )
+
+
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
 async def delete_conversations_bulk(
     conversation_ids: List[str] = Query(..., description="Liste des IDs des conversations à supprimer (peut être des strings)"),
@@ -747,8 +890,8 @@ async def delete_conversations_bulk(
 ):
     """
     Supprime plusieurs conversations en une seule opération.
-    Utilise la même logique que la suppression individuelle pour chaque conversation.
-    Les IDs sont passés en query parameters pour éviter les problèmes avec les body JSON dans DELETE.
+    ⚠️ DEPRECATED: Utilisez POST /conversations/bulk-delete à la place (validation automatique).
+    Conservé pour la compatibilité avec l'ancien code.
     """
     # Convertir les strings en entiers
     try:
@@ -760,6 +903,12 @@ async def delete_conversations_bulk(
         )
     
     logger.info(f"[DELETE BULK] IDs reçus (strings): {conversation_ids}, convertis (int): {conversation_ids_int}, delete_on_imap: {delete_on_imap}")
+    return await _delete_conversations_bulk_logic(
+        conversation_ids=conversation_ids_int,
+        delete_on_imap=delete_on_imap,
+        db=db,
+        current_user=current_user
+    )
     
     if current_user.company_id is None:
         raise HTTPException(
