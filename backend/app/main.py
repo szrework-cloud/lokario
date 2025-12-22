@@ -88,6 +88,75 @@ def is_origin_allowed(origin: str) -> bool:
     
     return False
 
+# Middleware pour gérer les requêtes OPTIONS (preflight) AVANT le CORSMiddleware
+# Ce middleware doit être ajouté APRÈS la définition des origines mais AVANT le CORSMiddleware
+@app.middleware("http")
+async def options_preflight_handler(request: Request, call_next):
+    """Middleware pour gérer les requêtes OPTIONS (preflight) avant le CORSMiddleware"""
+    if request.method == "OPTIONS":
+        origin = request.headers.get("origin")
+        
+        if origin:
+            # En staging/dev, autoriser toutes les origines Vercel et les origines spécifiques
+            if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+                # Autoriser toutes les URLs Vercel
+                if origin.startswith("https://") and ".vercel.app" in origin:
+                    return JSONResponse(
+                        status_code=200,
+                        content={},
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                            "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Max-Age": "3600",
+                        }
+                    )
+                # Autoriser les origines spécifiques
+                elif origin in origins:
+                    return JSONResponse(
+                        status_code=200,
+                        content={},
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                            "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Max-Age": "3600",
+                        }
+                    )
+                # En staging/dev, autoriser toutes les origines pour éviter les erreurs CORS
+                else:
+                    return JSONResponse(
+                        status_code=200,
+                        content={},
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                            "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Max-Age": "3600",
+                        }
+                    )
+            # En production, seulement les origines autorisées
+            elif origin in origins:
+                return JSONResponse(
+                    status_code=200,
+                    content={},
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Max-Age": "3600",
+                    }
+                )
+        
+        # Répondre quand même pour éviter les erreurs
+        return JSONResponse(status_code=200, content={})
+    
+    return await call_next(request)
+
 # Configuration CORS simplifiée et robuste
 # En staging/dev, autoriser toutes les URLs Vercel + les origines spécifiques
 # En production, seulement les origines spécifiques
