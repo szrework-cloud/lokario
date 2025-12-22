@@ -284,5 +284,3 @@ JWT_SECRET_KEY: str = "dev-secret-key-change-in-production"  # TODO: Load from .
 **Audit réalisé par** : Auto (AI Assistant)  
 **Prochaine révision recommandée** : Après correction des points critiques
 
-
-

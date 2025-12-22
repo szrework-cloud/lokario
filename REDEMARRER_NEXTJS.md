@@ -80,5 +80,3 @@ Next.js recharge automatiquement les fichiers modifiés. Si vous ne voyez pas le
 1. **Rechargez le navigateur** : `Ctrl+Shift+R` (Windows/Linux) ou `Cmd+Shift+R` (Mac)
 2. **Videz le cache du navigateur** si nécessaire
 3. **Redémarrez Next.js** si le hot-reload ne fonctionne pas
-
-

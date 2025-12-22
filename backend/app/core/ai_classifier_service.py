@@ -102,13 +102,27 @@ class AIClassifierService:
             for msg_data in messages:
                 message_from = msg_data.get("from_email") or msg_data.get("from_phone")
                 conversation_id = msg_data.get("conversation_id")
+                message_content = (msg_data.get("content", "") or "").lower()
+                message_subject = (msg_data.get("subject", "") or "").lower()
                 
-                # Vérification directe par expéditeur
+                # Vérification directe par expéditeur (priorité 1)
                 if message_from:
                     folder_id = self._check_sender_match(message_from, auto_classify_folders)
                     if folder_id:
                         results[conversation_id] = folder_id
                         continue
+                
+                # Vérification directe par mots-clés dans contenu/sujet/expéditeur (priorité 2)
+                # Pour les règles explicites comme "tous les messages avec 'amazon' dans le contenu, l'objet et l'expéditeur"
+                folder_id = self._check_keyword_match(
+                    message_content=message_content,
+                    message_subject=message_subject,
+                    message_from=message_from or "",
+                    folders=auto_classify_folders
+                )
+                if folder_id:
+                    results[conversation_id] = folder_id
+                    continue
                 
                 # Sinon, on l'ajoute pour classification par IA
                 messages_to_classify_ia.append(msg_data)
@@ -217,6 +231,113 @@ class AIClassifierService:
         
         return None
     
+    def _check_keyword_match(
+        self,
+        message_content: str,
+        message_subject: str,
+        message_from: str,
+        folders: List[Dict]
+    ) -> Optional[int]:
+        """
+        Vérifie si un message correspond à un dossier basé sur des mots-clés explicites
+        dans le contenu, le sujet ET l'expéditeur (sans appel IA).
+        
+        Exemple de contexte : "tous les messages avec 'amazon' dans le contenu, l'objet et l'expéditeur"
+        """
+        if not message_content and not message_subject and not message_from:
+            return None
+        
+        message_content_lower = message_content.lower()
+        message_subject_lower = message_subject.lower()
+        message_from_lower = message_from.lower()
+        
+        for folder in folders:
+            ai_rules = folder.get("ai_rules", {})
+            context = ai_rules.get("context", "") if ai_rules.get("context") else ""
+            
+            if not context:
+                continue
+            
+            context_lower = context.lower()
+            
+            # Détecter les patterns de mots-clés explicites
+            # Exemples :
+            # - "tous les messages avec 'amazon' dans le contenu, l'objet et l'expéditeur"
+            # - "messages contenant 'amazon' dans le contenu, sujet et expéditeur"
+            # - "avec 'amazon' dans contenu, objet, expéditeur"
+            
+            # Extraire les mots-clés entre guillemets ou après "avec/contenant"
+            # Pattern 1: "avec 'amazon'" ou "contenant 'amazon'" ou "avec amazon"
+            keyword_patterns = [
+                r"['\"]([a-z0-9._%+-@]{3,})['\"]",  # Entre guillemets
+                r"(?:avec|containing|contenant)\s+['\"]?([a-z0-9._%+-@]{3,})['\"]?\s+(?:dans|in)",  # Après "avec/contenant"
+            ]
+            
+            keywords_found = []
+            for pattern in keyword_patterns:
+                matches = re.findall(pattern, context_lower)
+                for keyword in matches:
+                    keyword_clean = keyword.strip("'\".,;:!?()[]{}").lower()
+                    if len(keyword_clean) >= 3 and keyword_clean not in keywords_found:
+                        # Filtrer les mots courants
+                        common_words = {'les', 'des', 'dans', 'pour', 'avec', 'sont', 'cette', 'tous', 'toutes', 'tout', 'toute', 'mais', 'plus', 'peut', 'sous', 'mettre', 'mails', 'mail', 'en', 'le', 'la', 'un', 'une', 'de', 'du', 'et', 'ou'}
+                        if keyword_clean not in common_words:
+                            keywords_found.append(keyword_clean)
+            
+            # Si on a trouvé des mots-clés, vérifier qu'ils sont dans les champs requis
+            if keywords_found:
+                # Détecter si le contexte exige TOUS les champs (contenu ET objet ET expéditeur)
+                # ou au moins UN champ (contenu OU objet OU expéditeur)
+                
+                # Vérifier la présence de "et" entre les champs (indique TOUS)
+                has_et = bool(re.search(r"(?:contenu|content|objet|subject|sujet).*?et.*?(?:objet|subject|sujet|expéditeur|sender|from)", context_lower))
+                has_and = bool(re.search(r"(?:contenu|content|objet|subject|sujet).*?and.*?(?:objet|subject|sujet|expéditeur|sender|from)", context_lower))
+                
+                # Vérifier si les 3 champs sont mentionnés (contenu, objet, expéditeur)
+                has_content = bool(re.search(r"(?:contenu|content)", context_lower))
+                has_subject = bool(re.search(r"(?:objet|subject|sujet)", context_lower))
+                has_sender = bool(re.search(r"(?:expéditeur|sender|from|de)", context_lower))
+                all_three_mentioned = has_content and has_subject and has_sender
+                
+                # Si les 3 champs sont mentionnés ET il y a "et/and", alors TOUS sont requis
+                requires_all = all_three_mentioned and (has_et or has_and)
+                
+                for keyword in keywords_found:
+                    # Vérifier la présence du mot-clé dans chaque champ
+                    in_content = keyword in message_content_lower
+                    in_subject = keyword in message_subject_lower
+                    in_from = keyword in message_from_lower if message_from else False
+                    
+                    # Si le contexte exige tous les champs, vérifier tous
+                    if requires_all:
+                        if in_content and in_subject and in_from:
+                            logger.info(
+                                f"[AI CLASSIFIER] ✅ Correspondance mot-clé '{keyword}' trouvée dans "
+                                f"contenu, sujet ET expéditeur → dossier '{folder['name']}' (ID: {folder['id']})"
+                            )
+                            return folder["id"]
+                    else:
+                        # Sinon, vérifier au moins un champ (ou tous si les 3 sont mentionnés)
+                        if all_three_mentioned:
+                            # Si les 3 sont mentionnés mais pas de "et", vérifier au moins 2 sur 3
+                            matches_count = sum([in_content, in_subject, in_from])
+                            if matches_count >= 2:
+                                logger.info(
+                                    f"[AI CLASSIFIER] ✅ Correspondance mot-clé '{keyword}' trouvée dans "
+                                    f"{matches_count}/3 champs (contenu/sujet/expéditeur) → dossier '{folder['name']}' (ID: {folder['id']})"
+                                )
+                                return folder["id"]
+                        else:
+                            # Si pas tous les champs mentionnés, vérifier au moins un
+                            if in_content or in_subject or in_from:
+                                logger.info(
+                                    f"[AI CLASSIFIER] ✅ Correspondance mot-clé '{keyword}' trouvée dans "
+                                    f"contenu/sujet/expéditeur → dossier '{folder['name']}' (ID: {folder['id']})"
+                                )
+                                return folder["id"]
+        
+        return None
+    
     def _build_batch_classification_prompt(
         self,
         messages: List[Dict],
@@ -260,8 +381,10 @@ class AIClassifierService:
         prompt_parts.append("\n\nInstructions:")
         prompt_parts.append("Pour chaque message, analyse le SUJET, le CONTENU et l'EXPÉDITEUR (champ 'De:') pour déterminer dans quel dossier il doit être classé.")
         prompt_parts.append("Si le contexte d'un dossier mentionne un expéditeur spécifique (ex: 'expéditeur contenant lokario'), vérifie d'abord l'expéditeur du message avant d'analyser le contenu.")
+        prompt_parts.append("Si le contexte mentionne un mot-clé dans 'le contenu, l'objet et l'expéditeur', le mot-clé doit être présent dans TOUS ces champs (contenu ET objet ET expéditeur).")
+        prompt_parts.append("Si le contexte mentionne un mot-clé dans 'contenu, objet ou expéditeur', le mot-clé doit être présent dans AU MOINS UN de ces champs.")
         prompt_parts.append("Utilise uniquement le contexte fourni pour chaque dossier pour prendre ta décision.")
-        prompt_parts.append("Sois PRÉCIS et n'utilise que les informations du contexte pour classifier.")
+        prompt_parts.append("Sois TRÈS PRÉCIS et vérifie EXACTEMENT les conditions du contexte. Ne classe un message que si TOUTES les conditions sont remplies.")
         prompt_parts.append("\nRéponds au format JSON suivant:")
         prompt_parts.append('{"results": [{"conversation_id": 123, "folder_id": 5}, {"conversation_id": 124, "folder_id": null}]}')
         prompt_parts.append("Si aucun dossier ne correspond au contexte, utilise null pour folder_id.")

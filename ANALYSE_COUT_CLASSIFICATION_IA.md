@@ -289,5 +289,3 @@ Permettre à chaque entreprise de :
 ---
 
 **Conclusion** : La classification IA est **économique** (~0.03€/mois pour 1000 messages) et **conforme RGPD** avec les bonnes mesures. L'approche hybride est recommandée pour minimiser les coûts et l'exposition des données.
-
-
