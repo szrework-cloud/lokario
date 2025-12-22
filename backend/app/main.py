@@ -89,22 +89,20 @@ def is_origin_allowed(origin: str) -> bool:
     return False
 
 # Configuration CORS simplifiée et robuste
-# En staging/dev, autoriser toutes les URLs Vercel + les origines spécifiques
+# En staging/dev, autoriser toutes les origines pour éviter les problèmes CORS
 # En production, seulement les origines spécifiques
 if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-    # Staging/dev : autoriser toutes les URLs Vercel via regex + les origines spécifiques
-    # Utiliser allow_origin_regex pour Vercel ET allow_origins pour les autres
+    # Staging/dev : autoriser toutes les origines (plus simple et plus robuste)
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"https://.*\.vercel\.app",  # Toutes les URLs Vercel
-        allow_origins=origins,  # Origines spécifiques (localhost, lokario.fr, etc.)
+        allow_origins=["*"],  # Autoriser toutes les origines en staging/dev
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # Méthodes explicites
-        allow_headers=["*"],  # Autoriser tous les headers
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=["*"],
         expose_headers=["*"],
         max_age=3600,
     )
-    logger.info("🌐 CORS configuré pour staging/dev avec regex Vercel")
+    logger.info("🌐 CORS configuré pour staging/dev : toutes les origines autorisées")
 else:
     # Production : seulement les origines spécifiques
     app.add_middleware(
