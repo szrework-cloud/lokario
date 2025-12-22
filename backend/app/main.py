@@ -124,23 +124,6 @@ async def cors_fallback_middleware(request: Request, call_next):
     """Middleware de secours pour garantir les headers CORS sur toutes les réponses"""
     origin = request.headers.get("origin")
     
-    # Gérer les requêtes OPTIONS directement ici pour éviter les conflits
-    if request.method == "OPTIONS":
-        if origin:
-            if is_origin_allowed(origin) or (settings.ENVIRONMENT.lower() not in ["production", "prod"] and origin.startswith("https://") and ".vercel.app" in origin):
-                return JSONResponse(
-                    status_code=200,
-                    content={},
-                    headers={
-                        "Access-Control-Allow-Origin": origin,
-                        "Access-Control-Allow-Credentials": "true",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                        "Access-Control-Allow-Headers": "*",
-                        "Access-Control-Max-Age": "3600",
-                    }
-                )
-        return JSONResponse(status_code=200, content={})
-    
     response = await call_next(request)
     
     # Si les headers CORS ne sont pas déjà présents, les ajouter
