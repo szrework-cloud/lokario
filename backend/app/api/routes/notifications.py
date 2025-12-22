@@ -38,6 +38,10 @@ def get_notifications(
     current_user: User = Depends(get_current_active_user)
 ):
     """Récupère les notifications de l'utilisateur"""
+    # Super admins n'ont pas de notifications (pas d'entreprise)
+    if current_user.role == "super_admin":
+        return []
+    
     if current_user.company_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -63,6 +67,10 @@ def get_unread_count(
     current_user: User = Depends(get_current_active_user)
 ):
     """Récupère le nombre de notifications non lues"""
+    # Super admins n'ont pas de notifications (pas d'entreprise)
+    if current_user.role == "super_admin":
+        return {"count": 0}
+    
     if current_user.company_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
