@@ -35,53 +35,6 @@ from app.core.limiter import limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Middleware pour gérer les requêtes OPTIONS (preflight) AVANT le CORSMiddleware
-# Ce middleware doit être ajouté AVANT le CORSMiddleware pour intercepter les OPTIONS en premier
-@app.middleware("http")
-async def options_preflight_handler(request: Request, call_next):
-    """Middleware pour gérer les requêtes OPTIONS (preflight) avant le CORSMiddleware"""
-    if request.method == "OPTIONS":
-        origin = request.headers.get("origin")
-        
-        # Vérifier si l'origine est autorisée
-        is_allowed = is_origin_allowed(origin) if origin else False
-        is_vercel_staging = (
-            origin 
-            and settings.ENVIRONMENT.lower() not in ["production", "prod"]
-            and origin.startswith("https://")
-            and ".vercel.app" in origin
-        )
-        
-        if is_allowed or is_vercel_staging:
-            return JSONResponse(
-                status_code=200,
-                content={},
-                headers={
-                    "Access-Control-Allow-Origin": origin,
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Max-Age": "3600",
-                }
-            )
-        elif origin and settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-            # En staging/dev, autoriser toutes les origines pour éviter les erreurs CORS
-            return JSONResponse(
-                status_code=200,
-                content={},
-                headers={
-                    "Access-Control-Allow-Origin": origin,
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Max-Age": "3600",
-                }
-            )
-        else:
-            # Répondre quand même pour éviter les erreurs
-            return JSONResponse(status_code=200, content={})
-    
-    return await call_next(request)
 
 # CORS - Configuration pour permettre les requêtes depuis le frontend Next.js
 # Déterminer les origines en fonction de l'environnement
