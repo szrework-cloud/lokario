@@ -57,21 +57,20 @@ else:
     
     # Configuration du pool selon le type de connexion
     if is_pooler:
-        # Pooler Supabase : utiliser un petit QueuePool pour réduire la latence
-        # Même avec le pooler Supabase, un petit pool SQLAlchemy réduit la latence
-        # en réutilisant les connexions au lieu de créer une nouvelle connexion à chaque requête
-        pool_size = 5  # Petit pool pour réduire latence
-        max_overflow = 10
+        # Pooler Supabase : utiliser un QueuePool plus grand pour gérer la charge
+        # Augmenté pour éviter les timeouts lors de requêtes simultanées
+        pool_size = 10  # Augmenté de 5 à 10
+        max_overflow = 20  # Augmenté de 10 à 20 (total max: 30 connexions)
         pool_recycle = 1800  # 30 minutes
         pool_class = QueuePool
-        logger.info("🔧 Utilisation de QueuePool (petit) avec pooler Supabase pour réduire latence")
+        logger.info("🔧 Utilisation de QueuePool avec pooler Supabase (pool_size=10, max_overflow=20)")
         
         engine = create_engine(
             settings.DATABASE_URL,  # Utiliser l'URL originale (pooler gère IPv4/IPv6)
             poolclass=pool_class,
             pool_size=pool_size,
             max_overflow=max_overflow,
-            pool_timeout=10,  # Timeout réduit pour détecter les problèmes rapidement
+            pool_timeout=15,  # Augmenté de 10 à 15 secondes
             pool_recycle=pool_recycle,
             pool_pre_ping=True,  # Vérifier que les connexions sont valides
             connect_args=connect_args,
