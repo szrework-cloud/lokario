@@ -92,12 +92,13 @@ def is_origin_allowed(origin: str) -> bool:
 # En production, seulement les origines spécifiques
 if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
     # Staging/dev : autoriser toutes les URLs Vercel via regex + les origines spécifiques
+    # Utiliser allow_origin_regex pour Vercel ET allow_origins pour les autres
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"https://.*\.vercel\.app",  # Toutes les URLs Vercel
         allow_origins=origins,  # Origines spécifiques (localhost, lokario.fr, etc.)
         allow_credentials=True,
-        allow_methods=["*"],  # Autoriser toutes les méthodes
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # Méthodes explicites
         allow_headers=["*"],  # Autoriser tous les headers
         expose_headers=["*"],
         max_age=3600,
@@ -109,7 +110,7 @@ else:
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
         allow_headers=["*"],
         expose_headers=["*"],
         max_age=3600,
