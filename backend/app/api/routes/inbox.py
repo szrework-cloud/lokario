@@ -733,7 +733,7 @@ async def delete_conversation(
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
 async def delete_conversations_bulk(
     conversation_ids: List[int] = Body(..., description="Liste des IDs des conversations à supprimer"),
-    delete_on_imap: bool = Body(False, description="Supprimer aussi les emails sur le serveur IMAP"),
+    delete_on_imap: bool = Body(True, description="Supprimer aussi les emails sur le serveur IMAP"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):

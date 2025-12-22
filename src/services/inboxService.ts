@@ -529,7 +529,7 @@ export async function deleteConversationsBulk(
     },
     body: JSON.stringify({
       conversation_ids: conversationIds,
-      delete_on_imap: false  // Par défaut, ne pas supprimer sur IMAP pour la suppression en masse
+      delete_on_imap: true  // Par défaut, supprimer aussi sur IMAP comme la suppression individuelle
     }),
   });
 
