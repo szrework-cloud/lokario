@@ -722,10 +722,10 @@ async def delete_conversation(
                             message_id=message.external_id,
                             use_ssl=integration.use_ssl if integration.use_ssl is not None else True
                         )
-                    if deleted:
-                        print(f"[DELETE] Email {message.external_id} supprimé sur IMAP avec succès")
-                    else:
-                        print(f"[DELETE] Impossible de supprimer l'email {message.external_id} sur IMAP (non trouvé ou déjà supprimé)")
+                        if deleted:
+                            print(f"[DELETE] Email {message.external_id} supprimé sur IMAP avec succès")
+                        else:
+                            print(f"[DELETE] Impossible de supprimer l'email {message.external_id} sur IMAP (non trouvé ou déjà supprimé)")
                 except Exception as e:
                     print(f"[DELETE] Erreur lors de la suppression IMAP pour {message.external_id}: {e}")
                     # On continue même en cas d'erreur IMAP, on supprime quand même de la DB
