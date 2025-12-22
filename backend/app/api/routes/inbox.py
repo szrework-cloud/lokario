@@ -738,38 +738,6 @@ async def delete_conversation(
     return
 
 
-class BulkDeleteRequest(BaseModel):
-    conversation_ids: List[Any]  # Accepter Any d'abord, puis convertir
-    delete_on_imap: bool = True
-    
-    @model_validator(mode='before')
-    @classmethod
-    def convert_ids_to_int(cls, data: Any) -> Any:
-        """Convertit les IDs en entiers, même s'ils arrivent comme strings"""
-        if isinstance(data, dict) and 'conversation_ids' in data:
-            conversation_ids = data['conversation_ids']
-            if isinstance(conversation_ids, list):
-                result = []
-                for item in conversation_ids:
-                    try:
-                        # Convertir en entier (fonctionne pour int, str, float, etc.)
-                        result.append(int(item))
-                    except (ValueError, TypeError) as e:
-                        raise ValueError(f"ID invalide: {item}. Tous les IDs doivent être des nombres entiers. Erreur: {e}")
-                data['conversation_ids'] = result
-        return data
-    
-    @model_validator(mode='after')
-    def validate_ids_are_int(self) -> 'BulkDeleteRequest':
-        """Valide que tous les IDs sont bien des entiers après conversion"""
-        if not isinstance(self.conversation_ids, list):
-            raise ValueError("conversation_ids doit être une liste")
-        for item in self.conversation_ids:
-            if not isinstance(item, int):
-                raise ValueError(f"ID invalide: {item}. Tous les IDs doivent être des nombres entiers.")
-        return self
-
-
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
 async def delete_conversations_bulk(
     request: FastAPIRequest,
