@@ -21,6 +21,7 @@ from app.api.schemas.inbox_integration import (
 from datetime import datetime, timedelta
 from app.db.models.conversation import Conversation, InboxMessage, InboxFolder, MessageAttachment
 from app.db.models.client import Client
+from app.db.models.company_settings import CompanySettings
 from pathlib import Path
 import uuid
 from app.core.config import settings
@@ -888,18 +889,33 @@ async def sync_integration(
                         is_notification = notification_results.get(email_id, False) if email_id else False
                         
                         if not is_notification:
-                            # Créer le client seulement si ce n'est pas une notification
-                            client = Client(
-                                company_id=company.id,
-                                name=email_data.get("from", {}).get("name", from_email.split("@")[0]),
-                                email=from_email,
-                                type="Client"
+                            # Vérifier si c'est un vrai client (Option 6: Hybride IA + Liste noire)
+                            subject = email_data.get("subject", "")
+                            content_preview = (email_data.get("content", "") or "")[:200]
+                            
+                            ai_service = AIClassifierService()
+                            is_real_client = ai_service.is_real_client_email(
+                                from_email=from_email,
+                                subject=subject,
+                                content_preview=content_preview,
+                                blocked_domains=blocked_client_domains
                             )
-                            db.add(client)
-                            db.flush()
-                            # Mettre à jour le cache pour les prochains emails
-                            existing_clients[from_email] = client
-                            print(f"[SYNC] ✅ Nouveau client créé: {client.name} ({client.email})")
+                            
+                            if is_real_client:
+                                # Créer le client seulement si c'est un vrai client
+                                client = Client(
+                                    company_id=company.id,
+                                    name=email_data.get("from", {}).get("name", from_email.split("@")[0]),
+                                    email=from_email,
+                                    type="Client"
+                                )
+                                db.add(client)
+                                db.flush()
+                                # Mettre à jour le cache pour les prochains emails
+                                existing_clients[from_email] = client
+                                print(f"[SYNC] ✅ Nouveau client créé: {client.name} ({client.email})")
+                            else:
+                                print(f"[SYNC] ⚠️ Email filtré (pas un vrai client): {from_email}")
                         else:
                             print(f"[SYNC] ⚠️ Email de notification détecté (batch), client non créé: {from_email}")
                 
@@ -1356,16 +1372,27 @@ async def sync_imap_emails(
                         )
                         
                         if not is_notification:
-                            # Créer le client seulement si ce n'est pas une notification
-                            client = Client(
-                                company_id=company.id,
-                                name=email_data.get("from", {}).get("name", from_email.split("@")[0]),
-                                email=from_email,
-                                type="Client"
+                            # Vérifier si c'est un vrai client (Option 6: Hybride IA + Liste noire)
+                            is_real_client = ai_service.is_real_client_email(
+                                from_email=from_email,
+                                subject=email_data.get("subject", ""),
+                                content_preview=content_preview,
+                                blocked_domains=blocked_client_domains
                             )
-                            db.add(client)
-                            db.flush()
-                            print(f"[SYNC IMAP] ✅ Nouveau client créé: {client.name} ({client.email})")
+                            
+                            if is_real_client:
+                                # Créer le client seulement si c'est un vrai client
+                                client = Client(
+                                    company_id=company.id,
+                                    name=email_data.get("from", {}).get("name", from_email.split("@")[0]),
+                                    email=from_email,
+                                    type="Client"
+                                )
+                                db.add(client)
+                                db.flush()
+                                print(f"[SYNC IMAP] ✅ Nouveau client créé: {client.name} ({client.email})")
+                            else:
+                                print(f"[SYNC IMAP] ⚠️ Email filtré (pas un vrai client): {from_email}")
                         else:
                             print(f"[SYNC IMAP] ⚠️ Email de notification détecté, client non créé: {from_email}")
                 

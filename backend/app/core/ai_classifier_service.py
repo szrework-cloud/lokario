@@ -886,3 +886,108 @@ Réponds UNIQUEMENT: "client" ou "notification" """
                 results[email_id] = is_notification
             
             return results
+    
+    def is_real_client_email(
+        self,
+        from_email: str,
+        subject: str,
+        content_preview: str,
+        blocked_domains: List[str]
+    ) -> bool:
+        """
+        Détermine si un email provient d'un VRAI CLIENT de l'entreprise
+        (personne qui achète nos produits/services) ou d'un autre type de contact
+        (fournisseur, partenaire, service externe, etc.).
+        
+        Utilise d'abord une liste noire de domaines (gratuit, rapide),
+        puis l'IA si nécessaire.
+        
+        Args:
+            from_email: Email de l'expéditeur
+            subject: Sujet de l'email
+            content_preview: Aperçu du contenu (200 premiers caractères)
+            blocked_domains: Liste des domaines bloqués (ex: ["@amazon.com", "@paypal.com"])
+        
+        Returns:
+            True si c'est un vrai client, False sinon
+        """
+        if not from_email:
+            return False
+        
+        from_email_lower = from_email.lower()
+        
+        # Étape 1: Vérifier la liste noire (gratuit, rapide)
+        for domain in blocked_domains:
+            domain_lower = domain.lower().strip()
+            # Vérifier si le domaine est dans l'email (avec ou sans @)
+            if domain_lower.startswith("@"):
+                if domain_lower in from_email_lower:
+                    logger.info(f"[CLIENT FILTER] Email bloqué par liste noire: {from_email} (domaine: {domain_lower})")
+                    return False
+            else:
+                # Si pas de @, l'ajouter
+                if f"@{domain_lower}" in from_email_lower:
+                    logger.info(f"[CLIENT FILTER] Email bloqué par liste noire: {from_email} (domaine: {domain_lower})")
+                    return False
+        
+        # Étape 2: Si pas dans la liste noire, utiliser l'IA
+        if not self.enabled:
+            # Si l'IA n'est pas disponible, considérer comme client (fallback permissif)
+            logger.warning(f"[CLIENT FILTER] IA non disponible, considération comme client: {from_email}")
+            return True
+        
+        try:
+            prompt = f"""Analyse cet email et détermine s'il provient d'un VRAI CLIENT de l'entreprise (personne qui achète nos produits/services) ou d'un autre type de contact (fournisseur, partenaire, service externe, etc.).
+
+Expéditeur: {from_email}
+Sujet: {subject}
+Contenu (début): {content_preview}
+
+Indicateurs VRAI CLIENT:
+- Demande de devis, commande, achat
+- Question sur nos produits/services
+- Demande d'information commerciale
+- Suivi de commande/projet
+- Email personnel avec demande spécifique
+
+Indicateurs AUTRE TYPE DE CONTACT:
+- Fournisseur (propose ses produits/services)
+- Service externe (comptable, avocat, banque, etc.)
+- Partenaire commercial
+- Newsletter, marketing
+- Service automatisé
+
+Réponds UNIQUEMENT: "client" ou "autre"
+"""
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un assistant qui analyse les emails pour déterminer s'ils proviennent d'un vrai client de l'entreprise (qui achète nos produits/services) ou d'un autre type de contact. Réponds UNIQUEMENT avec 'client' ou 'autre', sans explication."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.2,  # Très déterministe
+                max_tokens=10  # Réponse très courte
+            )
+            
+            result = response.choices[0].message.content.strip().lower()
+            is_real_client = "client" in result and "autre" not in result
+            
+            logger.info(f"[CLIENT FILTER] IA décision pour {from_email}: {'VRAI CLIENT' if is_real_client else 'AUTRE TYPE DE CONTACT'}")
+            return is_real_client
+            
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "rate limit" in error_str.lower():
+                logger.warning(f"⚠️  Limite d'appels IA atteinte (429). Considération comme client (fallback permissif).")
+            else:
+                logger.error(f"Error during real client detection: {e}")
+            
+            # Fallback permissif: si l'IA échoue, considérer comme client
+            return True

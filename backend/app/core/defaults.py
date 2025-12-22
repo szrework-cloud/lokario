@@ -58,5 +58,19 @@ def get_default_settings() -> Dict[str, Any]:
                 "logo_path": None,  # Chemin vers le logo de l'entreprise
             },
         },
+        "clients": {
+            "blocked_client_domains": [
+                "@amazon.com",
+                "@paypal.com",
+                "@noreply",
+                "@no-reply",
+                "@notifications",
+                "@notification",
+                "@automated",
+                "@system",
+                "@service",
+                "@donotreply"
+            ],  # Domaines bloqués pour la création automatique de clients
+        },
     }
 
