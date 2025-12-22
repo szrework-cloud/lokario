@@ -908,70 +908,70 @@ def update_task(
         
         # Vérifier si la tâche est maintenant en retard ou critique après la mise à jour
         if task.due_date and task.status != TaskStatus.TERMINE:
-        from datetime import date, timedelta
-        today = date.today()
-        days_until_due = (task.due_date - today).days
-        
-        # Vérifier si la tâche est en retard
-        if days_until_due < 0:
-            try:
-                from app.core.notifications import create_notification
-                from app.db.models.notification import NotificationType
-                from app.core.config import settings
-                
-                frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
-                due_str = task.due_date.strftime('%d/%m/%Y')
-                if task.due_time:
-                    due_str += f" à {task.due_time.strftime('%H:%M')}"
-                
-                create_notification(
-                    db=db,
-                    company_id=current_user.company_id,
-                    notification_type=NotificationType.TASK_OVERDUE,
-                    title="Tâche en retard",
-                    message=f"La tâche '{task.title}' est en retard (échéance: {due_str})",
-                    link_url=f"{frontend_url}/app/tasks",
-                    link_text="Voir les tâches",
-                    source_type="task",
-                    source_id=task.id,
-                    user_id=task.assigned_to_id,
-                )
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.info(f"✅ Notification créée pour la tâche en retard {task.id}")
-            except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Erreur lors de la création de la notification pour la tâche {task.id}: {e}")
+            from datetime import date, timedelta
+            today = date.today()
+            days_until_due = (task.due_date - today).days
+            
+            # Vérifier si la tâche est en retard
+            if days_until_due < 0:
+                try:
+                    from app.core.notifications import create_notification
+                    from app.db.models.notification import NotificationType
+                    from app.core.config import settings
+                    
+                    frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
+                    due_str = task.due_date.strftime('%d/%m/%Y')
+                    if task.due_time:
+                        due_str += f" à {task.due_time.strftime('%H:%M')}"
+                    
+                    create_notification(
+                        db=db,
+                        company_id=current_user.company_id,
+                        notification_type=NotificationType.TASK_OVERDUE,
+                        title="Tâche en retard",
+                        message=f"La tâche '{task.title}' est en retard (échéance: {due_str})",
+                        link_url=f"{frontend_url}/app/tasks",
+                        link_text="Voir les tâches",
+                        source_type="task",
+                        source_id=task.id,
+                        user_id=task.assigned_to_id,
+                    )
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"✅ Notification créée pour la tâche en retard {task.id}")
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Erreur lors de la création de la notification pour la tâche {task.id}: {e}")
             # Vérifier si la tâche est critique (échéance proche)
             elif days_until_due <= 2 and task.priority in ["high", "critical", "urgent"]:
-            try:
-                from app.core.notifications import create_notification
-                from app.db.models.notification import NotificationType
-                from app.core.config import settings
-                
-                frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
-                due_str = task.due_date.strftime('%d/%m/%Y')
-                if task.due_time:
-                    due_str += f" à {task.due_time.strftime('%H:%M')}"
-                
-                create_notification(
-                    db=db,
-                    company_id=current_user.company_id,
-                    notification_type=NotificationType.TASK_CRITICAL,
-                    title="Tâche critique à venir",
-                    message=f"La tâche '{task.title}' est due le {due_str} (priorité {task.priority})",
-                    link_url=f"{frontend_url}/app/tasks",
-                    link_text="Voir les tâches",
-                    source_type="task",
-                    source_id=task.id,
-                    user_id=task.assigned_to_id,
-                )
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.info(f"✅ Notification créée pour la tâche critique {task.id}")
-            except Exception as e:
-                import logging
+                try:
+                    from app.core.notifications import create_notification
+                    from app.db.models.notification import NotificationType
+                    from app.core.config import settings
+                    
+                    frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
+                    due_str = task.due_date.strftime('%d/%m/%Y')
+                    if task.due_time:
+                        due_str += f" à {task.due_time.strftime('%H:%M')}"
+                    
+                    create_notification(
+                        db=db,
+                        company_id=current_user.company_id,
+                        notification_type=NotificationType.TASK_CRITICAL,
+                        title="Tâche critique à venir",
+                        message=f"La tâche '{task.title}' est due le {due_str} (priorité {task.priority})",
+                        link_url=f"{frontend_url}/app/tasks",
+                        link_text="Voir les tâches",
+                        source_type="task",
+                        source_id=task.id,
+                        user_id=task.assigned_to_id,
+                    )
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"✅ Notification créée pour la tâche critique {task.id}")
+                except Exception as e:
+                    import logging
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Erreur lors de la création de la notification pour la tâche {task.id}: {e}")
         
