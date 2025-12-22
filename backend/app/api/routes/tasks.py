@@ -908,9 +908,14 @@ def update_task(
         
         # Vérifier si la tâche est maintenant en retard ou critique après la mise à jour
         if task.due_date and task.status != TaskStatus.TERMINE:
-            from datetime import date, timedelta
+            from datetime import date, timedelta, datetime
+            # Convertir due_date en date si c'est un datetime
+            if isinstance(task.due_date, datetime):
+                due_date = task.due_date.date()
+            else:
+                due_date = task.due_date
             today = date.today()
-            days_until_due = (task.due_date - today).days
+            days_until_due = (due_date - today).days
             
             # Vérifier si la tâche est en retard
             if days_until_due < 0:
