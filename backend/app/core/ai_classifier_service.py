@@ -589,3 +589,172 @@ Réponds UNIQUEMENT: "client" ou "notification" """
                     return True
             
             return False
+    
+    def is_notification_email_batch(
+        self,
+        emails: List[Dict[str, str]]
+    ) -> Dict[str, bool]:
+        """
+        Détermine si plusieurs emails sont des notifications automatisées ou proviennent de vrais clients.
+        Version batch pour optimiser les appels IA.
+        
+        Args:
+            emails: Liste de dicts avec 'from_email', 'subject', 'content_preview', et 'email_id' (identifiant unique)
+        
+        Returns:
+            Dict {email_id: is_notification} où is_notification est True si c'est une notification
+        """
+        if not emails:
+            return {}
+        
+        results = {}
+        
+        # D'abord, filtrer avec la détection basique par patterns (sans IA)
+        emails_to_check_ia = []
+        for email_data in emails:
+            from_email = email_data.get("from_email", "")
+            email_id = email_data.get("email_id", from_email)  # Utiliser from_email comme ID si pas d'ID fourni
+            
+            if not from_email:
+                results[email_id] = True  # Pas d'email = notification
+                continue
+            
+            # Détection basique par patterns
+            from_email_lower = from_email.lower()
+            notification_patterns = [
+                "noreply@", "no-reply@", "notifications@", "notification@",
+                "automated@", "system@", "service@", "donotreply@"
+            ]
+            
+            is_pattern_match = False
+            for pattern in notification_patterns:
+                if pattern in from_email_lower:
+                    results[email_id] = True
+                    is_pattern_match = True
+                    break
+            
+            if not is_pattern_match:
+                # Si pas de pattern évident, vérifier avec l'IA
+                emails_to_check_ia.append(email_data)
+        
+        # Si tous les emails ont été détectés par patterns, on retourne
+        if not emails_to_check_ia:
+            return results
+        
+        # Si l'IA n'est pas disponible, retourner False pour les emails restants (on les considère comme clients)
+        if not self.enabled:
+            for email_data in emails_to_check_ia:
+                email_id = email_data.get("email_id", email_data.get("from_email", ""))
+                results[email_id] = False
+            return results
+        
+        try:
+            # Construire le prompt batch
+            prompt_parts = [
+                "Analyse ces emails et détermine pour chacun s'il provient d'un VRAI CLIENT (personne réelle) ou d'une NOTIFICATION AUTOMATISÉE (service, bot, newsletter).",
+                "",
+                "Indicateurs NOTIFICATION: noreply@, no-reply@, notifications@, services automatisés (Amazon, PayPal, etc.)",
+                "Indicateurs VRAI CLIENT: email personnel, message personnalisé, demande spécifique",
+                "",
+                "Emails à analyser:"
+            ]
+            
+            for i, email_data in enumerate(emails_to_check_ia, 1):
+                from_email = email_data.get("from_email", "")
+                subject = email_data.get("subject", "(sans sujet)")
+                content_preview = email_data.get("content_preview", "")[:200]
+                email_id = email_data.get("email_id", from_email)
+                
+                prompt_parts.append(f"\n--- Email {i} (ID: {email_id}) ---")
+                prompt_parts.append(f"Expéditeur: {from_email}")
+                prompt_parts.append(f"Sujet: {subject}")
+                prompt_parts.append(f"Contenu (début): {content_preview}")
+            
+            prompt_parts.append("\nRéponds au format JSON avec un objet où chaque clé est l'ID de l'email et la valeur est 'client' ou 'notification'.")
+            prompt_parts.append("Exemple: {\"email1\": \"notification\", \"email2\": \"client\", \"email3\": \"notification\"}")
+            
+            prompt = "\n".join(prompt_parts)
+            
+            # Appeler ChatGPT
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Tu es un assistant qui analyse les emails pour déterminer s'ils proviennent d'un vrai client ou d'une notification automatisée. Réponds UNIQUEMENT avec un JSON valide, sans explication ni texte supplémentaire."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.2,  # Très déterministe
+                max_tokens=500  # Plus de tokens pour plusieurs emails
+            )
+            
+            # Parser la réponse JSON
+            result = response.choices[0].message.content.strip()
+            logger.debug(f"[AI CLASSIFIER] Réponse batch notifications: {result}")
+            
+            # Extraire le JSON (peut être entouré de markdown code blocks)
+            import json
+            import re
+            
+            # Enlever les markdown code blocks si présents
+            result = re.sub(r'```json\s*', '', result)
+            result = re.sub(r'```\s*', '', result)
+            result = result.strip()
+            
+            try:
+                batch_results = json.loads(result)
+                
+                # Convertir en format {email_id: bool}
+                for email_data in emails_to_check_ia:
+                    email_id = email_data.get("email_id", email_data.get("from_email", ""))
+                    value = batch_results.get(str(email_id), batch_results.get(email_id, "client"))
+                    
+                    # Si la valeur contient "notification", c'est une notification
+                    is_notification = "notification" in str(value).lower()
+                    results[email_id] = is_notification
+                    
+            except json.JSONDecodeError as e:
+                logger.error(f"Erreur lors du parsing JSON de la réponse batch: {e}. Réponse: {result}")
+                # Fallback: considérer tous comme clients
+                for email_data in emails_to_check_ia:
+                    email_id = email_data.get("email_id", email_data.get("from_email", ""))
+                    results[email_id] = False
+            
+            return results
+            
+        except Exception as e:
+            error_str = str(e)
+            # Gérer les erreurs de rate limiting
+            if "429" in error_str or "rate limit" in error_str.lower():
+                logger.warning(f"⚠️  Limite d'appels IA atteinte (429). Utilisation de la détection basique par patterns.")
+            else:
+                logger.error(f"Error during batch notification detection: {e}")
+            
+            # Fallback: détection basique par patterns pour les emails restants
+            for email_data in emails_to_check_ia:
+                email_id = email_data.get("email_id", email_data.get("from_email", ""))
+                from_email = email_data.get("from_email", "")
+                
+                if not from_email:
+                    results[email_id] = True
+                    continue
+                
+                from_email_lower = from_email.lower()
+                notification_patterns = [
+                    "noreply@", "no-reply@", "notifications@", "notification@",
+                    "automated@", "system@", "service@", "donotreply@"
+                ]
+                
+                is_notification = False
+                for pattern in notification_patterns:
+                    if pattern in from_email_lower:
+                        is_notification = True
+                        break
+                
+                results[email_id] = is_notification
+            
+            return results
