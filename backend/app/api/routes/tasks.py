@@ -880,11 +880,11 @@ def update_task(
         
         # Valider les foreign keys
         if "assigned_to_id" in update_data and update_data["assigned_to_id"]:
-        # Vérifier que l'utilisateur assigné appartient à la même entreprise
-        assigned_user = db.query(User).filter(
-            User.id == update_data["assigned_to_id"],
-            User.company_id == current_user.company_id
-        ).first()
+            # Vérifier que l'utilisateur assigné appartient à la même entreprise
+            assigned_user = db.query(User).filter(
+                User.id == update_data["assigned_to_id"],
+                User.company_id == current_user.company_id
+            ).first()
             if not assigned_user:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
