@@ -10,7 +10,6 @@ import Image from "next/image";
 const adminNavItems = [
   { label: "Entreprises", href: "/admin/companies" },
   { label: "Utilisateurs", href: "/admin/users" },
-  { label: "Packs", href: "/admin/packs" },
 ];
 
 export default function AdminLayout({
