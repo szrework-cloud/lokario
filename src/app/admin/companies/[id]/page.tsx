@@ -62,8 +62,6 @@ export default function CompanyDetailPage() {
     { id: "billing", label: "Facturation" },
     { id: "usage", label: "Utilisation" },
     { id: "team", label: "Équipe" },
-    { id: "integrations", label: "Intégrations" },
-    { id: "notifications", label: "Notifications" },
   ];
 
   // TODO: Récupérer l'équipe depuis le backend
