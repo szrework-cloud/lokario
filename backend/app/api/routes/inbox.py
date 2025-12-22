@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form, Request, Body
+from fastapi import Request as FastAPIRequest
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
@@ -771,7 +772,7 @@ class BulkDeleteRequest(BaseModel):
 
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
 async def delete_conversations_bulk(
-    body: dict = Body(...),
+    request: FastAPIRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -779,6 +780,16 @@ async def delete_conversations_bulk(
     Supprime plusieurs conversations en une seule opération.
     Utilise la même logique que la suppression individuelle pour chaque conversation.
     """
+    # Parser le body JSON manuellement pour éviter les problèmes de validation Pydantic
+    import json
+    try:
+        body = await request.json()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Body JSON invalide: {str(e)}"
+        )
+    
     # Convertir manuellement les IDs en entiers
     conversation_ids_raw = body.get("conversation_ids", [])
     if not isinstance(conversation_ids_raw, list):
