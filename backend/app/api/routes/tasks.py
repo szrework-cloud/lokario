@@ -982,8 +982,8 @@ def update_task(
                     logger.info(f"✅ Notification créée pour la tâche critique {task.id}")
                 except Exception as e:
                     import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Erreur lors de la création de la notification pour la tâche {task.id}: {e}")
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Erreur lors de la création de la notification pour la tâche {task.id}: {e}")
         
         # Charger les relations
         task_id = task.id  # Sauvegarder l'ID avant la requête
