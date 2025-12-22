@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
 from typing import List
 from pathlib import Path
+from datetime import datetime, timedelta, date
 import uuid
 from app.db.session import get_db
 from app.db.models.company import Company
@@ -21,6 +23,7 @@ from app.api.deps import (
 from app.db.models.user import User
 from app.core.config import settings
 from sqlalchemy.orm.attributes import flag_modified
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -863,6 +866,114 @@ async def get_company_logo(
         path=str(file_path),
         media_type="image/jpeg" if logo_path.endswith((".jpg", ".jpeg")) else "image/png"
     )
+
+
+@router.get("/{company_id}/usage")
+def get_company_usage(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_super_admin)
+):
+    """
+    Récupère les statistiques d'utilisation d'une entreprise (admin uniquement).
+    """
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Importer les modèles nécessaires
+    from app.db.models.task import Task, TaskStatus
+    from app.db.models.billing import Invoice
+    from app.db.models.client import Client
+    from app.db.models.conversation import Conversation, InboxMessage
+    from app.db.models.appointment import Appointment
+    
+    # Date de référence (30 derniers jours)
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    
+    # Tâches complétées (30 derniers jours)
+    tasks_completed = db.query(Task).filter(
+        Task.company_id == company_id,
+        Task.status == TaskStatus.TERMINE,
+        Task.completed_at >= thirty_days_ago
+    ).count()
+    
+    # Messages envoyés (30 derniers jours) - messages de l'entreprise vers les clients
+    messages_sent = db.query(InboxMessage).join(Conversation).filter(
+        Conversation.company_id == company_id,
+        InboxMessage.from_email != None,  # Messages envoyés (pas reçus)
+        InboxMessage.created_at >= thirty_days_ago
+    ).count()
+    
+    # Factures générées (30 derniers jours)
+    invoices_generated = db.query(Invoice).filter(
+        Invoice.company_id == company_id,
+        Invoice.created_at >= thirty_days_ago
+    ).count()
+    
+    # Rendez-vous réservés (30 derniers jours)
+    appointments_booked = db.query(Appointment).filter(
+        Appointment.company_id == company_id,
+        Appointment.created_at >= thirty_days_ago
+    ).count()
+    
+    # Clients gérés (total)
+    clients_managed = db.query(Client).filter(
+        Client.company_id == company_id
+    ).count()
+    
+    # Dernière activité - chercher la date la plus récente parmi toutes les entités
+    last_activity = None
+    
+    # Vérifier les tâches
+    last_task = db.query(func.max(Task.updated_at)).filter(
+        Task.company_id == company_id
+    ).scalar()
+    if last_task and (not last_activity or last_task > last_activity):
+        last_activity = last_task
+    
+    # Vérifier les messages
+    last_message = db.query(func.max(InboxMessage.created_at)).join(Conversation).filter(
+        Conversation.company_id == company_id
+    ).scalar()
+    if last_message and (not last_activity or last_message > last_activity):
+        last_activity = last_message
+    
+    # Vérifier les factures
+    last_invoice = db.query(func.max(Invoice.updated_at)).filter(
+        Invoice.company_id == company_id
+    ).scalar()
+    if last_invoice and (not last_activity or last_invoice > last_activity):
+        last_activity = last_invoice
+    
+    # Vérifier les rendez-vous
+    last_appointment = db.query(func.max(Appointment.updated_at)).filter(
+        Appointment.company_id == company_id
+    ).scalar()
+    if last_appointment and (not last_activity or last_appointment > last_activity):
+        last_activity = last_appointment
+    
+    # Calculer le temps gagné (estimation basée sur les automatisations)
+    # Estimation: 5 min par tâche complétée, 2 min par message envoyé, 10 min par facture générée
+    estimated_minutes = (tasks_completed * 5) + (messages_sent * 2) + (invoices_generated * 10)
+    hours = estimated_minutes // 60
+    minutes = estimated_minutes % 60
+    
+    return {
+        "time_saved": {
+            "hours": hours,
+            "minutes": minutes,
+            "description": "Temps gagné grâce à l'automatisation",
+        },
+        "stats": {
+            "tasks_completed": tasks_completed,
+            "messages_sent": messages_sent,
+            "invoices_generated": invoices_generated,
+            "appointments_booked": appointments_booked,
+            "clients_managed": clients_managed,
+        },
+        "last_activity": last_activity.isoformat() if last_activity else None,
+    }
 
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -36,10 +36,22 @@ export default function CompanyDetailPage() {
   const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
   const [subscriptionHistory, setSubscriptionHistory] = useState<SubscriptionHistoryItem[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [usageData, setUsageData] = useState<{
+    time_saved: { hours: number; minutes: number; description: string };
+    stats: {
+      tasks_completed: number;
+      messages_sent: number;
+      invoices_generated: number;
+      appointments_booked: number;
+      clients_managed: number;
+    };
+    last_activity: string | null;
+  } | null>(null);
   const [loadingCompany, setLoadingCompany] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loadingUsage, setLoadingUsage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("company");
@@ -302,6 +314,37 @@ export default function CompanyDetailPage() {
     if (activeTab === "billing") {
       void loadSubscription();
       void loadHistory();
+    }
+  }, [token, companyId, activeTab]);
+
+  // Charger les données d'utilisation
+  useEffect(() => {
+    const loadUsage = async () => {
+      if (!token || !companyId || isNaN(companyId)) return;
+      setLoadingUsage(true);
+      try {
+        const usageData = await apiGet<{
+          time_saved: { hours: number; minutes: number; description: string };
+          stats: {
+            tasks_completed: number;
+            messages_sent: number;
+            invoices_generated: number;
+            appointments_booked: number;
+            clients_managed: number;
+          };
+          last_activity: string | null;
+        }>(`/companies/${companyId}/usage`, token);
+        setUsageData(usageData);
+      } catch (err: any) {
+        console.error("Erreur lors du chargement des statistiques d'utilisation:", err);
+        setUsageData(null);
+      } finally {
+        setLoadingUsage(false);
+      }
+    };
+
+    if (activeTab === "usage") {
+      void loadUsage();
     }
   }, [token, companyId, activeTab]);
 
@@ -685,80 +728,137 @@ export default function CompanyDetailPage() {
                   <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
                     Temps gagné
                   </h3>
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="text-center">
-                        <div className="text-5xl font-bold text-[#F97316] mb-2">
-                          {mockUsageData.timeSaved.hours}h {mockUsageData.timeSaved.minutes}min
+                  {loadingUsage ? (
+                    <Card>
+                      <CardContent className="p-6">
+                        <Loader />
+                      </CardContent>
+                    </Card>
+                  ) : usageData ? (
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="text-center">
+                          <div className="text-5xl font-bold text-[#F97316] mb-2">
+                            {usageData.time_saved.hours}h {usageData.time_saved.minutes}min
+                          </div>
+                          <div className="text-sm text-[#64748B]">
+                            {usageData.time_saved.description}
+                          </div>
+                          <div className="mt-4 text-xs text-[#64748B]">
+                            Calculé sur les 30 derniers jours
+                          </div>
                         </div>
-                        <div className="text-sm text-[#64748B]">
-                          {mockUsageData.timeSaved.description}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="text-center text-[#64748B]">
+                          Aucune donnée disponible
                         </div>
-                        <div className="mt-4 text-xs text-[#64748B]">
-                          Calculé sur les 30 derniers jours
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
 
                 <div>
                   <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
                     Statistiques d'utilisation
                   </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-[#0F172A]">
-                          {mockUsageData.stats.tasksCompleted}
-                        </div>
-                        <div className="text-sm text-[#64748B] mt-1">Tâches complétées</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-[#0F172A]">
-                          {mockUsageData.stats.messagesSent}
-                        </div>
-                        <div className="text-sm text-[#64748B] mt-1">Messages envoyés</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-[#0F172A]">
-                          {mockUsageData.stats.invoicesGenerated}
-                        </div>
-                        <div className="text-sm text-[#64748B] mt-1">Factures générées</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-[#0F172A]">
-                          {mockUsageData.stats.appointmentsBooked}
-                        </div>
-                        <div className="text-sm text-[#64748B] mt-1">Rendez-vous pris</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="text-2xl font-bold text-[#0F172A]">
-                          {mockUsageData.stats.clientsManaged}
-                        </div>
-                        <div className="text-sm text-[#64748B] mt-1">Clients gérés</div>
-                      </CardContent>
-                    </Card>
-                  </div>
+                  {loadingUsage ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <Card key={i}>
+                          <CardContent className="p-4">
+                            <Loader />
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : usageData ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-2xl font-bold text-[#0F172A]">
+                            {usageData.stats.tasks_completed}
+                          </div>
+                          <div className="text-sm text-[#64748B] mt-1">Tâches complétées</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-2xl font-bold text-[#0F172A]">
+                            {usageData.stats.messages_sent}
+                          </div>
+                          <div className="text-sm text-[#64748B] mt-1">Messages envoyés</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-2xl font-bold text-[#0F172A]">
+                            {usageData.stats.invoices_generated}
+                          </div>
+                          <div className="text-sm text-[#64748B] mt-1">Factures générées</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-2xl font-bold text-[#0F172A]">
+                            {usageData.stats.appointments_booked}
+                          </div>
+                          <div className="text-sm text-[#64748B] mt-1">Rendez-vous pris</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-2xl font-bold text-[#0F172A]">
+                            {usageData.stats.clients_managed}
+                          </div>
+                          <div className="text-sm text-[#64748B] mt-1">Clients gérés</div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-[#E5E7EB] bg-white p-6">
+                      <p className="text-center text-[#64748B]">Aucune statistique disponible</p>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
                     Dernière activité
                   </h3>
-                  <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4">
-                    <div className="text-sm text-[#64748B]">
-                      Il y a {Math.floor((Date.now() - new Date(mockUsageData.lastActivity).getTime()) / (1000 * 60))} minutes
+                  {loadingUsage ? (
+                    <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                      <Loader />
                     </div>
-                  </div>
+                  ) : usageData?.last_activity ? (
+                    <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                      <div className="text-sm text-[#64748B]">
+                        {(() => {
+                          const lastActivity = new Date(usageData.last_activity);
+                          const now = new Date();
+                          const diffMs = now.getTime() - lastActivity.getTime();
+                          const diffMins = Math.floor(diffMs / (1000 * 60));
+                          const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                          
+                          if (diffMins < 60) {
+                            return `Il y a ${diffMins} minute${diffMins > 1 ? 's' : ''}`;
+                          } else if (diffHours < 24) {
+                            return `Il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
+                          } else {
+                            return `Il y a ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
+                          }
+                        })()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                      <div className="text-sm text-[#64748B]">Aucune activité récente</div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
