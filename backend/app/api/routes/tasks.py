@@ -17,8 +17,14 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
 def _check_company_access(current_user: User):
-    """Vérifier que l'utilisateur est attaché à une entreprise (sauf super_admin)"""
-    if current_user.company_id is None and current_user.role != "super_admin":
+    """Vérifier que l'utilisateur est attaché à une entreprise (les super_admin n'ont pas accès)"""
+    # Les super_admins n'ont pas accès aux tâches
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admins do not have access to tasks"
+        )
+    if current_user.company_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User is not attached to a company"
@@ -27,16 +33,16 @@ def _check_company_access(current_user: User):
 
 def _can_access_task(task: Task, current_user: User) -> bool:
     """Vérifier si l'utilisateur peut accéder à cette tâche"""
-    # Les super_admins peuvent accéder à toutes les tâches
+    # Les super_admins n'ont pas accès aux tâches
     if current_user.role == "super_admin":
-        return True
+        return False
     # Vérifier que la tâche appartient à la même entreprise
     if task.company_id != current_user.company_id:
         return False
     # Les users ne peuvent voir que leurs tâches assignées
     if current_user.role == "user":
         return task.assigned_to_id == current_user.id
-    # Les owners/admins peuvent voir toutes les tâches de l'entreprise
+    # Les owners peuvent voir toutes les tâches de l'entreprise
     return True
 
 
@@ -880,17 +886,11 @@ def update_task(
     
     # Valider les foreign keys
     if "assigned_to_id" in update_data and update_data["assigned_to_id"]:
-        # Pour les super_admins, on peut assigner à n'importe quel utilisateur
-        # Pour les autres, on vérifie que l'utilisateur appartient à la même entreprise
-        if current_user.role == "super_admin":
-            assigned_user = db.query(User).filter(
-                User.id == update_data["assigned_to_id"]
-            ).first()
-        else:
-            assigned_user = db.query(User).filter(
-                User.id == update_data["assigned_to_id"],
-                User.company_id == current_user.company_id
-            ).first()
+        # Vérifier que l'utilisateur assigné appartient à la même entreprise
+        assigned_user = db.query(User).filter(
+            User.id == update_data["assigned_to_id"],
+            User.company_id == current_user.company_id
+        ).first()
         if not assigned_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
