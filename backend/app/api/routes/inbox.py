@@ -19,6 +19,7 @@ from app.db.models.conversation import (
     InternalNote,
 )
 from app.db.models.client import Client
+from app.core.encryption_service import get_encryption_service
 from app.db.models.user import User
 from app.db.models.inbox_integration import InboxIntegration
 from app.db.models.company_settings import CompanySettings
@@ -708,14 +709,19 @@ async def delete_conversation(
             # Supprimer sur IMAP si on a trouvé une intégration
             if integration and integration.email_address and integration.email_password:
                 try:
-                    deleted = await delete_email_imap_async(
-                        imap_server=integration.imap_server or "imap.gmail.com",
-                        imap_port=integration.imap_port or 993,
-                        email_address=integration.email_address,
-                        password=integration.email_password,
-                        message_id=message.external_id,
-                        use_ssl=integration.use_ssl if integration.use_ssl is not None else True
-                    )
+                    # Décrypter le mot de passe (comme dans inbox_integrations.py)
+                    encryption_service = get_encryption_service()
+                    decrypted_password = encryption_service.decrypt(integration.email_password) if integration.email_password else None
+                    
+                    if decrypted_password:
+                        deleted = await delete_email_imap_async(
+                            imap_server=integration.imap_server or "imap.gmail.com",
+                            imap_port=integration.imap_port or 993,
+                            email_address=integration.email_address,
+                            password=decrypted_password,
+                            message_id=message.external_id,
+                            use_ssl=integration.use_ssl if integration.use_ssl is not None else True
+                        )
                     if deleted:
                         print(f"[DELETE] Email {message.external_id} supprimé sur IMAP avec succès")
                     else:
@@ -831,25 +837,27 @@ async def delete_conversations_bulk(
                     # Supprimer sur IMAP si on a trouvé une intégration
                     if integration and integration.email_address and integration.email_password:
                         try:
-                            deleted = await delete_email_imap_async(
-                                imap_server=integration.imap_server or "imap.gmail.com",
-                                imap_port=integration.imap_port or 993,
-                                email_address=integration.email_address,
-                                password=integration.email_password,
-                                message_id=message.external_id,
-                                use_ssl=integration.use_ssl if integration.use_ssl is not None else True
-                            )
+                            # Décrypter le mot de passe (comme dans inbox_integrations.py)
+                            encryption_service = get_encryption_service()
+                            decrypted_password = encryption_service.decrypt(integration.email_password) if integration.email_password else None
+                            
+                            if decrypted_password:
+                                deleted = await delete_email_imap_async(
+                                    imap_server=integration.imap_server or "imap.gmail.com",
+                                    imap_port=integration.imap_port or 993,
+                                    email_address=integration.email_address,
+                                    password=decrypted_password,
+                                    message_id=message.external_id,
+                                    use_ssl=integration.use_ssl if integration.use_ssl is not None else True
+                                )
                             if deleted:
                                 print(f"[DELETE BULK] Email {message.external_id} supprimé sur IMAP avec succès")
                         except Exception as e:
                             print(f"[DELETE BULK] Erreur lors de la suppression IMAP pour {message.external_id}: {e}")
                             # On continue même en cas d'erreur IMAP
             
-            # Supprimer les messages associés
-            db.query(InboxMessage).filter(InboxMessage.conversation_id == conversation_id).delete()
-            # Supprimer les notes internes
-            db.query(InternalNote).filter(InternalNote.conversation_id == conversation_id).delete()
-            # Supprimer la conversation
+            # Les messages et notes seront supprimés automatiquement grâce à cascade
+            # (comme dans delete_conversation)
             db.delete(conversation)
             deleted_count += 1
             
