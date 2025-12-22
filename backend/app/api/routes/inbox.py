@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any
 from pydantic import BaseModel, field_validator
 from datetime import datetime
 import os
@@ -732,22 +732,24 @@ async def delete_conversation(
 
 
 class BulkDeleteRequest(BaseModel):
-    conversation_ids: List[Union[int, str]]
+    conversation_ids: List[int]
     delete_on_imap: bool = True
     
     @field_validator('conversation_ids', mode='before')
     @classmethod
-    def convert_ids_to_int(cls, v):
+    def convert_ids_to_int(cls, v: Any) -> List[int]:
         """Convertit les IDs en entiers, même s'ils arrivent comme strings"""
-        if isinstance(v, list):
-            result = []
-            for item in v:
-                try:
-                    result.append(int(item))
-                except (ValueError, TypeError):
-                    raise ValueError(f"ID invalide: {item}. Tous les IDs doivent être des nombres entiers.")
-            return result
-        return v
+        if not isinstance(v, list):
+            raise ValueError("conversation_ids doit être une liste")
+        
+        result = []
+        for item in v:
+            try:
+                # Convertir en entier (fonctionne pour int, str, float, etc.)
+                result.append(int(item))
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"ID invalide: {item}. Tous les IDs doivent être des nombres entiers. Erreur: {e}")
+        return result
 
 
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
