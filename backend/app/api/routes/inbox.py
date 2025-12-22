@@ -767,7 +767,7 @@ async def delete_conversations_bulk(
             detail="User is not attached to a company"
         )
     
-    if not conversation_ids:
+    if not conversation_ids_int:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Aucune conversation à supprimer"
@@ -786,7 +786,7 @@ async def delete_conversations_bulk(
     errors = []
     
     # Pour chaque conversation, utiliser la même logique que delete_conversation
-    for conversation_id in conversation_ids:
+    for conversation_id in conversation_ids_int:
         try:
             conversation = db.query(Conversation).filter(
                 Conversation.id == conversation_id,
