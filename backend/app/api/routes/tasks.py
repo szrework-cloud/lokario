@@ -27,6 +27,10 @@ def _check_company_access(current_user: User):
 
 def _can_access_task(task: Task, current_user: User) -> bool:
     """Vérifier si l'utilisateur peut accéder à cette tâche"""
+    # Les super_admins peuvent accéder à toutes les tâches
+    if current_user.role == "super_admin":
+        return True
+    # Vérifier que la tâche appartient à la même entreprise
     if task.company_id != current_user.company_id:
         return False
     # Les users ne peuvent voir que leurs tâches assignées
@@ -876,10 +880,17 @@ def update_task(
     
     # Valider les foreign keys
     if "assigned_to_id" in update_data and update_data["assigned_to_id"]:
-        assigned_user = db.query(User).filter(
-            User.id == update_data["assigned_to_id"],
-            User.company_id == current_user.company_id
-        ).first()
+        # Pour les super_admins, on peut assigner à n'importe quel utilisateur
+        # Pour les autres, on vérifie que l'utilisateur appartient à la même entreprise
+        if current_user.role == "super_admin":
+            assigned_user = db.query(User).filter(
+                User.id == update_data["assigned_to_id"]
+            ).first()
+        else:
+            assigned_user = db.query(User).filter(
+                User.id == update_data["assigned_to_id"],
+                User.company_id == current_user.company_id
+            ).first()
         if not assigned_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -891,7 +902,11 @@ def update_task(
         recurrence_days = update_data.pop("recurrence_days")
         task.set_recurrence_days(recurrence_days)
     
-    for field, value in update_data.items():
+    # Filtrer les champs qui n'existent plus dans le modèle (comme is_mandatory)
+    valid_fields = {field for field in update_data.keys() if hasattr(task, field)}
+    filtered_update_data = {field: value for field, value in update_data.items() if field in valid_fields}
+    
+    for field, value in filtered_update_data.items():
         setattr(task, field, value)
     
     db.commit()
