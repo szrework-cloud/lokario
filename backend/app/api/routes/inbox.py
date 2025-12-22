@@ -732,10 +732,28 @@ async def delete_conversation(
     return
 
 
+class BulkDeleteRequest(BaseModel):
+    conversation_ids: List[Union[int, str]]
+    delete_on_imap: bool = True
+    
+    @field_validator('conversation_ids', mode='before')
+    @classmethod
+    def convert_ids_to_int(cls, v):
+        """Convertit les IDs en entiers, même s'ils arrivent comme strings"""
+        if isinstance(v, list):
+            result = []
+            for item in v:
+                try:
+                    result.append(int(item))
+                except (ValueError, TypeError):
+                    raise ValueError(f"ID invalide: {item}. Tous les IDs doivent être des nombres entiers.")
+            return result
+        return v
+
+
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
 async def delete_conversations_bulk(
-    conversation_ids: List[int] = Body(..., description="Liste des IDs des conversations à supprimer"),
-    delete_on_imap: bool = Body(True, description="Supprimer aussi les emails sur le serveur IMAP"),
+    request: BulkDeleteRequest = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -743,6 +761,9 @@ async def delete_conversations_bulk(
     Supprime plusieurs conversations en une seule opération.
     Utilise la même logique que la suppression individuelle pour chaque conversation.
     """
+    conversation_ids = request.conversation_ids
+    delete_on_imap = request.delete_on_imap
+    
     if current_user.company_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
