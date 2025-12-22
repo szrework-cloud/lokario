@@ -783,8 +783,12 @@ async def delete_conversations_bulk(
     # Parser le body JSON manuellement pour éviter les problèmes de validation Pydantic
     import json
     try:
-        body = await request.json()
+        body_bytes = await request.body()
+        logger.info(f"[DELETE BULK] Body brut reçu: {body_bytes}")
+        body = json.loads(body_bytes.decode('utf-8'))
+        logger.info(f"[DELETE BULK] Body parsé: {body}, type conversation_ids: {type(body.get('conversation_ids'))}")
     except Exception as e:
+        logger.error(f"[DELETE BULK] Erreur lors du parsing du body: {e}")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Body JSON invalide: {str(e)}"
@@ -792,6 +796,8 @@ async def delete_conversations_bulk(
     
     # Convertir manuellement les IDs en entiers
     conversation_ids_raw = body.get("conversation_ids", [])
+    logger.info(f"[DELETE BULK] conversation_ids_raw: {conversation_ids_raw}, types: {[type(x) for x in conversation_ids_raw]}")
+    
     if not isinstance(conversation_ids_raw, list):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -801,14 +807,18 @@ async def delete_conversations_bulk(
     conversation_ids = []
     for item in conversation_ids_raw:
         try:
-            conversation_ids.append(int(item))
-        except (ValueError, TypeError):
+            converted = int(item)
+            logger.info(f"[DELETE BULK] Conversion: {item} (type: {type(item)}) -> {converted} (type: {type(converted)})")
+            conversation_ids.append(converted)
+        except (ValueError, TypeError) as e:
+            logger.error(f"[DELETE BULK] Erreur conversion ID {item}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"ID invalide: {item}. Tous les IDs doivent être des nombres entiers."
             )
     
     delete_on_imap = body.get("delete_on_imap", True)
+    logger.info(f"[DELETE BULK] IDs convertis: {conversation_ids}, delete_on_imap: {delete_on_imap}")
     
     if current_user.company_id is None:
         raise HTTPException(
