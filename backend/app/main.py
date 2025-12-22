@@ -87,35 +87,34 @@ def is_origin_allowed(origin: str) -> bool:
     
     return False
 
-# Configuration CORS avec support des previews Vercel
-# Note: Les logs CORS sont affichés dans startup_event() après configuration du logging
-# En staging/dev, utiliser allow_origin_regex pour autoriser toutes les previews Vercel
-# En production, utiliser allow_origins avec la liste fixe
+# Configuration CORS simplifiée et robuste
+# En staging/dev, autoriser toutes les URLs Vercel + les origines spécifiques
+# En production, seulement les origines spécifiques
 if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
     # Staging/dev : autoriser toutes les URLs Vercel via regex + les origines spécifiques
-    # IMPORTANT: allow_origin_regex et allow_origins peuvent être utilisés ensemble
-    # Le regex matchera les URLs Vercel, et allow_origins contiendra les autres origines
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"https://.*\.vercel\.app",  # Toutes les URLs Vercel
         allow_origins=origins,  # Origines spécifiques (localhost, lokario.fr, etc.)
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-        allow_headers=["*"],
+        allow_methods=["*"],  # Autoriser toutes les méthodes
+        allow_headers=["*"],  # Autoriser tous les headers
         expose_headers=["*"],
         max_age=3600,
     )
+    logger.info("🌐 CORS configuré pour staging/dev avec regex Vercel")
 else:
     # Production : seulement les origines spécifiques
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=["*"],
         max_age=3600,
     )
+    logger.info("🌐 CORS configuré pour production")
 
 # Middleware de secours pour garantir les headers CORS sur toutes les réponses
 # Ce middleware s'exécute APRÈS le middleware CORS et ajoute les headers si manquants
