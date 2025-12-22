@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { Loader } from "@/components/ui/Loader";
 import { CompanySettings } from "@/store/settings-store";
+import { getCompanySubscription, SubscriptionResponse, SubscriptionPlan } from "@/services/stripeService";
 
 // AdminCompanySettings peut avoir des champs supplémentaires pour l'admin
 // Mais utilise la même structure de modules que CompanySettings pour cohérence
@@ -32,8 +33,11 @@ export default function CompanyDetailPage() {
 
   const [company, setCompany] = useState<CompanyInfo | null>(null);
   const [settings, setSettings] = useState<AdminCompanySettings | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loadingCompany, setLoadingCompany] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(false);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("company");
@@ -260,6 +264,31 @@ export default function CompanyDetailPage() {
     void loadSettings();
   }, [token, companyId]);
 
+  // Charger les données de subscription
+  useEffect(() => {
+    const loadSubscription = async () => {
+      if (!token || !companyId || isNaN(companyId)) return;
+      setLoadingSubscription(true);
+      try {
+        const subscriptionData = await getCompanySubscription(companyId, token);
+        setSubscription(subscriptionData);
+        
+        // Charger aussi les plans pour obtenir les features
+        const plansData = await apiGet<{ plans: SubscriptionPlan[] }>("/stripe/plans", token);
+        setPlans(plansData.plans);
+      } catch (err: any) {
+        console.error("Erreur lors du chargement de l'abonnement:", err);
+        setSubscription({ has_subscription: false, subscription: null });
+      } finally {
+        setLoadingSubscription(false);
+      }
+    };
+
+    if (activeTab === "pack") {
+      void loadSubscription();
+    }
+  }, [token, companyId, activeTab]);
+
   const handleModuleToggle = (
     key: keyof AdminCompanySettings["settings"]["modules"],
     enabled: boolean
@@ -456,90 +485,141 @@ export default function CompanyDetailPage() {
                   <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
                     Pack actuel
                   </h3>
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="text-xl font-bold text-[#0F172A]">
-                              {mockPackData.name}
-                            </h4>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              mockPackData.status === "actif"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            }`}>
-                              {mockPackData.status === "actif" ? "Actif" : "Inactif"}
-                            </span>
-                          </div>
-                          <p className="text-sm text-[#64748B]">
-                            {mockPackData.description}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-[#0F172A]">
-                            {mockPackData.price.toFixed(2)} €
-                          </div>
-                          <div className="text-xs text-[#64748B]">
-                            / {mockPackData.billingCycle}
-                          </div>
-                        </div>
-                      </div>
+                  {loadingSubscription ? (
+                    <Card>
+                      <CardContent className="p-6">
+                        <Loader />
+                      </CardContent>
+                    </Card>
+                  ) : subscription?.has_subscription && subscription.subscription ? (
+                    <Card>
+                      <CardContent className="p-6">
+                        {(() => {
+                          const sub = subscription.subscription!;
+                          const plan = plans.find(p => p.id === sub.plan);
+                          const statusMap: Record<string, string> = {
+                            active: "Actif",
+                            canceled: "Annulé",
+                            past_due: "En retard",
+                            unpaid: "Impayé",
+                            incomplete: "Incomplet",
+                            incomplete_expired: "Expiré",
+                            trialing: "Essai",
+                            paused: "En pause",
+                          };
+                          const statusColorMap: Record<string, string> = {
+                            active: "bg-green-100 text-green-800",
+                            canceled: "bg-red-100 text-red-800",
+                            past_due: "bg-yellow-100 text-yellow-800",
+                            unpaid: "bg-red-100 text-red-800",
+                            incomplete: "bg-gray-100 text-gray-800",
+                            incomplete_expired: "bg-red-100 text-red-800",
+                            trialing: "bg-blue-100 text-blue-800",
+                            paused: "bg-gray-100 text-gray-800",
+                          };
+                          
+                          return (
+                            <>
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <h4 className="text-xl font-bold text-[#0F172A]">
+                                      {plan?.name || sub.plan}
+                                    </h4>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                      statusColorMap[sub.status] || "bg-gray-100 text-gray-800"
+                                    }`}>
+                                      {statusMap[sub.status] || sub.status}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-[#64748B]">
+                                    {plan?.features?.[0] || "Abonnement actif"}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-2xl font-bold text-[#0F172A]">
+                                    {sub.amount.toFixed(2)} {sub.currency.toUpperCase()}
+                                  </div>
+                                  <div className="text-xs text-[#64748B]">
+                                    / mois
+                                  </div>
+                                </div>
+                              </div>
 
-                      <div className="mt-6 pt-6 border-t border-[#E5E7EB]">
-                        <h5 className="text-sm font-semibold text-[#0F172A] mb-3">
-                          Fonctionnalités incluses
-                        </h5>
-                        <ul className="space-y-2">
-                          {mockPackData.features.map((feature, index) => (
-                            <li key={index} className="flex items-center gap-2 text-sm text-[#64748B]">
-                              <svg
-                                className="w-4 h-4 text-green-600 flex-shrink-0"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M5 13l4 4L19 7"
-                                />
-                              </svg>
-                              {feature}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                              {plan?.features && plan.features.length > 0 && (
+                                <div className="mt-6 pt-6 border-t border-[#E5E7EB]">
+                                  <h5 className="text-sm font-semibold text-[#0F172A] mb-3">
+                                    Fonctionnalités incluses
+                                  </h5>
+                                  <ul className="space-y-2">
+                                    {plan.features.map((feature, index) => (
+                                      <li key={index} className="flex items-center gap-2 text-sm text-[#64748B]">
+                                        <svg
+                                          className="w-4 h-4 text-green-600 flex-shrink-0"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M5 13l4 4L19 7"
+                                          />
+                                        </svg>
+                                        {feature}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
 
-                      <div className="mt-6 pt-6 border-t border-[#E5E7EB] grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-xs text-[#64748B] mb-1">
-                            Date de début
-                          </div>
-                          <div className="text-sm font-medium text-[#0F172A]">
-                            {new Date(mockPackData.startDate).toLocaleDateString("fr-FR", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </div>
+                              {(sub.current_period_start || sub.current_period_end) && (
+                                <div className="mt-6 pt-6 border-t border-[#E5E7EB] grid grid-cols-2 gap-4">
+                                  {sub.current_period_start && (
+                                    <div>
+                                      <div className="text-xs text-[#64748B] mb-1">
+                                        Date de début
+                                      </div>
+                                      <div className="text-sm font-medium text-[#0F172A]">
+                                        {new Date(sub.current_period_start).toLocaleDateString("fr-FR", {
+                                          day: "numeric",
+                                          month: "long",
+                                          year: "numeric",
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {sub.current_period_end && (
+                                    <div>
+                                      <div className="text-xs text-[#64748B] mb-1">
+                                        Prochain renouvellement
+                                      </div>
+                                      <div className="text-sm font-medium text-[#0F172A]">
+                                        {new Date(sub.current_period_end).toLocaleDateString("fr-FR", {
+                                          day: "numeric",
+                                          month: "long",
+                                          year: "numeric",
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="text-center py-8">
+                          <p className="text-[#64748B]">Aucun abonnement actif</p>
                         </div>
-                        <div>
-                          <div className="text-xs text-[#64748B] mb-1">
-                            Prochain renouvellement
-                          </div>
-                          <div className="text-sm font-medium text-[#0F172A]">
-                            {new Date(mockPackData.renewalDate).toLocaleDateString("fr-FR", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
 
                 <div>

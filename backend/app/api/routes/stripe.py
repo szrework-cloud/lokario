@@ -11,7 +11,7 @@ import json
 import logging
 import time
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, get_current_super_admin
 from app.db.models.user import User
 from app.db.models.company import Company
 from app.db.models.subscription import (
@@ -88,6 +88,54 @@ async def get_subscription(
 ):
     """Récupère l'abonnement actuel de l'entreprise"""
     company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Entreprise non trouvée")
+    
+    subscription = db.query(Subscription).filter(
+        Subscription.company_id == company.id
+    ).first()
+    
+    if not subscription:
+        return {
+            "has_subscription": False,
+            "subscription": None
+        }
+    
+    # Récupérer les informations à jour depuis Stripe si disponible
+    if subscription.stripe_subscription_id:
+        try:
+            stripe_sub = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
+            # Synchroniser les données
+            subscription.status = SubscriptionStatus(stripe_sub.status)
+            subscription.current_period_start = datetime.fromtimestamp(stripe_sub.current_period_start)
+            subscription.current_period_end = datetime.fromtimestamp(stripe_sub.current_period_end)
+            db.commit()
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération de l'abonnement Stripe: {e}")
+    
+    return {
+        "has_subscription": True,
+        "subscription": {
+            "id": subscription.id,
+            "plan": subscription.plan.value,
+            "status": subscription.status.value,
+            "amount": float(subscription.amount),
+            "currency": subscription.currency,
+            "current_period_start": subscription.current_period_start.isoformat() if subscription.current_period_start else None,
+            "current_period_end": subscription.current_period_end.isoformat() if subscription.current_period_end else None,
+            "trial_end": subscription.trial_end.isoformat() if subscription.trial_end else None,
+        }
+    }
+
+
+@router.get("/subscription/{company_id}")
+async def get_company_subscription(
+    company_id: int,
+    current_user: User = Depends(get_current_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Récupère l'abonnement d'une entreprise spécifique (admin uniquement)"""
+    company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Entreprise non trouvée")
     

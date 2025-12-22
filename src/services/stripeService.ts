@@ -50,6 +50,16 @@ export async function getSubscription(token: string | null): Promise<Subscriptio
 }
 
 /**
+ * Récupère l'abonnement d'une entreprise spécifique (admin uniquement)
+ */
+export async function getCompanySubscription(
+  companyId: number,
+  token: string | null
+): Promise<SubscriptionResponse> {
+  return apiGet<SubscriptionResponse>(`/stripe/subscription/${companyId}`, token);
+}
+
+/**
  * Crée une session de checkout Stripe
  */
 export async function createCheckoutSession(
