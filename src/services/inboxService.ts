@@ -1,6 +1,14 @@
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { logger } from "@/lib/logger";
+
+// Helper pour construire l'URL API (copié de api.ts car buildApiUrl n'est pas exporté)
+function buildApiUrl(path: string): string {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${baseUrl}${cleanPath}`;
+}
 import type {
   InboxItem,
   InboxStatus,
@@ -512,16 +520,35 @@ export async function deleteConversationsBulk(
     };
   }
 
-  // FastAPI attend ?conversation_ids=1&conversation_ids=2&conversation_ids=3
-  const params = new URLSearchParams();
-  conversationIds.forEach(id => params.append("conversation_ids", id.toString()));
+  // Utiliser un body JSON pour DELETE (FastAPI supporte les body pour DELETE)
+  const response = await fetch(buildApiUrl("/inbox/conversations/bulk"), {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      conversation_ids: conversationIds,
+      delete_on_imap: false  // Par défaut, ne pas supprimer sur IMAP pour la suppression en masse
+    }),
+  });
 
-  const response = await apiDelete<{ message: string; deleted_count: number }>(
-    `/inbox/conversations/bulk?${params.toString()}`,
-    token
-  );
+  if (!response.ok) {
+    let message = "Erreur serveur";
+    try {
+      const errorBody = await response.json();
+      if (errorBody.detail) {
+        message = Array.isArray(errorBody.detail)
+          ? errorBody.detail[0].msg ?? message
+          : errorBody.detail;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
 
-  return response;
+  return await response.json();
 }
 
 /**
