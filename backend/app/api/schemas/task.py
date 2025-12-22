@@ -20,7 +20,6 @@ class TaskBase(BaseModel):
     reminder_at: Optional[datetime] = None  # Rappel optionnel
     recurrence: Optional[str] = "none"  # "none", "daily", "weekly", "monthly"
     recurrence_days: Optional[List[int]] = None  # Pour hebdomadaire (0-6, dimanche = 0)
-    is_mandatory: Optional[bool] = False
     
     @field_validator('priority')
     @classmethod
@@ -90,7 +89,6 @@ class TaskUpdate(BaseModel):
     reminder_at: Optional[datetime] = None
     recurrence: Optional[str] = None
     recurrence_days: Optional[List[int]] = None  # Pour hebdomadaire (0-6, dimanche = 0)
-    is_mandatory: Optional[bool] = None
     
     @field_validator('priority')
     @classmethod
@@ -170,7 +168,6 @@ class TaskRead(TaskBase):
             "due_time": task.due_time,
             "recurrence": task.recurrence if hasattr(task, 'recurrence') and task.recurrence is not None else "none",
             "recurrence_days": task.get_recurrence_days() if hasattr(task, 'get_recurrence_days') else (task.recurrence_days if hasattr(task, 'recurrence_days') else None),
-            "is_mandatory": task.is_mandatory,
             "origin": task.origin if hasattr(task, 'origin') else ("checklist" if task.is_checklist_item else "manual"),
             "is_checklist_item": task.is_checklist_item,
             "checklist_template_id": task.checklist_template_id,

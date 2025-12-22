@@ -20,7 +20,6 @@ export interface TaskFormData {
   due_time?: string;
   recurrence: "none" | "daily" | "weekly" | "monthly";
   recurrence_days?: number[]; // Pour hebdomadaire (0-6, dimanche = 0)
-  is_mandatory?: boolean;
 }
 
 export function CreateTaskModal({ isOpen, onClose, onSubmit, employees = [] }: CreateTaskModalProps) {
@@ -44,7 +43,6 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, employees = [] }: C
         assigned_to_id: undefined,
         due_date: undefined,
         due_time: undefined,
-        is_mandatory: false,
       });
       setIsSubmitting(false);
     }
@@ -85,7 +83,6 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, employees = [] }: C
         assigned_to_id: undefined,
         due_date: undefined,
         due_time: undefined,
-        is_mandatory: false,
       });  // MVP V1: reset complet du formulaire
       // Le parent gère la fermeture du modal après succès
     } catch (error) {
@@ -334,22 +331,6 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, employees = [] }: C
               />
             </div>
 
-            {(user?.role === "super_admin" || user?.role === "owner") && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_mandatory"
-                  checked={formData.is_mandatory || false}
-                  onChange={(e) =>
-                    setFormData({ ...formData, is_mandatory: e.target.checked })
-                  }
-                  className="rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
-                />
-                <label htmlFor="is_mandatory" className="text-sm text-[#0F172A]">
-                  Tâche obligatoire
-                </label>
-              </div>
-            )}
 
             <div className="flex justify-end gap-3 pt-4 border-t border-[#E5E7EB]">
               <button

@@ -59,7 +59,6 @@ class Task(Base):
     # Métadonnées
     recurrence = Column(String, nullable=True, default="none")  # "none", "daily", "weekly", "monthly"
     recurrence_days = Column(Text, nullable=True)  # JSON array of day numbers (0-6 for weekly, 1-31 for monthly)
-    is_mandatory = Column(Boolean, default=False, nullable=False)
     origin = Column(String, nullable=True, default="manual")  # "manual", "checklist", "conversation"
     
     # Checklist (optionnel)

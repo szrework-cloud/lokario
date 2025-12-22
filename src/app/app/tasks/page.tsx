@@ -1313,7 +1313,6 @@ export default function TasksPage() {
               due_time: data.due_time,
               recurrence: data.recurrence || "none",
               recurrence_days: data.recurrence_days,
-              is_mandatory: data.is_mandatory || false,
             });
             
             // Recharger les données après création

@@ -476,7 +476,6 @@ export async function createTask(
     due_time?: string;
     recurrence?: string;
     recurrence_days?: number[];
-    is_mandatory?: boolean;
   }
 ): Promise<Task> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -511,7 +510,6 @@ export async function updateTask(
     due_date?: string;
     due_time?: string;
     recurrence?: string;
-    is_mandatory?: boolean;
   }
 ): Promise<Task> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;

@@ -682,7 +682,6 @@ def create_task(
             due_date=task_data.due_date,
             due_time=task_data.due_time,
             recurrence="none",
-            is_mandatory=task_data.is_mandatory or False,
             origin="manual",
             created_by_id=current_user.id,
         )
@@ -786,7 +785,6 @@ def create_task(
                 due_date=datetime.combine(execution_date, task_data.due_time if task_data.due_time else datetime.min.time()) if task_data.due_time else datetime.combine(execution_date, datetime.min.time()),
                 due_time=task_data.due_time,
                 recurrence=recurrence,
-                is_mandatory=task_data.is_mandatory or False,
                 origin="manual",
                 created_by_id=current_user.id,
             )
