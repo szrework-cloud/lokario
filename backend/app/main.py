@@ -482,8 +482,7 @@ async def startup_event():
     logger.info("✅ Application démarrée (startup non-bloquant)")
 
 
-# Le handler OPTIONS explicite n'est plus nécessaire car le middleware log_options_requests
-# gère maintenant les requêtes OPTIONS directement et répond immédiatement avec les headers CORS
+# Handler OPTIONS explicite pour gérer les requêtes preflight CORS
 
 
 @app.get("/health")
