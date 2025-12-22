@@ -759,14 +759,91 @@ async def sync_integration(
             traceback.print_exc()
             # On continue même en cas d'erreur pour ne pas bloquer la synchronisation
         
-        # Traiter chaque email
+        # ===== OPTIMISATION PHASE 1: Préchargement des données =====
+        # OPT 3.1: Précharger tous les clients de l'entreprise en mémoire
+        print(f"[SYNC] Préchargement des clients pour l'entreprise {company.id}...")
+        existing_clients = {
+            client.email: client
+            for client in db.query(Client).filter(
+                Client.company_id == company.id
+            ).all()
+        }
+        print(f"[SYNC] {len(existing_clients)} client(s) préchargé(s)")
+        
+        # OPT 3.2: Précharger tous les Message-IDs existants en mémoire
+        print(f"[SYNC] Préchargement des Message-IDs existants...")
+        existing_message_ids = set()
+        stored_messages = db.query(InboxMessage.external_id).join(Conversation).filter(
+            Conversation.company_id == company.id,
+            InboxMessage.external_id.isnot(None)
+        ).all()
+        for msg in stored_messages:
+            if msg.external_id:
+                normalized_id = normalize_message_id(msg.external_id)
+                existing_message_ids.add(normalized_id)
+        print(f"[SYNC] {len(existing_message_ids)} Message-ID(s) préchargé(s)")
+        
+        # OPT 6: Filtrer les doublons AVANT tout traitement
+        print(f"[SYNC] Filtrage précoce des doublons...")
+        unique_emails = []
+        duplicate_count = 0
+        for email_data in emails:
+            message_id = email_data.get("message_id")
+            if message_id:
+                normalized_id = normalize_message_id(message_id)
+                if normalized_id in existing_message_ids:
+                    duplicate_count += 1
+                    print(f"[SYNC] Email en doublon détecté (filtrage précoce): {email_data.get('subject', 'Sans sujet')[:50]}")
+                    continue
+            unique_emails.append(email_data)
+        print(f"[SYNC] {duplicate_count} doublon(s) filtré(s) avant traitement, {len(unique_emails)} email(s) unique(s) à traiter")
+        
+        # ===== OPTIMISATION PHASE 2: Batch detection notifications =====
+        # OPT 1.1: Collecter tous les emails sans client pour détection batch
+        emails_without_client = []
+        email_index_map = {}  # Mapping email_data -> index pour retrouver l'email_id
+        for i, email_data in enumerate(unique_emails):
+            from_email = email_data.get("from", {}).get("email")
+            if from_email and from_email not in existing_clients:
+                email_id = f"email_{i}"
+                emails_without_client.append({
+                    "email_id": email_id,
+                    "from_email": from_email,
+                    "subject": email_data.get("subject", ""),
+                    "content_preview": (email_data.get("content", "") or "")[:200]
+                })
+                email_index_map[id(email_data)] = email_id  # Utiliser id() pour créer une clé unique
+        
+        # Détection batch des notifications (un seul appel IA)
+        notification_results = {}
+        if emails_without_client:
+            print(f"[SYNC] Détection batch de {len(emails_without_client)} email(s) sans client...")
+            try:
+                ai_service = AIClassifierService()
+                notification_results = ai_service.is_notification_email_batch(emails_without_client)
+                notifications_count = sum(1 for v in notification_results.values() if v)
+                clients_count = len(notification_results) - notifications_count
+                print(f"[SYNC] ✅ Détection batch terminée: {notifications_count} notification(s), {clients_count} client(s)")
+            except Exception as e:
+                print(f"[SYNC] Erreur lors de la détection batch: {e}")
+                # Fallback: considérer tous comme clients
+                for email_item in emails_without_client:
+                    notification_results[email_item["email_id"]] = False
+        
+        # ===== OPTIMISATION PHASE 1: Collecte des nouvelles conversations pour classification batch =====
+        new_conversations_for_classification = []  # Liste des nouvelles conversations à classifier en batch
+        
+        # ===== OPTIMISATION PHASE 2: Batch commits =====
+        # OPT 2: Traiter les emails par batch et commit par batch (15 emails par batch)
+        BATCH_COMMIT_SIZE = 15
         processed = 0
         errors = []
         filtered_count = 0  # Compteur pour les emails filtrés (newsletters, etc.)
+        current_batch = []  # Emails du batch actuel
         
-        for email_data in emails:
+        for i, email_data in enumerate(unique_emails):
             try:
-                # Préparer les données pour la vérification de doublons
+                # Préparer les données
                 message_id = email_data.get("message_id")
                 from_email = email_data.get("from", {}).get("email")
                 content = email_data.get("content", "")
@@ -783,11 +860,7 @@ async def sync_integration(
                         except:
                             pass
                 
-                # Vérifier les doublons AVANT tout traitement (plus efficace)
-                if is_duplicate_message(db, company.id, message_id, from_email, content, email_date):
-                    # Message déjà stocké ou similaire, on le skip pour éviter les doublons
-                    print(f"[SYNC] Email en doublon détecté et ignoré: {email_data.get('subject', 'Sans sujet')} de {from_email}")
-                    continue
+                # Note: Les doublons ont déjà été filtrés en amont (OPT 6)
                 
                 # Détecter les newsletters/spam
                 is_filtered, filter_reason = detect_newsletter_or_spam(email_data)
@@ -799,23 +872,20 @@ async def sync_integration(
                     continue  # Skip cet email complètement
                 
                 # Identifier ou créer le client (seulement si ce n'est pas une notification)
+                # OPT 3.1: Utiliser le cache préchargé au lieu d'une requête DB
+                # OPT 1.1: Utiliser les résultats de la détection batch
                 client = None
                 if from_email:
-                    # D'abord vérifier si le client existe déjà (optimisation : pas besoin d'IA si client existe)
-                    client = db.query(Client).filter(
-                        Client.company_id == company.id,
-                        Client.email == from_email
-                    ).first()
+                    # Utiliser le cache préchargé (O(1) lookup)
+                    client = existing_clients.get(from_email)
                     
-                    # Si le client n'existe pas, vérifier avec l'IA si c'est une notification avant de créer
+                    # Si le client n'existe pas, utiliser les résultats de la détection batch
                     if not client:
-                        ai_service = AIClassifierService()
-                        content_preview = email_data.get("content", "")[:200] if email_data.get("content") else ""
-                        is_notification = ai_service.is_notification_email(
-                            from_email=from_email,
-                            subject=email_data.get("subject"),
-                            content_preview=content_preview
-                        )
+                        # Trouver l'email_id correspondant dans le batch
+                        email_id = email_index_map.get(id(email_data))
+                        
+                        # Utiliser le résultat de la détection batch
+                        is_notification = notification_results.get(email_id, False) if email_id else False
                         
                         if not is_notification:
                             # Créer le client seulement si ce n'est pas une notification
@@ -827,9 +897,11 @@ async def sync_integration(
                             )
                             db.add(client)
                             db.flush()
+                            # Mettre à jour le cache pour les prochains emails
+                            existing_clients[from_email] = client
                             print(f"[SYNC] ✅ Nouveau client créé: {client.name} ({client.email})")
                         else:
-                            print(f"[SYNC] ⚠️ Email de notification détecté, client non créé: {from_email}")
+                            print(f"[SYNC] ⚠️ Email de notification détecté (batch), client non créé: {from_email}")
                 
                 # Chercher ou créer une conversation
                 subject = email_data.get("subject", "")
@@ -872,6 +944,7 @@ async def sync_integration(
                         ).first()
                 
                 # Si aucune conversation trouvée, créer une nouvelle
+                is_new_conversation = False
                 if not conversation:
                     # Utiliser le sujet normalisé pour la nouvelle conversation
                     conversation_subject = normalized_subject if normalized_subject else subject
@@ -886,6 +959,7 @@ async def sync_integration(
                     )
                     db.add(conversation)
                     db.flush()
+                    is_new_conversation = True
                     print(f"[SYNC] ✅ Nouvelle conversation créée: ID={conversation.id} - Sujet='{conversation_subject[:50]}' - De={from_email}")
                 
                 # Normaliser le Message-ID avant de le stocker
@@ -910,6 +984,10 @@ async def sync_integration(
                 )
                 db.add(message)
                 db.flush()  # Pour obtenir l'ID du message
+                
+                # Mettre à jour le cache des Message-IDs pour éviter les doublons dans la même sync
+                if normalized_message_id:
+                    existing_message_ids.add(normalized_message_id)
                 
                 # Sauvegarder les pièces jointes
                 attachments_data = email_data.get("attachments", [])
@@ -959,32 +1037,51 @@ async def sync_integration(
                     new_status = auto_classify_conversation_status(db, conversation, message)
                     conversation.status = new_status
                 
-                # Classification automatique dans un dossier avec ChatGPT
-                # Activée pour les nouvelles conversations uniquement (pas pour les mises à jour)
+                # OPT 1.2: Collecter les nouvelles conversations pour classification batch
+                # Au lieu de classifier immédiatement, on collecte pour un traitement batch à la fin
                 if is_new_conversation:
+                    new_conversations_for_classification.append({
+                        "conversation_id": conversation.id,
+                        "conversation": conversation,
+                        "message": message,
+                        "content": (message.content or "")[:500],
+                        "subject": conversation.subject or "",
+                        "from_email": message.from_email or message.from_phone or ""
+                    })
+                
+                # OPT 2: Ajouter à la liste du batch au lieu de commit immédiat
+                current_batch.append({
+                    "conversation": conversation,
+                    "message": message,
+                    "email_data": email_data
+                })
+                
+                # Commit par batch (tous les 15 emails)
+                if len(current_batch) >= BATCH_COMMIT_SIZE:
                     try:
-                        folder_id = classify_conversation_to_folder(
-                            db=db,
-                            conversation=conversation,
-                            message=message,
-                            company_id=company.id
-                        )
-                        if folder_id:
-                            conversation.folder_id = folder_id
-                            print(f"[SYNC] Nouvelle conversation {conversation.id} classée dans le dossier {folder_id}")
+                        db.commit()
+                        print(f"[SYNC] ✅ Batch commit: {len(current_batch)} email(s) sauvegardé(s)")
+                        
+                        # Traiter les auto-réponses pour ce batch
+                        for batch_item in current_batch:
+                            conv = batch_item["conversation"]
+                            msg = batch_item["message"]
+                            if conv.folder_id and msg.is_from_client:
+                                from app.core.auto_reply_service import trigger_auto_reply_if_needed
+                                trigger_auto_reply_if_needed(db, conv, msg)
+                        
+                        processed += len(current_batch)
+                        current_batch = []  # Réinitialiser le batch
                     except Exception as e:
-                        print(f"[SYNC] Erreur lors de la classification IA: {e}")
-                        # Ne pas faire échouer la synchronisation si la classification échoue
-                
-                db.commit()
-                
-                # Traiter la réponse automatique si configurée
-                # IMPORTANT: Déclencher l'auto-réponse dès qu'un message entre dans un dossier avec auto-réponse activée
-                if conversation.folder_id and message.is_from_client:
-                    from app.core.auto_reply_service import trigger_auto_reply_if_needed
-                    trigger_auto_reply_if_needed(db, conversation, message)
-                
-                processed += 1
+                        db.rollback()
+                        print(f"[SYNC] ❌ Erreur lors du batch commit: {e}")
+                        # Ajouter toutes les erreurs du batch
+                        for batch_item in current_batch:
+                            errors.append({
+                                "email": batch_item["email_data"].get("from", {}).get("email"),
+                                "error": str(e)
+                            })
+                        current_batch = []
                 
             except Exception as e:
                 db.rollback()
@@ -992,6 +1089,107 @@ async def sync_integration(
                     "email": email_data.get("from", {}).get("email"),
                     "error": str(e)
                 })
+        
+        # OPT 2: Commit le dernier batch s'il reste des emails
+        if current_batch:
+            try:
+                db.commit()
+                print(f"[SYNC] ✅ Batch commit final: {len(current_batch)} email(s) sauvegardé(s)")
+                
+                # Traiter les auto-réponses pour le dernier batch
+                for batch_item in current_batch:
+                    conv = batch_item["conversation"]
+                    msg = batch_item["message"]
+                    if conv.folder_id and msg.is_from_client:
+                        from app.core.auto_reply_service import trigger_auto_reply_if_needed
+                        trigger_auto_reply_if_needed(db, conv, msg)
+                
+                processed += len(current_batch)
+            except Exception as e:
+                db.rollback()
+                print(f"[SYNC] ❌ Erreur lors du batch commit final: {e}")
+                for batch_item in current_batch:
+                    errors.append({
+                        "email": batch_item["email_data"].get("from", {}).get("email"),
+                        "error": str(e)
+                    })
+        
+        # ===== OPTIMISATION PHASE 1: Classification batch des nouvelles conversations =====
+        # OPT 1.2: Classifier toutes les nouvelles conversations en un seul appel IA
+        if new_conversations_for_classification:
+            print(f"[SYNC] Classification batch de {len(new_conversations_for_classification)} nouvelle(s) conversation(s)...")
+            try:
+                # Récupérer les dossiers avec autoClassify activé
+                all_folders = db.query(InboxFolder).filter(
+                    InboxFolder.company_id == company.id
+                ).all()
+                
+                folders_with_ai = []
+                for folder in all_folders:
+                    filters = folder.ai_rules or {}
+                    if isinstance(filters, dict) and filters.get("autoClassify", False):
+                        folders_with_ai.append({
+                            "id": folder.id,
+                            "name": folder.name,
+                            "folder_type": getattr(folder, "folder_type", "general"),
+                            "ai_rules": filters
+                        })
+                
+                if folders_with_ai:
+                    # Préparer les messages pour le batch
+                    messages_for_batch = [
+                        {
+                            "conversation_id": item["conversation_id"],
+                            "content": item["content"],
+                            "subject": item["subject"],
+                            "from_email": item["from_email"]
+                        }
+                        for item in new_conversations_for_classification
+                    ]
+                    
+                    # Appeler la classification batch (un seul appel IA)
+                    ai_service = AIClassifierService()
+                    if ai_service and ai_service.enabled:
+                        batch_results = ai_service.classify_messages_batch(
+                            messages=messages_for_batch,
+                            folders=folders_with_ai,
+                            company_context=None
+                        )
+                        
+                        # Appliquer les résultats
+                        # IMPORTANT: Recharger les conversations depuis la DB car elles ont été commitées individuellement
+                        classified_count = 0
+                        conversation_ids_to_update = [
+                            item["conversation_id"]
+                            for item in new_conversations_for_classification
+                            if batch_results.get(item["conversation_id"])
+                        ]
+                        
+                        if conversation_ids_to_update:
+                            # Recharger les conversations depuis la DB pour les modifier
+                            conversations_to_update = db.query(Conversation).filter(
+                                Conversation.id.in_(conversation_ids_to_update)
+                            ).all()
+                            
+                            for conversation in conversations_to_update:
+                                folder_id = batch_results.get(conversation.id)
+                                if folder_id:
+                                    conversation.folder_id = folder_id
+                                    classified_count += 1
+                                    print(f"[SYNC] Nouvelle conversation {conversation.id} classée dans le dossier {folder_id}")
+                            
+                            if classified_count > 0:
+                                db.commit()  # Commit des classifications
+                                print(f"[SYNC] ✅ {classified_count} conversation(s) classée(s) en batch")
+                    else:
+                        print(f"[SYNC] ⚠️ Service IA non disponible, classification batch ignorée")
+                else:
+                    print(f"[SYNC] Aucun dossier avec autoClassify activé, classification batch ignorée")
+            except Exception as e:
+                print(f"[SYNC] Erreur lors de la classification batch: {e}")
+                import traceback
+                traceback.print_exc()
+                # Ne pas faire échouer la synchronisation si la classification échoue
         
         # Mettre à jour les informations de synchronisation
         integration.last_sync_at = datetime.utcnow()

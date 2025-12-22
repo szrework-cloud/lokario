@@ -17,8 +17,8 @@ from app.core.config import settings
 
 # Imports Alembic (peuvent échouer si pas dans le bon environnement)
 try:
-    from alembic.config import Config as AlembicConfig
-    from alembic import command
+    from alembic.config import Config as AlembicConfig  # type: ignore[reportMissingImports]
+    from alembic import command  # type: ignore[reportMissingImports]
     ALEMBIC_AVAILABLE = True
 except ImportError:
     ALEMBIC_AVAILABLE = False
