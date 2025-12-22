@@ -27,7 +27,13 @@ router = APIRouter(prefix="/checklists", tags=["checklists"])
 
 
 def _check_company_access(current_user: User):
-    """Vérifier que l'utilisateur est attaché à une entreprise"""
+    """Vérifier que l'utilisateur est attaché à une entreprise (les super_admin n'ont pas accès)"""
+    # Les super_admins n'ont pas accès aux checklists
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admins do not have access to checklists"
+        )
     if current_user.company_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
