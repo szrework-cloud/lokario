@@ -59,6 +59,34 @@ export async function getCompanySubscription(
   return apiGet<SubscriptionResponse>(`/stripe/subscription/${companyId}`, token);
 }
 
+export interface SubscriptionHistoryItem {
+  id: string;
+  plan: string;
+  period: string;
+  period_start?: string | null;
+  period_end?: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  invoice_number: string;
+  invoice_date?: string | null;
+  invoice_pdf_url?: string | null;
+}
+
+export interface SubscriptionHistoryResponse {
+  history: SubscriptionHistoryItem[];
+}
+
+/**
+ * Récupère l'historique des abonnements d'une entreprise (admin uniquement)
+ */
+export async function getCompanySubscriptionHistory(
+  companyId: number,
+  token: string | null
+): Promise<SubscriptionHistoryResponse> {
+  return apiGet<SubscriptionHistoryResponse>(`/stripe/subscription/${companyId}/history`, token);
+}
+
 /**
  * Crée une session de checkout Stripe
  */

@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { Loader } from "@/components/ui/Loader";
 import { CompanySettings } from "@/store/settings-store";
-import { getCompanySubscription, SubscriptionResponse, SubscriptionPlan } from "@/services/stripeService";
+import { getCompanySubscription, getCompanySubscriptionHistory, SubscriptionResponse, SubscriptionPlan, SubscriptionHistoryItem } from "@/services/stripeService";
 
 // AdminCompanySettings peut avoir des champs supplémentaires pour l'admin
 // Mais utilise la même structure de modules que CompanySettings pour cohérence
@@ -34,10 +34,12 @@ export default function CompanyDetailPage() {
   const [company, setCompany] = useState<CompanyInfo | null>(null);
   const [settings, setSettings] = useState<AdminCompanySettings | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
+  const [subscriptionHistory, setSubscriptionHistory] = useState<SubscriptionHistoryItem[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loadingCompany, setLoadingCompany] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("company");
@@ -284,8 +286,23 @@ export default function CompanyDetailPage() {
       }
     };
 
+    const loadHistory = async () => {
+      if (!token || !companyId || isNaN(companyId)) return;
+      setLoadingHistory(true);
+      try {
+        const historyData = await getCompanySubscriptionHistory(companyId, token);
+        setSubscriptionHistory(historyData.history);
+      } catch (err: any) {
+        console.error("Erreur lors du chargement de l'historique:", err);
+        setSubscriptionHistory([]);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
     if (activeTab === "pack") {
       void loadSubscription();
+      void loadHistory();
     }
   }, [token, companyId, activeTab]);
 
@@ -626,44 +643,68 @@ export default function CompanyDetailPage() {
                   <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
                     Historique des packs
                   </h3>
-                  <div className="rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-[#F9FAFB]">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                            Pack
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                            Période
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                            Prix
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                            Statut
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#E5E7EB]">
-                        <tr className="hover:bg-[#F9FAFB]">
-                          <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
-                            {mockPackData.name}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-[#64748B]">
-                            {new Date(mockPackData.startDate).toLocaleDateString("fr-FR")} - Actuel
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
-                            {mockPackData.price.toFixed(2)} € / {mockPackData.billingCycle}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                              Actif
-                            </span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                  {loadingHistory ? (
+                    <div className="rounded-lg border border-[#E5E7EB] bg-white p-6">
+                      <Loader />
+                    </div>
+                  ) : subscriptionHistory.length > 0 ? (
+                    <div className="rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-[#F9FAFB]">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                              Pack
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                              Période
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                              Prix
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                              Statut
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#E5E7EB]">
+                          {subscriptionHistory.map((item) => {
+                            const statusColorMap: Record<string, string> = {
+                              "Payé": "bg-green-100 text-green-800",
+                              "Ouvert": "bg-yellow-100 text-yellow-800",
+                              "Annulé": "bg-red-100 text-red-800",
+                              "Impayable": "bg-red-100 text-red-800",
+                              "Brouillon": "bg-gray-100 text-gray-800",
+                            };
+                            
+                            return (
+                              <tr key={item.id} className="hover:bg-[#F9FAFB]">
+                                <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
+                                  {item.plan}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-[#64748B]">
+                                  {item.period}
+                                </td>
+                                <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
+                                  {item.amount.toFixed(2)} {item.currency} / mensuel
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                    statusColorMap[item.status] || "bg-gray-100 text-gray-800"
+                                  }`}>
+                                    {item.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-[#E5E7EB] bg-white p-6">
+                      <p className="text-center text-[#64748B]">Aucun historique disponible</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

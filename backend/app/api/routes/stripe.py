@@ -176,6 +176,125 @@ async def get_company_subscription(
     }
 
 
+@router.get("/subscription/{company_id}/history")
+async def get_company_subscription_history(
+    company_id: int,
+    current_user: User = Depends(get_current_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Récupère l'historique des abonnements et factures d'une entreprise (admin uniquement)"""
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Entreprise non trouvée")
+    
+    subscription = db.query(Subscription).filter(
+        Subscription.company_id == company.id
+    ).first()
+    
+    if not subscription or not subscription.stripe_customer_id:
+        return {"history": []}
+    
+    history = []
+    
+    try:
+        # Récupérer toutes les factures depuis Stripe
+        invoices = stripe.Invoice.list(
+            customer=subscription.stripe_customer_id,
+            limit=100  # Limiter à 100 factures
+        )
+        
+        # Récupérer l'historique des abonnements depuis Stripe
+        subscriptions_history = stripe.Subscription.list(
+            customer=subscription.stripe_customer_id,
+            limit=100
+        )
+        
+        # Mapper les factures
+        for invoice in invoices.data:
+            if invoice.subscription:
+                # Récupérer les détails de l'abonnement associé
+                sub = None
+                for sub_item in subscriptions_history.data:
+                    if sub_item.id == invoice.subscription:
+                        sub = sub_item
+                        break
+                
+                # Récupérer le plan depuis les line items
+                plan_name = "Starter"
+                if invoice.lines and invoice.lines.data:
+                    line_item = invoice.lines.data[0]
+                    if hasattr(line_item, 'price') and line_item.price:
+                        # Essayer de récupérer le nom du plan depuis le price
+                        try:
+                            price_obj = stripe.Price.retrieve(line_item.price.id)
+                            if hasattr(price_obj, 'nickname') and price_obj.nickname:
+                                plan_name = price_obj.nickname
+                        except:
+                            pass
+                
+                # Déterminer la période
+                period_start = datetime.fromtimestamp(invoice.period_start) if invoice.period_start else None
+                period_end = datetime.fromtimestamp(invoice.period_end) if invoice.period_end else None
+                
+                # Formater la période
+                period_str = "N/A"
+                if period_start and period_end:
+                    period_str = f"{period_start.strftime('%d/%m/%Y')} - {period_end.strftime('%d/%m/%Y')}"
+                elif period_start:
+                    period_str = f"{period_start.strftime('%d/%m/%Y')} - Actuel"
+                
+                # Statut
+                status_map = {
+                    "paid": "Payé",
+                    "open": "Ouvert",
+                    "void": "Annulé",
+                    "uncollectible": "Impayable",
+                    "draft": "Brouillon",
+                }
+                status = status_map.get(invoice.status, invoice.status)
+                
+                history.append({
+                    "id": invoice.id,
+                    "plan": plan_name,
+                    "period": period_str,
+                    "period_start": period_start.isoformat() if period_start else None,
+                    "period_end": period_end.isoformat() if period_end else None,
+                    "amount": invoice.amount_paid / 100 if invoice.amount_paid else 0,  # Stripe utilise les centimes
+                    "currency": invoice.currency.upper(),
+                    "status": status,
+                    "invoice_number": invoice.number or invoice.id,
+                    "invoice_date": datetime.fromtimestamp(invoice.created).isoformat() if invoice.created else None,
+                    "invoice_pdf_url": invoice.invoice_pdf,
+                })
+        
+        # Trier par date de facture (plus récent en premier)
+        history.sort(key=lambda x: x["invoice_date"] or "", reverse=True)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de l'historique Stripe: {e}")
+        # En cas d'erreur, retourner les factures de la base de données
+        db_invoices = db.query(SubscriptionInvoice).filter(
+            SubscriptionInvoice.subscription_id == subscription.id
+        ).order_by(SubscriptionInvoice.invoice_date.desc()).limit(100).all()
+        
+        for invoice in db_invoices:
+            history.append({
+                "id": invoice.stripe_invoice_id,
+                "plan": subscription.plan.value,
+                "period": invoice.invoice_date.strftime('%d/%m/%Y') if invoice.invoice_date else "N/A",
+                "period_start": None,
+                "period_end": None,
+                "amount": float(invoice.amount),
+                "currency": invoice.currency.upper(),
+                "status": invoice.status,
+                "invoice_number": invoice.invoice_number or invoice.stripe_invoice_id,
+                "invoice_date": invoice.invoice_date.isoformat() if invoice.invoice_date else None,
+                "invoice_pdf_url": invoice.invoice_pdf_url,
+            })
+    
+    return {"history": history}
+
+
 @router.post("/create-checkout-session")
 async def create_checkout_session(
     request: CreateCheckoutSessionRequest,
