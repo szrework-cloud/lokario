@@ -123,29 +123,41 @@ async def cors_fallback_middleware(request: Request, call_next):
     """Middleware de secours pour garantir les headers CORS sur toutes les réponses"""
     origin = request.headers.get("origin")
     
+    # Gérer les requêtes OPTIONS directement ici pour éviter les conflits
+    if request.method == "OPTIONS":
+        if origin:
+            if is_origin_allowed(origin) or (settings.ENVIRONMENT.lower() not in ["production", "prod"] and origin.startswith("https://") and ".vercel.app" in origin):
+                return JSONResponse(
+                    status_code=200,
+                    content={},
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Max-Age": "3600",
+                    }
+                )
+        return JSONResponse(status_code=200, content={})
+    
     response = await call_next(request)
     
-    # Si c'est une requête OPTIONS ou si les headers CORS sont manquants, les ajouter
-    if origin:
-        # En staging/dev, autoriser toutes les URLs Vercel
-        if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+    # Si les headers CORS ne sont pas déjà présents, les ajouter
+    if origin and "Access-Control-Allow-Origin" not in response.headers:
+        if is_origin_allowed(origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        elif settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+            # En staging/dev, autoriser toutes les URLs Vercel
             if origin.startswith("https://") and ".vercel.app" in origin:
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
                 response.headers["Access-Control-Allow-Headers"] = "*"
-                response.headers["Access-Control-Max-Age"] = "3600"
-                return response
-        
-        # Si les headers CORS ne sont pas déjà présents, les ajouter
-        if "Access-Control-Allow-Origin" not in response.headers:
-            if is_origin_allowed(origin):
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-                response.headers["Access-Control-Allow-Headers"] = "*"
-            elif settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-                # En staging/dev, autoriser quand même pour éviter les erreurs CORS
+            else:
+                # Autoriser quand même pour éviter les erreurs CORS en staging
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
@@ -153,54 +165,40 @@ async def cors_fallback_middleware(request: Request, call_next):
     
     return response
 
-# Middleware pour logger les requêtes CORS et s'assurer que les headers sont toujours présents
-@app.middleware("http")
-async def cors_debug_middleware(request: Request, call_next):
-    """Middleware pour debug CORS et garantir les headers"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
+# Handler explicite pour les requêtes OPTIONS (preflight)
+@app.options("/{full_path:path}")
+async def options_handler(request: Request, full_path: str):
+    """Handler explicite pour les requêtes OPTIONS (preflight CORS)"""
     origin = request.headers.get("origin")
     
-    try:
-        response = await call_next(request)
-    except Exception as e:
-        # En cas d'erreur, créer une réponse avec headers CORS
-        logger.error(f"❌ Erreur dans cors_debug_middleware: {e}")
-        from fastapi.responses import JSONResponse
-        cors_headers = {}
-        if origin:
-            cors_headers = {
-                "Access-Control-Allow-Origin": origin if origin in origins else "*",
+    if origin and is_origin_allowed(origin):
+        return JSONResponse(
+            status_code=200,
+            content={},
+            headers={
+                "Access-Control-Allow-Origin": origin,
                 "Access-Control-Allow-Credentials": "true",
                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
                 "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "3600",
             }
-        response = JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"},
-            headers=cors_headers
         )
-        return response
+    elif origin and settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+        # En staging/dev, autoriser toutes les URLs Vercel
+        if origin.startswith("https://") and ".vercel.app" in origin:
+            return JSONResponse(
+                status_code=200,
+                content={},
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Max-Age": "3600",
+                }
+            )
     
-    # S'assurer que les headers CORS sont toujours présents
-    if origin:
-        # Vérifier si l'origine est autorisée (y compris les previews Vercel)
-        if is_origin_allowed(origin):
-            response.headers["Access-Control-Allow-Origin"] = origin
-        else:
-            # En staging/dev, autoriser quand même pour éviter les erreurs CORS
-            if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-                response.headers["Access-Control-Allow-Origin"] = origin
-            else:
-                response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        if "Access-Control-Max-Age" not in response.headers:
-            response.headers["Access-Control-Max-Age"] = "3600"
-    
-    return response
+    return JSONResponse(status_code=200, content={})
 
 # Middleware de logging pour debug
 @app.middleware("http")
