@@ -61,7 +61,6 @@ export default function CompanyDetailPage() {
     { id: "modules", label: "Modules activés" },
     { id: "billing", label: "Facturation" },
     { id: "usage", label: "Utilisation" },
-    { id: "ia", label: "Intelligence artificielle" },
     { id: "team", label: "Équipe" },
     { id: "integrations", label: "Intégrations" },
     { id: "notifications", label: "Notifications" },
@@ -360,23 +359,6 @@ export default function CompanyDetailPage() {
         modules: {
           ...settings.settings.modules,
           [key]: { enabled },
-        },
-      },
-    });
-  };
-
-  const handleIaToggle = (
-    key: keyof AdminCompanySettings["settings"]["ia"],
-    enabled: boolean
-  ) => {
-    if (!settings) return;
-    setSettings({
-      ...settings,
-      settings: {
-        ...settings.settings,
-        ia: {
-          ...settings.settings.ia,
-          [key]: enabled,
         },
       },
     });
@@ -948,45 +930,6 @@ export default function CompanyDetailPage() {
               </div>
             )}
 
-            {activeTab === "ia" && settings && (
-              <div className="space-y-4">
-                <p className="text-sm text-[#64748B] mb-4">
-                  Activez ou désactivez les fonctionnalités d'intelligence
-                  artificielle.
-                </p>
-                <div className="space-y-0">
-                  <ModuleToggle
-                    label="IA pour les relances"
-                    description="Génération automatique de messages de relance."
-                    enabled={settings.settings.ia?.ai_relances ?? false}
-                    onToggle={(enabled) => handleIaToggle("ai_relances", enabled)}
-                  />
-                  <ModuleToggle
-                    label="Résumé IA de la journée"
-                    description="Synthèse automatique de vos priorités."
-                    enabled={settings.settings.ia?.ai_summary ?? false}
-                    onToggle={(enabled) => handleIaToggle("ai_summary", enabled)}
-                  />
-                  <ModuleToggle
-                    label="Chatbot interne (aide dans l'app)"
-                    description="Assistant interne pour vous guider dans l'outil."
-                    enabled={settings.settings.ia?.ai_chatbot_internal ?? false}
-                    onToggle={(enabled) =>
-                      handleIaToggle("ai_chatbot_internal", enabled)
-                    }
-                  />
-                  <ModuleToggle
-                    label="Chatbot site web"
-                    description="IA pour répondre aux questions de vos clients sur votre site."
-                    enabled={settings.settings.ia?.ai_chatbot_site ?? false}
-                    onToggle={(enabled) =>
-                      handleIaToggle("ai_chatbot_site", enabled)
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
             {activeTab === "team" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-4">
@@ -1105,7 +1048,7 @@ export default function CompanyDetailPage() {
             )}
 
             {/* Bouton Enregistrer pour modules et IA */}
-            {(activeTab === "modules" || activeTab === "ia") && settings && (
+            {activeTab === "modules" && settings && (
               <div className="pt-4 border-t border-[#E5E7EB] flex justify-end mt-6">
                 <button
                   type="button"
