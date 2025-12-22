@@ -98,6 +98,21 @@ async def cors_middleware_custom(request: Request, call_next):
     """Middleware CORS personnalisé pour autoriser toutes les origines en staging/dev"""
     origin = request.headers.get("origin")
     
+    # Gérer les requêtes OPTIONS (preflight) directement
+    if request.method == "OPTIONS":
+        if origin and settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+            return JSONResponse(
+                status_code=200,
+                content={},
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Max-Age": "3600",
+                }
+            )
+    
     response = await call_next(request)
     
     # En staging/dev, autoriser toutes les origines
