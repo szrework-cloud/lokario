@@ -771,7 +771,7 @@ class BulkDeleteRequest(BaseModel):
 
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
 async def delete_conversations_bulk(
-    request: BulkDeleteRequest = Body(...),
+    body: dict = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -779,8 +779,25 @@ async def delete_conversations_bulk(
     Supprime plusieurs conversations en une seule opération.
     Utilise la même logique que la suppression individuelle pour chaque conversation.
     """
-    conversation_ids = request.conversation_ids
-    delete_on_imap = request.delete_on_imap
+    # Convertir manuellement les IDs en entiers
+    conversation_ids_raw = body.get("conversation_ids", [])
+    if not isinstance(conversation_ids_raw, list):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="conversation_ids doit être une liste"
+        )
+    
+    conversation_ids = []
+    for item in conversation_ids_raw:
+        try:
+            conversation_ids.append(int(item))
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"ID invalide: {item}. Tous les IDs doivent être des nombres entiers."
+            )
+    
+    delete_on_imap = body.get("delete_on_imap", True)
     
     if current_user.company_id is None:
         raise HTTPException(
