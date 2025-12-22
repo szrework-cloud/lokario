@@ -857,17 +857,17 @@ def update_task(
         
         # Gérer le mapping type string -> Enum
         if "type" in update_data and isinstance(update_data["type"], str):
-        type_map = {
-            "Interne": TaskType.INTERNE,
-            "Client": TaskType.CLIENT,
-            "Fournisseur": TaskType.FOURNISSEUR,
-        }
-        if update_data["type"] in type_map:
-            update_data["type"] = type_map[update_data["type"]]
+            type_map = {
+                "Interne": TaskType.INTERNE,
+                "Client": TaskType.CLIENT,
+                "Fournisseur": TaskType.FOURNISSEUR,
+            }
+            if update_data["type"] in type_map:
+                update_data["type"] = type_map[update_data["type"]]
         
         # Gérer le statut
         if "status" in update_data:
-        try:
+            try:
             update_data["status"] = TaskStatus(update_data["status"])
             # Si on marque comme terminé, mettre completed_at
             if update_data["status"] == TaskStatus.TERMINE and not task.completed_at:
