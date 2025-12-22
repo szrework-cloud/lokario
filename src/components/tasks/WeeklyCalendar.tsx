@@ -143,27 +143,7 @@ export function WeeklyCalendar({
       return tasks; // Pas de tri si les heures ne sont pas affichées
     }
 
-    return [...tasks].sort((a, b) => {
-      // Tâches avec heure en premier (triées par heure)
-      if (a.dueTime && !b.dueTime) return -1;
-      if (!a.dueTime && b.dueTime) return 1;
-      
-      // Si les deux ont une heure, trier par heure croissante
-      if (a.dueTime && b.dueTime) {
-        try {
-          const timeA = a.dueTime.split(':').map(Number);
-          const timeB = b.dueTime.split(':').map(Number);
-          const minutesA = timeA[0] * 60 + (timeA[1] || 0);
-          const minutesB = timeB[0] * 60 + (timeB[1] || 0);
-          return minutesA - minutesB;
-        } catch {
-          return 0; // En cas d'erreur de parsing, garder l'ordre
-        }
-      }
-      
-      // Si aucune n'a d'heure, garder l'ordre original (pas de tri entre elles)
-      return 0;
-    });
+    return [...tasks];
   };
 
   // Grouper les tâches par jour
@@ -332,9 +312,6 @@ export function WeeklyCalendar({
       >
         <div className="flex items-start justify-between gap-1">
           <div className="flex-1 min-w-0">
-            {showHours && task.dueTime && (
-              <span className="font-semibold text-[10px] mr-1">{task.dueTime}</span>
-            )}
             <span className="truncate block">{task.title}</span>
           </div>
           {selectionMode && isSelected && (

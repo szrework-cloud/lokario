@@ -14,7 +14,6 @@ export interface Task {
   priority?: "normal" | "high" | "critical";  // MVP V1: 3 priorités uniquement
   dueDate?: string;
   dueDateRaw?: string; // Date brute (ISO) pour le filtrage
-  dueTime?: string;
   status: string;
   clientId?: number;
   clientName?: string;
@@ -84,7 +83,6 @@ interface TaskAPIResponse {
   category: string;
   priority?: string | null;
   due_date?: string | null;
-  due_time?: string | null;
   status: string;
   client_id?: number | null;
   client_name?: string | null;
@@ -186,7 +184,6 @@ function mapTaskFromAPI(apiTask: TaskAPIResponse): Task {
     priority: apiTask.priority as any || undefined,
     dueDate: dueDateFormatted,
     dueDateRaw: apiTask.due_date || undefined, // Garder la date brute pour le filtrage
-    dueTime: apiTask.due_time || undefined,
     status: apiTask.status,
     clientId: apiTask.client_id || undefined,
     clientName: apiTask.client_name || undefined,
@@ -473,7 +470,6 @@ export async function createTask(
     project_id?: number;
     conversation_id?: number;
     due_date?: string;
-    due_time?: string;
     recurrence?: string;
     recurrence_days?: number[];
   }
@@ -508,7 +504,6 @@ export async function updateTask(
     project_id?: number;
     conversation_id?: number;
     due_date?: string;
-    due_time?: string;
     recurrence?: string;
   }
 ): Promise<Task> {

@@ -79,15 +79,6 @@ def _calculate_late_status(task: Task) -> TaskStatus:
             return TaskStatus.EN_RETARD
         elif due_date_only == today:
             # Tâche du jour -> pas en retard tant que la journée n'est pas terminée
-            # Si la tâche a une due_time, on peut la considérer en retard si l'heure est passée
-            # Sinon, on considère qu'elle n'est pas en retard aujourd'hui
-            if task.due_time:
-                # Si due_time est défini, comparer avec l'heure actuelle
-                from datetime import time
-                current_time = now.time()
-                if current_time > task.due_time:
-                    return TaskStatus.EN_RETARD
-            # Pas de due_time ou heure pas encore passée -> pas en retard
             return current_status
         else:
             # Tâche future -> pas en retard
@@ -153,7 +144,7 @@ def get_today_tasks(
         
         # Trier par due_time puis par priorité (gérer les valeurs NULL)
         # SQLite ne supporte pas nullslast(), donc on utilise une approche différente
-        tasks = query.order_by(Task.due_time.asc(), Task.priority.desc()).all()
+        tasks = query.order_by(Task.priority.desc()).all()
         
         # Calculer le statut "En retard"
         for task in tasks:
@@ -680,7 +671,6 @@ def create_task(
             type=task_data.get_task_type(),
             priority=task_data.priority,
             due_date=task_data.due_date,
-            due_time=task_data.due_time,
             recurrence="none",
             origin="manual",
             created_by_id=current_user.id,
@@ -709,8 +699,6 @@ def create_task(
                     
                     frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
                     due_str = task.due_date.strftime('%d/%m/%Y')
-                    if task.due_time:
-                        due_str += f" à {task.due_time.strftime('%H:%M')}"
                     
                     create_notification(
                         db=db,
@@ -787,8 +775,7 @@ def create_task(
                 conversation_id=task_data.conversation_id,
                 type=task_data.get_task_type(),
                 priority=task_data.priority,
-                due_date=datetime.combine(execution_date, task_data.due_time if task_data.due_time else datetime.min.time()) if task_data.due_time else datetime.combine(execution_date, datetime.min.time()),
-                due_time=task_data.due_time,
+                due_date=datetime.combine(execution_date, datetime.min.time()),
                 recurrence=recurrence,
                 origin="manual",
                 created_by_id=current_user.id,
@@ -931,8 +918,6 @@ def update_task(
                     
                     frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
                     due_str = task.due_date.strftime('%d/%m/%Y')
-                    if task.due_time:
-                        due_str += f" à {task.due_time.strftime('%H:%M')}"
                     
                     create_notification(
                         db=db,
@@ -962,8 +947,6 @@ def update_task(
                     
                     frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
                     due_str = task.due_date.strftime('%d/%m/%Y')
-                    if task.due_time:
-                        due_str += f" à {task.due_time.strftime('%H:%M')}"
                     
                     create_notification(
                         db=db,

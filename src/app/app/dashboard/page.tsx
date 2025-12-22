@@ -144,7 +144,6 @@ export default function DashboardPage() {
     priority: task.priority as any,
     dueDate: task.dueDate || "",
     dueDateRaw: task.dueDateRaw,
-    dueTime: task.dueTime,
     status: task.status as any,
     clientId: task.clientId,
     clientName: task.clientName,
@@ -402,7 +401,7 @@ export default function DashboardPage() {
                   key={task.id}
                   task={task.title}
                   type={getTaskTypeLabel(task.type) as "Interne" | "Client" | "Fournisseur"}
-                  time={formatTime(task.dueTime) || ""}
+                  time=""
                 />
               ))}
             </div>

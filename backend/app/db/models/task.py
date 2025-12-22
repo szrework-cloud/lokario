@@ -52,7 +52,6 @@ class Task(Base):
     
     # Dates
     due_date = Column(DateTime(timezone=True), nullable=True, index=True)
-    due_time = Column(String, nullable=True)  # Format "HH:MM"
     reminder_at = Column(DateTime(timezone=True), nullable=True)  # Rappel optionnel
     completed_at = Column(DateTime(timezone=True), nullable=True)
     

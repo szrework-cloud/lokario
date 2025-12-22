@@ -17,7 +17,6 @@ export interface TaskFormData {
   assigned_to_id?: number;
   priority: "normal" | "high" | "critical";  // MVP V1: 3 priorités uniquement
   due_date?: string;
-  due_time?: string;
   recurrence: "none" | "daily" | "weekly" | "monthly";
   recurrence_days?: number[]; // Pour hebdomadaire (0-6, dimanche = 0)
 }
@@ -42,7 +41,6 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, employees = [] }: C
         recurrence_days: [],
         assigned_to_id: undefined,
         due_date: undefined,
-        due_time: undefined,
       });
       setIsSubmitting(false);
     }
@@ -82,7 +80,6 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, employees = [] }: C
         recurrence_days: [],
         assigned_to_id: undefined,
         due_date: undefined,
-        due_time: undefined,
       });  // MVP V1: reset complet du formulaire
       // Le parent gère la fermeture du modal après succès
     } catch (error) {
@@ -317,19 +314,6 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, employees = [] }: C
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                Heure
-              </label>
-              <input
-                type="time"
-                value={formData.due_time || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, due_time: e.target.value })
-                }
-                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-              />
-            </div>
 
 
             <div className="flex justify-end gap-3 pt-4 border-t border-[#E5E7EB]">

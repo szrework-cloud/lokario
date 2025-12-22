@@ -26,7 +26,6 @@ interface TaskCardProps {
   priority: "normal" | "high" | "critical";  // MVP V1: 3 priorités uniquement
   dueDate: string;
   dueDateRaw?: string; // Date ISO brute pour éviter les problèmes de parsing
-  dueTime?: string;
   status: "À faire" | "En cours" | "Terminé" | "En retard";
   isLate?: boolean;
   comment?: string;
@@ -51,7 +50,6 @@ export function TaskCard({
   priority,
   dueDate,
   dueDateRaw,
-  dueTime,
   status,
   isLate = false,
   comment,
@@ -300,7 +298,6 @@ export function TaskCard({
                   />
                 </svg>
                 <span>
-                  {dueTime ? `${dueTime} • ` : ""}
                   {dueDate}
                 </span>
               </div>

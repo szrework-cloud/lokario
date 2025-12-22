@@ -54,7 +54,6 @@ type PriorityTask = {
   type: string;
   priority: "normal" | "high" | "critical";  // MVP V1: 3 priorités uniquement
   dueDate: string;
-  dueTime?: string;
   assignedTo: string;
   assignedToAvatar?: string;
   status: string;
@@ -1057,7 +1056,6 @@ export default function TasksPage() {
                           priority={normalizeTaskPriority((task as any).priority) || "high"}
                           dueDate={task.dueDate}
                           dueDateRaw={(task as any).dueDateRaw}
-                          dueTime={("dueTime" in task ? (task as any).dueTime : undefined)}
                           status={(task.status === "Terminée" ? "Terminé" : task.status) as "À faire" | "En cours" | "Terminé" | "En retard"}
                           isLate={true}
                           comment={(task as any).description}
@@ -1111,7 +1109,6 @@ export default function TasksPage() {
                           priority={normalizeTaskPriority((priorityTask as any)?.priority) || "normal"}
                           dueDate={task.dueDate}
                           dueDateRaw={(task as any).dueDateRaw}
-                          dueTime={("dueTime" in task && typeof (task as any).dueTime === "string" ? (task as any).dueTime : undefined) || (priorityTask as any)?.dueTime}
                           status={(task.status === "Terminée" ? "Terminé" : task.status) as "À faire" | "En cours" | "Terminé" | "En retard"}
                           comment={(task as any).description}
                           employees={employees}
@@ -1310,7 +1307,6 @@ export default function TasksPage() {
               priority: data.priority,
               assigned_to_id: data.assigned_to_id,
               due_date: data.due_date,
-              due_time: data.due_time,
               recurrence: data.recurrence || "none",
               recurrence_days: data.recurrence_days,
             });
@@ -1432,7 +1428,6 @@ export default function TasksPage() {
                 priority={normalizeTaskPriority((selectedTaskForDetails as any).priority) || "normal"}
                 dueDate={selectedTaskForDetails.dueDate || ""}
                 dueDateRaw={(selectedTaskForDetails as any).dueDateRaw}
-                dueTime={(selectedTaskForDetails as any).dueTime}
                 status={(selectedTaskForDetails.status === "Terminée" ? "Terminé" : selectedTaskForDetails.status) as "À faire" | "En cours" | "Terminé" | "En retard"}
                 isLate={selectedTaskForDetails.status === "En retard"}
                 comment={(selectedTaskForDetails as any).description}

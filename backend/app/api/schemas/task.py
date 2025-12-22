@@ -16,7 +16,6 @@ class TaskBase(BaseModel):
     conversation_id: Optional[int] = None
     priority: Optional[str] = None  # "normal", "high", "critical" (MVP V1)
     due_date: Optional[datetime] = None
-    due_time: Optional[str] = None
     reminder_at: Optional[datetime] = None  # Rappel optionnel
     recurrence: Optional[str] = "none"  # "none", "daily", "weekly", "monthly"
     recurrence_days: Optional[List[int]] = None  # Pour hebdomadaire (0-6, dimanche = 0)
@@ -85,7 +84,6 @@ class TaskUpdate(BaseModel):
     priority: Optional[str] = None  # "normal", "high", "critical" (MVP V1)
     status: Optional[str] = None  # "À faire", "En cours", "Terminé", "En retard"
     due_date: Optional[datetime] = None
-    due_time: Optional[str] = None
     reminder_at: Optional[datetime] = None
     recurrence: Optional[str] = None
     recurrence_days: Optional[List[int]] = None  # Pour hebdomadaire (0-6, dimanche = 0)
@@ -165,7 +163,6 @@ class TaskRead(TaskBase):
             "status": task_status,
             "priority": task.priority,
             "due_date": task.due_date,
-            "due_time": task.due_time,
             "recurrence": task.recurrence if hasattr(task, 'recurrence') and task.recurrence is not None else "none",
             "recurrence_days": task.get_recurrence_days() if hasattr(task, 'get_recurrence_days') else (task.recurrence_days if hasattr(task, 'recurrence_days') else None),
             "origin": task.origin if hasattr(task, 'origin') else ("checklist" if task.is_checklist_item else "manual"),
