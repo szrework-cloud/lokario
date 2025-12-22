@@ -520,19 +520,17 @@ export async function deleteConversationsBulk(
     };
   }
 
-  // Utiliser un body JSON pour DELETE (FastAPI supporte les body pour DELETE)
-  const bodyData = {
-    conversation_ids: conversationIds,
-    delete_on_imap: true  // Par défaut, supprimer aussi sur IMAP comme la suppression individuelle
-  };
-  logger.log("[DELETE BULK SERVICE] Body à envoyer:", bodyData, "types:", conversationIds.map(id => typeof id));
-  const response = await fetch(buildApiUrl("/inbox/conversations/bulk"), {
+  // Utiliser des query parameters au lieu d'un body JSON (plus compatible avec DELETE)
+  const params = new URLSearchParams();
+  conversationIds.forEach(id => params.append("conversation_ids", id.toString()));
+  params.append("delete_on_imap", "true");
+  
+  logger.log("[DELETE BULK SERVICE] IDs à envoyer:", conversationIds, "types:", conversationIds.map(id => typeof id));
+  const response = await fetch(buildApiUrl(`/inbox/conversations/bulk?${params.toString()}`), {
     method: "DELETE",
     headers: {
-      "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(bodyData),
   });
 
   if (!response.ok) {
