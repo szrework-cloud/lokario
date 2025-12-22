@@ -732,7 +732,7 @@ async def delete_conversation(
 
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
 def delete_conversations_bulk(
-    conversation_ids: List[int] = Query(..., description="Liste des IDs des conversations à supprimer (peut être répété plusieurs fois)"),
+    conversation_ids: List[str] = Query(..., description="Liste des IDs des conversations à supprimer (peut être répété plusieurs fois)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -752,13 +752,22 @@ def delete_conversations_bulk(
             detail="Aucune conversation à supprimer"
         )
     
+    # Convertir les IDs en entiers (les query params arrivent comme strings)
+    try:
+        conversation_ids_int = [int(id) for id in conversation_ids]
+    except (ValueError, TypeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"IDs invalides. Tous les IDs doivent être des nombres entiers: {e}"
+        )
+    
     # Vérifier que toutes les conversations appartiennent à l'entreprise de l'utilisateur
     conversations = db.query(Conversation).filter(
-        Conversation.id.in_(conversation_ids),
+        Conversation.id.in_(conversation_ids_int),
         Conversation.company_id == current_user.company_id
     ).all()
     
-    if len(conversations) != len(conversation_ids):
+    if len(conversations) != len(conversation_ids_int):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Certaines conversations n'existent pas ou ne vous appartiennent pas"
