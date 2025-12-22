@@ -1093,6 +1093,51 @@ export default function InboxPage() {
         defaultClient={selectedConversation?.client}
       />
 
+      {/* Modal de confirmation de suppression en masse */}
+      {showBulkDeleteConfirm && (
+        <>
+          {/* Overlay noir */}
+          <div 
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => !isDeleting && setShowBulkDeleteConfirm(false)}
+          />
+          {/* Modal centré au milieu de l'écran */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className="bg-white rounded-lg shadow-xl p-6 text-center pointer-events-auto max-w-md w-full mx-4"
+            >
+              <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
+                Confirmer la suppression
+              </h3>
+              <p className="text-sm text-[#64748B] mb-6">
+                Êtes-vous sûr de vouloir supprimer <strong>{selectedConversationIds.size}</strong> conversation(s) ? Cette action est irréversible.
+              </p>
+              
+              <div className="flex justify-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="px-4 py-2"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                  className="px-4 py-2"
+                >
+                  {isDeleting ? "Suppression..." : "Supprimer"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal de confirmation de suppression */}
       {showDeleteConfirm && (
