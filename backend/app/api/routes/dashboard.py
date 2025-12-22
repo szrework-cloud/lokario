@@ -48,6 +48,12 @@ def get_dashboard_stats(
     current_user: User = Depends(get_current_active_user)
 ):
     """Récupère toutes les statistiques pour le dashboard"""
+    # Les super_admins n'ont pas accès au dashboard
+    if current_user.role == "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admins do not have access to dashboard"
+        )
     if current_user.company_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
