@@ -901,7 +901,7 @@ def get_company_usage(
     # Messages envoyés (30 derniers jours) - messages de l'entreprise vers les clients
     messages_sent = db.query(InboxMessage).join(Conversation).filter(
         Conversation.company_id == company_id,
-        InboxMessage.from_email != None,  # Messages envoyés (pas reçus)
+        InboxMessage.is_from_client == False,  # Messages envoyés par l'entreprise (pas reçus)
         InboxMessage.created_at >= thirty_days_ago
     ).count()
     
