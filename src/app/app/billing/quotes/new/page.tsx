@@ -203,15 +203,6 @@ export default function NewQuotePage() {
     });
   };
 
-  const handleTicketAnalyze = (extractedLines: BillingLine[], file: File) => {
-    // Remplacer les lignes existantes par celles extraites du ticket
-    setFormData({
-      ...formData,
-      lines: extractedLines,
-      attachments: [...(formData.attachments || []), file],
-    });
-  };
-
   const handleRemoveAttachment = (index: number) => {
     const newAttachments = [...(formData.attachments || [])];
     newAttachments.splice(index, 1);
