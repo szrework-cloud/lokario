@@ -118,6 +118,76 @@ else:
     )
     logger.info("🌐 CORS configuré pour production")
 
+# Middleware pour gérer les requêtes OPTIONS (preflight) AVANT le CORSMiddleware
+# IMPORTANT: En FastAPI, les middlewares sont exécutés dans l'ordre inverse (LIFO)
+# Donc ce middleware doit être ajouté APRÈS le CORSMiddleware pour être exécuté EN PREMIER
+@app.middleware("http")
+async def options_preflight_handler(request: Request, call_next):
+    """Middleware pour gérer les requêtes OPTIONS (preflight) avant le CORSMiddleware"""
+    if request.method == "OPTIONS":
+        origin = request.headers.get("origin")
+        
+        if origin:
+            # En staging/dev, autoriser toutes les origines Vercel et les origines spécifiques
+            if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+                # Autoriser toutes les URLs Vercel
+                if origin.startswith("https://") and ".vercel.app" in origin:
+                    return JSONResponse(
+                        status_code=200,
+                        content={},
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                            "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Max-Age": "3600",
+                        }
+                    )
+                # Autoriser les origines spécifiques
+                elif origin in origins:
+                    return JSONResponse(
+                        status_code=200,
+                        content={},
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                            "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Max-Age": "3600",
+                        }
+                    )
+                # En staging/dev, autoriser toutes les origines pour éviter les erreurs CORS
+                else:
+                    return JSONResponse(
+                        status_code=200,
+                        content={},
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                            "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Max-Age": "3600",
+                        }
+                    )
+            # En production, seulement les origines autorisées
+            elif origin in origins:
+                return JSONResponse(
+                    status_code=200,
+                    content={},
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Max-Age": "3600",
+                    }
+                )
+        
+        # Répondre quand même pour éviter les erreurs
+        return JSONResponse(status_code=200, content={})
+    
+    return await call_next(request)
+
 # Middleware de secours pour garantir les headers CORS sur toutes les réponses
 # Ce middleware s'exécute APRÈS le middleware CORS et ajoute les headers si manquants
 @app.middleware("http")
