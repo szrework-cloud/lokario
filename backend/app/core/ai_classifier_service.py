@@ -301,18 +301,23 @@ class AIClassifierService:
             logger.debug(f"[AI CLASSIFIER] JSON parsing failed: {e}, trying manual parsing")
             pass
         
-        # Si le parsing JSON a échoué, essayer de parser manuellement
+        # Si le parsing JSON a échoué, essayer de parser manuellement (plus strict)
         if not results:
+            folder_ids = [f['id'] for f in folders]
             for msg_data in messages:
                 conv_id = msg_data.get("conversation_id")
-                # Chercher le format "Conversation 123: dossier 5" ou "Conv 123: 5"
-                pattern = rf'(?:conversation|conv)\s*{conv_id}.*?(?:dossier|folder).*?(\d+)|{conv_id}.*?:.*?(\d+)'
+                # Chercher le format "Conversation 123: dossier 5" ou "Conv 123: folder 5"
+                # Pattern plus strict : doit contenir "dossier" ou "folder" avant le nombre
+                pattern = rf'(?:conversation|conv)\s*{conv_id}.*?(?:dossier|folder)\s*[:=]?\s*(\d+)|{conv_id}.*?:\s*(?:dossier|folder)\s*(\d+)'
                 match = re.search(pattern, response, re.IGNORECASE)
                 if match:
                     folder_id = int(match.group(1) or match.group(2))
-                    folder_ids = [f['id'] for f in folders]
+                    # VALIDATION : Vérifier que le folder_id est dans la liste valide
                     if folder_id in folder_ids:
                         results[conv_id] = folder_id
+                        logger.debug(f"[AI CLASSIFIER] Parsed folder_id {folder_id} for conversation {conv_id} (manual parsing)")
+                    else:
+                        logger.warning(f"[AI CLASSIFIER] Folder ID {folder_id} from manual parsing is not in valid folders list")
         
         return results
     

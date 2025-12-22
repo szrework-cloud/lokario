@@ -203,14 +203,52 @@ def reclassify_all_conversations(db: Session, company_id: int, force: bool = Fal
                     company_context=None
                 )
                 
-                # Appliquer les résultats
+                # Créer un set des folder_ids valides pour validation rapide
+                valid_folder_ids = {f["id"] for f in folders_with_ai}
+                
+                # Appliquer les résultats avec validation
                 for conversation_id, folder_id in batch_results.items():
-                    conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
-                    if conversation and folder_id:
+                    # Vérifier que la conversation existe et appartient à la bonne entreprise
+                    conversation = db.query(Conversation).filter(
+                        Conversation.id == conversation_id,
+                        Conversation.company_id == company_id  # Vérification de sécurité
+                    ).first()
+                    
+                    if not conversation:
+                        logger.warning(f"[AI CLASSIFIER] Conversation {conversation_id} introuvable ou n'appartient pas à l'entreprise {company_id}")
+                        stats["errors"] += 1
+                        continue
+                    
+                    if folder_id:
+                        # VALIDATION CRITIQUE : Vérifier que le folder_id est valide
+                        if folder_id not in valid_folder_ids:
+                            logger.warning(f"[AI CLASSIFIER] Folder ID {folder_id} invalide pour la conversation {conversation_id} (n'existe pas ou autoClassify désactivé)")
+                            stats["errors"] += 1
+                            continue
+                        
+                        # Vérifier que le dossier existe toujours et appartient à l'entreprise
+                        folder = db.query(InboxFolder).filter(
+                            InboxFolder.id == folder_id,
+                            InboxFolder.company_id == company_id
+                        ).first()
+                        
+                        if not folder:
+                            logger.warning(f"[AI CLASSIFIER] Dossier {folder_id} introuvable ou n'appartient pas à l'entreprise {company_id}")
+                            stats["errors"] += 1
+                            continue
+                        
+                        # Vérifier que autoClassify est toujours activé
+                        folder_ai_rules = folder.ai_rules or {}
+                        if not isinstance(folder_ai_rules, dict) or not folder_ai_rules.get("autoClassify", False):
+                            logger.warning(f"[AI CLASSIFIER] Dossier {folder_id} n'a plus autoClassify activé")
+                            stats["errors"] += 1
+                            continue
+                        
+                        # Tout est OK, appliquer la classification
                         conversation.folder_id = folder_id
                         stats["classified"] += 1
-                        logger.debug(f"[AI CLASSIFIER] Conversation {conversation_id} classée dans le dossier {folder_id}")
-                    elif conversation:
+                        logger.debug(f"[AI CLASSIFIER] Conversation {conversation_id} classée dans le dossier {folder_id} ({folder.name})")
+                    else:
                         stats["not_classified"] += 1
                 
                 db.commit()
@@ -223,7 +261,17 @@ def reclassify_all_conversations(db: Session, company_id: int, force: bool = Fal
                 import traceback
                 traceback.print_exc()
         
+        # Calculer les non classées : total - classées - erreurs
+        # Note: Les erreurs sont déjà comptées dans la boucle, pas besoin de les soustraire deux fois
         stats["not_classified"] = stats["total"] - stats["classified"] - stats["errors"]
+        
+        # Vérification de cohérence
+        if stats["total"] != stats["classified"] + stats["not_classified"] + stats["errors"]:
+            logger.warning(
+                f"[AI CLASSIFIER] Incohérence dans les stats: "
+                f"total={stats['total']}, classified={stats['classified']}, "
+                f"not_classified={stats['not_classified']}, errors={stats['errors']}"
+            )
         
         logger.info(
             f"[AI CLASSIFIER] Reclassification terminée: "
