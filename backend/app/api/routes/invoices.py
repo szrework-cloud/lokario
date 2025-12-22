@@ -278,7 +278,10 @@ def get_invoice(
             detail="User is not attached to a company"
         )
     
-    invoice = db.query(Invoice).options(joinedload(Invoice.lines)).filter(
+    invoice = db.query(Invoice).options(
+        joinedload(Invoice.lines),
+        joinedload(Invoice.company)
+    ).filter(
         Invoice.id == invoice_id,
         Invoice.company_id == current_user.company_id,
         Invoice.deleted_at.is_(None)
