@@ -197,40 +197,8 @@ async def cors_fallback_middleware(request: Request, call_next):
     
     return response
 
-# Handler explicite pour les requêtes OPTIONS (preflight)
-@app.options("/{full_path:path}")
-async def options_handler(request: Request, full_path: str):
-    """Handler explicite pour les requêtes OPTIONS (preflight CORS)"""
-    origin = request.headers.get("origin")
-    
-    if origin and is_origin_allowed(origin):
-        return JSONResponse(
-            status_code=200,
-            content={},
-            headers={
-                "Access-Control-Allow-Origin": origin,
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Max-Age": "3600",
-            }
-        )
-    elif origin and settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-        # En staging/dev, autoriser toutes les URLs Vercel
-        if origin.startswith("https://") and ".vercel.app" in origin:
-            return JSONResponse(
-                status_code=200,
-                content={},
-                headers={
-                    "Access-Control-Allow-Origin": origin,
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Max-Age": "3600",
-                }
-            )
-    
-    return JSONResponse(status_code=200, content={})
+# Le handler OPTIONS explicite n'est plus nécessaire car le middleware options_preflight_handler
+# gère maintenant les requêtes OPTIONS directement avant le CORSMiddleware
 
 # Middleware de logging pour debug
 @app.middleware("http")
