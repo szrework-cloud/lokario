@@ -441,9 +441,35 @@ export default function InboxPage() {
       setConversations((prev) =>
         prev.map((c) => (c.id === selectedConversation.id ? updated : c))
       );
+      setAllConversations((prev) =>
+        prev.map((c) => (c.id === selectedConversation.id ? updated : c))
+      );
     } catch (err: any) {
       console.error("Erreur lors du changement de statut:", err);
       setError(err.message || "Erreur lors du changement de statut");
+    }
+  };
+
+  const handleFolderChange = async (newFolderId: number | null) => {
+    if (!selectedConversation || !token) return;
+    try {
+      const updated = await updateConversation(
+        selectedConversation.id,
+        { folderId: newFolderId },
+        token
+      );
+      setSelectedConversation(updated);
+      // Mettre à jour aussi dans la liste
+      setConversations((prev) =>
+        prev.map((c) => (c.id === selectedConversation.id ? updated : c))
+      );
+      setAllConversations((prev) =>
+        prev.map((c) => (c.id === selectedConversation.id ? updated : c))
+      );
+      showToast("Dossier mis à jour avec succès", "success");
+    } catch (err: any) {
+      console.error("Erreur lors du changement de dossier:", err);
+      showToast(err.message || "Erreur lors du changement de dossier", "error");
     }
   };
 
@@ -593,6 +619,19 @@ export default function InboxPage() {
                             </button>
                           </div>
                           <div className="flex items-center gap-2">
+                            {/* Dossier */}
+                            <select
+                              value={selectedConversation.folderId || ""}
+                              onChange={(e) => handleFolderChange(e.target.value ? Number(e.target.value) : null)}
+                              className="rounded-lg border border-[#E5E7EB] px-3 py-1 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                            >
+                              <option value="">Aucun dossier</option>
+                              {folders.map((folder) => (
+                                <option key={folder.id} value={folder.id}>
+                                  {folder.name}
+                                </option>
+                              ))}
+                            </select>
                             {/* Statut */}
                             <select
                               value={selectedConversation.status}
