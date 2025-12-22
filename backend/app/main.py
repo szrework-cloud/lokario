@@ -88,21 +88,41 @@ def is_origin_allowed(origin: str) -> bool:
     
     return False
 
+# Fonction pour déterminer si une origine est autorisée
+def allow_origin_func(origin: str, host: str) -> bool:
+    """Fonction pour déterminer si une origine est autorisée"""
+    if not origin:
+        return False
+    
+    # En staging/dev, autoriser toutes les origines Vercel et les origines spécifiques
+    if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+        # Autoriser toutes les URLs Vercel
+        if origin.startswith("https://") and ".vercel.app" in origin:
+            return True
+        # Autoriser les origines spécifiques
+        if origin in origins:
+            return True
+        # Autoriser toutes les origines en staging/dev pour éviter les erreurs CORS
+        return True
+    
+    # En production, seulement les origines spécifiques
+    return origin in origins
+
 # Configuration CORS simplifiée et robuste
-# En staging/dev, autoriser toutes les origines pour éviter les problèmes CORS
+# En staging/dev, autoriser toutes les origines via fonction callable
 # En production, seulement les origines spécifiques
 if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-    # Staging/dev : autoriser toutes les origines (plus simple et plus robuste)
+    # Staging/dev : utiliser une fonction callable pour autoriser toutes les origines
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Autoriser toutes les origines en staging/dev
+        allow_origin_func=allow_origin_func,  # Fonction pour déterminer les origines autorisées
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
         allow_headers=["*"],
         expose_headers=["*"],
         max_age=3600,
     )
-    logger.info("🌐 CORS configuré pour staging/dev : toutes les origines autorisées")
+    logger.info("🌐 CORS configuré pour staging/dev : fonction callable pour toutes les origines")
 else:
     # Production : seulement les origines spécifiques
     app.add_middleware(
