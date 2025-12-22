@@ -195,7 +195,10 @@ def get_conversations(
             "last_message_at": conv.last_message_at,
             "created_at": conv.created_at,
             "updated_at": conv.updated_at,
-            "client_name": conv.client.name if conv.client else None,
+            "client_name": (
+                conv.client.name if conv.client 
+                else (first_client_message.from_name if first_client_message and first_client_message.from_name else None)
+            ),
             "assigned_to_name": conv.assigned_to.full_name if conv.assigned_to else None,
             "folder_name": conv.folder.name if conv.folder else None,
             "client_email": first_client_message.from_email if first_client_message else None,
@@ -326,7 +329,10 @@ def get_conversation(
         last_message_at=conversation.last_message_at,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        client_name=conversation.client.name if conversation.client else None,
+        client_name=(
+            conversation.client.name if conversation.client 
+            else (first_client_message.from_name if first_client_message and first_client_message.from_name else None)
+        ),
         assigned_to_name=conversation.assigned_to.full_name if conversation.assigned_to else None,
         folder_name=conversation.folder.name if conversation.folder else None,
         client_email=first_client_message.from_email if first_client_message else None,
@@ -531,6 +537,12 @@ def create_conversation(
             import traceback
             traceback.print_exc()
     
+    # Récupérer le premier message du client pour le nom
+    first_client_message = db.query(InboxMessage).filter(
+        InboxMessage.conversation_id == conversation.id,
+        InboxMessage.is_from_client == True
+    ).order_by(InboxMessage.created_at.asc()).first()
+    
     return ConversationRead(
         id=conversation.id,
         company_id=conversation.company_id,
@@ -550,7 +562,10 @@ def create_conversation(
         last_message_at=conversation.last_message_at,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        client_name=conversation.client.name if conversation.client else None,
+        client_name=(
+            conversation.client.name if conversation.client 
+            else (first_client_message.from_name if first_client_message and first_client_message.from_name else None)
+        ),
         assigned_to_name=conversation.assigned_to.full_name if conversation.assigned_to else None,
         folder_name=conversation.folder.name if conversation.folder else None,
     )
@@ -591,6 +606,12 @@ def update_conversation(
     db.commit()
     db.refresh(conversation)
     
+    # Récupérer le premier message du client pour le nom
+    first_client_message = db.query(InboxMessage).filter(
+        InboxMessage.conversation_id == conversation.id,
+        InboxMessage.is_from_client == True
+    ).order_by(InboxMessage.created_at.asc()).first()
+    
     return ConversationRead(
         id=conversation.id,
         company_id=conversation.company_id,
@@ -610,7 +631,10 @@ def update_conversation(
         last_message_at=conversation.last_message_at,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        client_name=conversation.client.name if conversation.client else None,
+        client_name=(
+            conversation.client.name if conversation.client 
+            else (first_client_message.from_name if first_client_message and first_client_message.from_name else None)
+        ),
         assigned_to_name=conversation.assigned_to.full_name if conversation.assigned_to else None,
         folder_name=conversation.folder.name if conversation.folder else None,
     )
@@ -1266,6 +1290,12 @@ def reclassify_conversation(
             from app.core.auto_reply_service import trigger_auto_reply_if_needed
             trigger_auto_reply_if_needed(db, conversation, last_message)
     
+    # Récupérer le premier message du client pour le nom
+    first_client_message = db.query(InboxMessage).filter(
+        InboxMessage.conversation_id == conversation.id,
+        InboxMessage.is_from_client == True
+    ).order_by(InboxMessage.created_at.asc()).first()
+    
     return ConversationRead(
         id=conversation.id,
         company_id=conversation.company_id,
@@ -1285,7 +1315,10 @@ def reclassify_conversation(
         last_message_at=conversation.last_message_at,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        client_name=conversation.client.name if conversation.client else None,
+        client_name=(
+            conversation.client.name if conversation.client 
+            else (first_client_message.from_name if first_client_message and first_client_message.from_name else None)
+        ),
         assigned_to_name=conversation.assigned_to.full_name if conversation.assigned_to else None,
         folder_name=conversation.folder.name if conversation.folder else None,
     )
@@ -1587,7 +1620,16 @@ async def generate_ai_reply(
     logger.info(f"[GENERATE REPLY] Prompt récupéré depuis les paramètres: {repr(custom_prompt[:100])}...")
     
     # Générer la réponse avec l'IA
-    client_name = conversation.client.name if conversation.client else None
+    # Utiliser le nom du client ou le nom de l'expéditeur comme fallback
+    first_client_message = db.query(InboxMessage).filter(
+        InboxMessage.conversation_id == conversation.id,
+        InboxMessage.is_from_client == True
+    ).order_by(InboxMessage.created_at.asc()).first()
+    
+    client_name = (
+        conversation.client.name if conversation.client 
+        else (first_client_message.from_name if first_client_message and first_client_message.from_name else None)
+    )
     reply = ai_reply_service.generate_reply(
         conversation_messages=messages_data,
         client_name=client_name,
