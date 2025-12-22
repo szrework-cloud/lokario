@@ -622,6 +622,31 @@ async def sync_integration(
             detail="Company not found"
         )
     
+    # Récupérer les settings de l'entreprise pour obtenir la liste noire de domaines
+    company_settings = db.query(CompanySettings).filter(
+        CompanySettings.company_id == company.id
+    ).first()
+    
+    blocked_client_domains = []
+    if company_settings and company_settings.settings:
+        clients_settings = company_settings.settings.get("clients", {})
+        blocked_client_domains = clients_settings.get("blocked_client_domains", [])
+    
+    # Liste noire par défaut si pas de settings
+    if not blocked_client_domains:
+        blocked_client_domains = [
+            "@amazon.com",
+            "@paypal.com",
+            "@noreply",
+            "@no-reply",
+            "@notifications",
+            "@notification",
+            "@automated",
+            "@system",
+            "@service",
+            "@donotreply"
+        ]
+    
     # Mettre à jour le statut de synchronisation
     integration.last_sync_status = None
     integration.last_sync_error = None
