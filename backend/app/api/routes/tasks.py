@@ -691,9 +691,14 @@ def create_task(
         
         # Vérifier si la tâche est critique (échéance proche) et créer une notification
         if task.due_date:
-            from datetime import date, timedelta
+            from datetime import date, timedelta, datetime
+            # Convertir due_date en date si c'est un datetime
+            if isinstance(task.due_date, datetime):
+                due_date = task.due_date.date()
+            else:
+                due_date = task.due_date
             today = date.today()
-            days_until_due = (task.due_date - today).days
+            days_until_due = (due_date - today).days
             
             # Tâche critique si échéance dans les 2 jours et priorité haute/critique
             if days_until_due <= 2 and task.priority in ["high", "critical", "urgent"]:
