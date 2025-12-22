@@ -820,27 +820,31 @@ def update_task(
     current_user: User = Depends(get_current_active_user)
 ):
     """Met à jour une tâche"""
-    _check_company_access(current_user)
+    import logging
+    logger = logging.getLogger(__name__)
     
-    task = db.query(Task).filter(Task.id == task_id).first()
-    
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Task not found"
-        )
-    
-    if not _can_access_task(task, current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
-    
-    # Mettre à jour les champs
-    update_data = task_data.model_dump(exclude_unset=True)
-    
-    # Gérer le mapping category -> type
-    if "category" in update_data:
+    try:
+        _check_company_access(current_user)
+        
+        task = db.query(Task).filter(Task.id == task_id).first()
+        
+        if not task:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Task not found"
+            )
+        
+        if not _can_access_task(task, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
+            )
+        
+        # Mettre à jour les champs
+        update_data = task_data.model_dump(exclude_unset=True)
+        
+        # Gérer le mapping category -> type
+        if "category" in update_data:
         category = update_data.pop("category")
         category_map = {
             "Interne": TaskType.INTERNE,
@@ -850,9 +854,9 @@ def update_task(
         }
         if category in category_map:
             update_data["type"] = category_map[category]
-    
-    # Gérer le mapping type string -> Enum
-    if "type" in update_data and isinstance(update_data["type"], str):
+        
+        # Gérer le mapping type string -> Enum
+        if "type" in update_data and isinstance(update_data["type"], str):
         type_map = {
             "Interne": TaskType.INTERNE,
             "Client": TaskType.CLIENT,
@@ -860,9 +864,9 @@ def update_task(
         }
         if update_data["type"] in type_map:
             update_data["type"] = type_map[update_data["type"]]
-    
-    # Gérer le statut
-    if "status" in update_data:
+        
+        # Gérer le statut
+        if "status" in update_data:
         try:
             update_data["status"] = TaskStatus(update_data["status"])
             # Si on marque comme terminé, mettre completed_at
@@ -873,37 +877,37 @@ def update_task(
                 update_data["completed_at"] = None
         except ValueError:
             del update_data["status"]
-    
-    # Valider les foreign keys
-    if "assigned_to_id" in update_data and update_data["assigned_to_id"]:
+        
+        # Valider les foreign keys
+        if "assigned_to_id" in update_data and update_data["assigned_to_id"]:
         # Vérifier que l'utilisateur assigné appartient à la même entreprise
         assigned_user = db.query(User).filter(
             User.id == update_data["assigned_to_id"],
             User.company_id == current_user.company_id
         ).first()
-        if not assigned_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Assigned user not found or not in same company"
-            )
-    
-    # Gérer recurrence_days avant setattr (champ spécial)
-    if "recurrence_days" in update_data:
-        recurrence_days = update_data.pop("recurrence_days")
-        task.set_recurrence_days(recurrence_days)
-    
-    # Filtrer les champs qui n'existent plus dans le modèle (comme is_mandatory)
-    valid_fields = {field for field in update_data.keys() if hasattr(task, field)}
-    filtered_update_data = {field: value for field, value in update_data.items() if field in valid_fields}
-    
-    for field, value in filtered_update_data.items():
-        setattr(task, field, value)
-    
-    db.commit()
-    db.refresh(task)
-    
-    # Vérifier si la tâche est maintenant en retard ou critique après la mise à jour
-    if task.due_date and task.status != TaskStatus.TERMINE:
+            if not assigned_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Assigned user not found or not in same company"
+                )
+        
+        # Gérer recurrence_days avant setattr (champ spécial)
+        if "recurrence_days" in update_data:
+            recurrence_days = update_data.pop("recurrence_days")
+            task.set_recurrence_days(recurrence_days)
+        
+        # Filtrer les champs qui n'existent plus dans le modèle (comme is_mandatory)
+        valid_fields = {field for field in update_data.keys() if hasattr(task, field)}
+        filtered_update_data = {field: value for field, value in update_data.items() if field in valid_fields}
+        
+        for field, value in filtered_update_data.items():
+            setattr(task, field, value)
+        
+        db.commit()
+        db.refresh(task)
+        
+        # Vérifier si la tâche est maintenant en retard ou critique après la mise à jour
+        if task.due_date and task.status != TaskStatus.TERMINE:
         from datetime import date, timedelta
         today = date.today()
         days_until_due = (task.due_date - today).days
@@ -939,8 +943,8 @@ def update_task(
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Erreur lors de la création de la notification pour la tâche {task.id}: {e}")
-        # Vérifier si la tâche est critique (échéance proche)
-        elif days_until_due <= 2 and task.priority in ["high", "critical", "urgent"]:
+            # Vérifier si la tâche est critique (échéance proche)
+            elif days_until_due <= 2 and task.priority in ["high", "critical", "urgent"]:
             try:
                 from app.core.notifications import create_notification
                 from app.db.models.notification import NotificationType
@@ -970,35 +974,44 @@ def update_task(
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Erreur lors de la création de la notification pour la tâche {task.id}: {e}")
-    
-    # Charger les relations
-    task_id = task.id  # Sauvegarder l'ID avant la requête
-    try:
-        task_with_relations = db.query(Task).options(
-            joinedload(Task.assigned_to),
-            joinedload(Task.client),
-            joinedload(Task.project),
-            joinedload(Task.conversation)
-        ).filter(Task.id == task_id).first()
         
-        if not task_with_relations:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found after update"
-            )
-        
-        return TaskRead.from_orm_with_relations(task_with_relations)
+        # Charger les relations
+        task_id = task.id  # Sauvegarder l'ID avant la requête
+        try:
+            task_with_relations = db.query(Task).options(
+                joinedload(Task.assigned_to),
+                joinedload(Task.client),
+                joinedload(Task.project),
+                joinedload(Task.conversation)
+            ).filter(Task.id == task_id).first()
+            
+            if not task_with_relations:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Task not found after update"
+                )
+            
+            return TaskRead.from_orm_with_relations(task_with_relations)
+        except HTTPException:
+            # Re-raise les HTTPException
+            raise
+        except Exception as e:
+            logger.error(f"Erreur lors du chargement des relations de la tâche {task_id}: {e}", exc_info=True)
+            # Si le chargement des relations échoue, retourner quand même la tâche de base
+            # La mise à jour a réussi, on ne veut pas faire échouer la requête
+            db.refresh(task)
+            return TaskRead.from_orm_with_relations(task)
     except HTTPException:
         # Re-raise les HTTPException
         raise
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Erreur lors du chargement des relations de la tâche {task_id}: {e}", exc_info=True)
-        # Si le chargement des relations échoue, retourner quand même la tâche de base
-        # La mise à jour a réussi, on ne veut pas faire échouer la requête
-        db.refresh(task)
-        return TaskRead.from_orm_with_relations(task)
+        # Gestion d'erreur globale pour toutes les autres exceptions
+        logger.error(f"Erreur lors de la mise à jour de la tâche {task_id}: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la mise à jour de la tâche: {str(e)}"
+        )
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
