@@ -56,7 +56,7 @@ export function InboxConversation({
 
   return (
     <div
-      className={`cursor-pointer transition-all ${
+      className={`conversation-item cursor-pointer transition-all ${
         isSelected ? "ring-2 ring-[#F97316] rounded-xl" : ""
       }`}
       onClick={onClick}

@@ -631,8 +631,54 @@ export default function InboxPage() {
             employees={mockEmployees}
           />
 
+          {/* Barre d'actions de sélection multiple */}
+          {isSelectionMode && (
+            <div className="px-4 py-3 border-b border-[#E5E7EB] flex items-center justify-between bg-[#F9FAFB]">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={toggleSelectAll}
+                  className="text-sm text-[#64748B] hover:text-[#0F172A] font-medium"
+                >
+                  {selectedConversationIds.size === filteredConversations.length
+                    ? "Tout désélectionner"
+                    : "Tout sélectionner"}
+                </button>
+                <span className="text-sm text-[#64748B]">
+                  {selectedConversationIds.size} conversation(s) sélectionnée(s)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setIsSelectionMode(false);
+                    setSelectedConversationIds(new Set());
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-sm text-[#64748B] hover:bg-[#F9FAFB] hover:text-[#0F172A]"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={selectedConversationIds.size === 0 || isDeleting}
+                  className="px-4 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? "Suppression..." : `Supprimer (${selectedConversationIds.size})`}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Corps principal */}
-          <div className="flex-1 flex overflow-hidden">
+          <div 
+            className="flex-1 flex overflow-hidden"
+            onClick={(e) => {
+              // Annuler la sélection si on clique en dehors d'une conversation
+              if (isSelectionMode && (e.target as HTMLElement).closest('.conversation-item') === null) {
+                setIsSelectionMode(false);
+                setSelectedConversationIds(new Set());
+              }
+            }}
+          >
             {/* Liste des conversations */}
             <div className="w-80 border-r border-[#E5E7EB] bg-white overflow-y-auto flex-shrink-0 h-full">
               {isLoading ? (
