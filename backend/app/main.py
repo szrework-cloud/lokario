@@ -478,25 +478,38 @@ async def options_handler(request: Request):
     from fastapi.responses import Response
     origin = request.headers.get("origin")
     
-    if not origin:
-        return Response(status_code=200)
-    
-    # Vérifier si l'origine est autorisée
-    if is_origin_allowed(origin):
-        return Response(
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": origin,
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Max-Age": "3600",
-            }
-        )
-    
-    # En staging/dev, autoriser toutes les URLs Vercel même si pas dans la liste
-    if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
-        if origin.startswith("https://") and ".vercel.app" in origin:
+    # Toujours retourner les headers CORS pour les requêtes OPTIONS
+    # Même si l'origine n'est pas dans la liste, on l'autorise en staging/dev
+    if origin:
+        # En staging/dev, autoriser toutes les URLs Vercel
+        if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
+            if origin.startswith("https://") and ".vercel.app" in origin:
+                return Response(
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Max-Age": "3600",
+                    }
+                )
+        
+        # Vérifier si l'origine est autorisée
+        if is_origin_allowed(origin):
+            return Response(
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Max-Age": "3600",
+                }
+            )
+        
+        # En staging/dev, autoriser quand même pour éviter les erreurs CORS
+        if settings.ENVIRONMENT.lower() not in ["production", "prod"]:
             return Response(
                 status_code=200,
                 headers={
@@ -508,8 +521,16 @@ async def options_handler(request: Request):
                 }
             )
     
-    # Par défaut, retourner 200 sans headers CORS (le middleware devrait gérer)
-    return Response(status_code=200)
+    # Par défaut, retourner 200 avec headers CORS minimaux
+    headers = {
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    }
+    if origin:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    
+    return Response(status_code=200, headers=headers)
 
 
 @app.get("/health")
