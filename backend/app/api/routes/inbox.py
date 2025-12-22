@@ -738,7 +738,7 @@ async def delete_conversation(
 
 
 class BulkDeleteRequest(BaseModel):
-    conversation_ids: List[int]
+    conversation_ids: List[Any]  # Accepter Any d'abord, puis convertir
     delete_on_imap: bool = True
     
     @model_validator(mode='before')
@@ -757,6 +757,16 @@ class BulkDeleteRequest(BaseModel):
                         raise ValueError(f"ID invalide: {item}. Tous les IDs doivent être des nombres entiers. Erreur: {e}")
                 data['conversation_ids'] = result
         return data
+    
+    @model_validator(mode='after')
+    def validate_ids_are_int(self) -> 'BulkDeleteRequest':
+        """Valide que tous les IDs sont bien des entiers après conversion"""
+        if not isinstance(self.conversation_ids, list):
+            raise ValueError("conversation_ids doit être une liste")
+        for item in self.conversation_ids:
+            if not isinstance(item, int):
+                raise ValueError(f"ID invalide: {item}. Tous les IDs doivent être des nombres entiers.")
+        return self
 
 
 @router.delete("/conversations/bulk", status_code=status.HTTP_200_OK)
