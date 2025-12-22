@@ -3,7 +3,6 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 from typing import List, Optional, Union
-from pydantic import BaseModel, field_validator, Union
 from pydantic import BaseModel, field_validator
 from datetime import datetime
 import os
