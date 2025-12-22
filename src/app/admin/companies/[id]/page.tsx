@@ -47,7 +47,6 @@ export default function CompanyDetailPage() {
   const tabs = [
     { id: "company", label: "Infos entreprise" },
     { id: "modules", label: "Modules activés" },
-    { id: "pack", label: "Pack" },
     { id: "billing", label: "Facturation" },
     { id: "usage", label: "Utilisation" },
     { id: "ia", label: "Intelligence artificielle" },
@@ -300,7 +299,7 @@ export default function CompanyDetailPage() {
       }
     };
 
-    if (activeTab === "pack") {
+    if (activeTab === "billing") {
       void loadSubscription();
       void loadHistory();
     }
@@ -496,11 +495,11 @@ export default function CompanyDetailPage() {
               </div>
             )}
 
-            {activeTab === "pack" && (
+            {activeTab === "billing" && (
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
-                    Pack actuel
+                    Plan et facturation
                   </h3>
                   {loadingSubscription ? (
                     <Card>
@@ -509,125 +508,79 @@ export default function CompanyDetailPage() {
                       </CardContent>
                     </Card>
                   ) : subscription?.has_subscription && subscription.subscription ? (
-                    <Card>
-                      <CardContent className="p-6">
-                        {(() => {
-                          const sub = subscription.subscription!;
-                          const plan = plans.find(p => p.id === sub.plan);
-                          const statusMap: Record<string, string> = {
-                            active: "Actif",
-                            canceled: "Annulé",
-                            past_due: "En retard",
-                            unpaid: "Impayé",
-                            incomplete: "Incomplet",
-                            incomplete_expired: "Expiré",
-                            trialing: "Essai",
-                            paused: "En pause",
-                          };
-                          const statusColorMap: Record<string, string> = {
-                            active: "bg-green-100 text-green-800",
-                            canceled: "bg-red-100 text-red-800",
-                            past_due: "bg-yellow-100 text-yellow-800",
-                            unpaid: "bg-red-100 text-red-800",
-                            incomplete: "bg-gray-100 text-gray-800",
-                            incomplete_expired: "bg-red-100 text-red-800",
-                            trialing: "bg-blue-100 text-blue-800",
-                            paused: "bg-gray-100 text-gray-800",
-                          };
-                          
-                          return (
-                            <>
-                              <div className="flex items-start justify-between mb-4">
-                                <div>
-                                  <div className="flex items-center gap-3 mb-2">
-                                    <h4 className="text-xl font-bold text-[#0F172A]">
-                                      {plan?.name || sub.plan}
-                                    </h4>
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                      statusColorMap[sub.status] || "bg-gray-100 text-gray-800"
-                                    }`}>
-                                      {statusMap[sub.status] || sub.status}
-                                    </span>
-                                  </div>
-                                  <p className="text-sm text-[#64748B]">
-                                    {plan?.features?.[0] || "Abonnement actif"}
-                                  </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardContent className="p-4">
+                          {(() => {
+                            const sub = subscription.subscription!;
+                            const plan = plans.find(p => p.id === sub.plan);
+                            const statusMap: Record<string, string> = {
+                              active: "Actif",
+                              canceled: "Annulé",
+                              past_due: "En retard",
+                              unpaid: "Impayé",
+                              incomplete: "Incomplet",
+                              incomplete_expired: "Expiré",
+                              trialing: "Essai",
+                              paused: "En pause",
+                            };
+                            const statusColorMap: Record<string, string> = {
+                              active: "bg-green-100 text-green-800",
+                              canceled: "bg-red-100 text-red-800",
+                              past_due: "bg-yellow-100 text-yellow-800",
+                              unpaid: "bg-red-100 text-red-800",
+                              incomplete: "bg-gray-100 text-gray-800",
+                              incomplete_expired: "bg-red-100 text-red-800",
+                              trialing: "bg-blue-100 text-blue-800",
+                              paused: "bg-gray-100 text-gray-800",
+                            };
+                            
+                            return (
+                              <>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm text-[#64748B]">Plan actuel</span>
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    statusColorMap[sub.status] || "bg-gray-100 text-gray-800"
+                                  }`}>
+                                    {statusMap[sub.status] || sub.status}
+                                  </span>
                                 </div>
-                                <div className="text-right">
-                                  <div className="text-2xl font-bold text-[#0F172A]">
+                                <div className="mt-4">
+                                  <div className="text-3xl font-bold text-[#0F172A]">
                                     {sub.amount.toFixed(2)} {sub.currency.toUpperCase()}
                                   </div>
-                                  <div className="text-xs text-[#64748B]">
-                                    / mois
+                                  <div className="text-sm text-[#64748B] mt-1">par mois</div>
+                                </div>
+                                {sub.current_period_end && (
+                                  <div className="mt-4 pt-4 border-t border-[#E5E7EB]">
+                                    <div className="text-xs text-[#64748B]">
+                                      Prochaine facturation
+                                    </div>
+                                    <div className="text-sm font-medium text-[#0F172A] mt-1">
+                                      {new Date(sub.current_period_end).toLocaleDateString("fr-FR", {
+                                        day: "numeric",
+                                        month: "long",
+                                        year: "numeric",
+                                      })}
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
-
-                              {plan?.features && plan.features.length > 0 && (
-                                <div className="mt-6 pt-6 border-t border-[#E5E7EB]">
-                                  <h5 className="text-sm font-semibold text-[#0F172A] mb-3">
-                                    Fonctionnalités incluses
-                                  </h5>
-                                  <ul className="space-y-2">
-                                    {plan.features.map((feature, index) => (
-                                      <li key={index} className="flex items-center gap-2 text-sm text-[#64748B]">
-                                        <svg
-                                          className="w-4 h-4 text-green-600 flex-shrink-0"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M5 13l4 4L19 7"
-                                          />
-                                        </svg>
-                                        {feature}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {(sub.current_period_start || sub.current_period_end) && (
-                                <div className="mt-6 pt-6 border-t border-[#E5E7EB] grid grid-cols-2 gap-4">
-                                  {sub.current_period_start && (
-                                    <div>
-                                      <div className="text-xs text-[#64748B] mb-1">
-                                        Date de début
-                                      </div>
-                                      <div className="text-sm font-medium text-[#0F172A]">
-                                        {new Date(sub.current_period_start).toLocaleDateString("fr-FR", {
-                                          day: "numeric",
-                                          month: "long",
-                                          year: "numeric",
-                                        })}
-                                      </div>
+                                )}
+                                {plan?.name && (
+                                  <div className="mt-4 pt-4 border-t border-[#E5E7EB]">
+                                    <div className="text-xs text-[#64748B] mb-2">
+                                      Pack
                                     </div>
-                                  )}
-                                  {sub.current_period_end && (
-                                    <div>
-                                      <div className="text-xs text-[#64748B] mb-1">
-                                        Prochain renouvellement
-                                      </div>
-                                      <div className="text-sm font-medium text-[#0F172A]">
-                                        {new Date(sub.current_period_end).toLocaleDateString("fr-FR", {
-                                          day: "numeric",
-                                          month: "long",
-                                          year: "numeric",
-                                        })}
-                                      </div>
+                                    <div className="text-sm font-medium text-[#0F172A]">
+                                      {plan.name}
                                     </div>
-                                  )}
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </CardContent>
-                    </Card>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </CardContent>
+                      </Card>
+                    </div>
                   ) : (
                     <Card>
                       <CardContent className="p-6">
@@ -641,33 +594,36 @@ export default function CompanyDetailPage() {
 
                 <div>
                   <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
-                    Historique des packs
+                    Historique des factures
                   </h3>
                   {loadingHistory ? (
                     <div className="rounded-lg border border-[#E5E7EB] bg-white p-6">
                       <Loader />
                     </div>
                   ) : subscriptionHistory.length > 0 ? (
-                    <div className="rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
+                    <div className="rounded-xl border border-[#E5E7EB] bg-white overflow-hidden">
                       <table className="w-full">
                         <thead className="bg-[#F9FAFB]">
                           <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                              Pack
+                              Numéro
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                              Période
+                              Date
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                              Prix
+                              Montant
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
                               Statut
                             </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#E5E7EB]">
-                          {subscriptionHistory.map((item) => {
+                          {subscriptionHistory.map((invoice) => {
                             const statusColorMap: Record<string, string> = {
                               "Payé": "bg-green-100 text-green-800",
                               "Ouvert": "bg-yellow-100 text-yellow-800",
@@ -677,22 +633,36 @@ export default function CompanyDetailPage() {
                             };
                             
                             return (
-                              <tr key={item.id} className="hover:bg-[#F9FAFB]">
+                              <tr key={invoice.id} className="hover:bg-[#F9FAFB]">
                                 <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
-                                  {item.plan}
+                                  {invoice.invoice_number}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-[#64748B]">
-                                  {item.period}
+                                  {invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString("fr-FR") : "N/A"}
                                 </td>
                                 <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
-                                  {item.amount.toFixed(2)} {item.currency} / mensuel
+                                  {invoice.amount.toFixed(2)} {invoice.currency}
                                 </td>
                                 <td className="px-4 py-3">
                                   <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                                    statusColorMap[item.status] || "bg-gray-100 text-gray-800"
+                                    statusColorMap[invoice.status] || "bg-gray-100 text-gray-800"
                                   }`}>
-                                    {item.status}
+                                    {invoice.status}
                                   </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  {invoice.invoice_pdf_url ? (
+                                    <a
+                                      href={invoice.invoice_pdf_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm text-[#F97316] hover:text-[#EA580C] font-medium"
+                                    >
+                                      Télécharger
+                                    </a>
+                                  ) : (
+                                    <span className="text-sm text-[#64748B]">-</span>
+                                  )}
                                 </td>
                               </tr>
                             );
@@ -702,108 +672,9 @@ export default function CompanyDetailPage() {
                     </div>
                   ) : (
                     <div className="rounded-lg border border-[#E5E7EB] bg-white p-6">
-                      <p className="text-center text-[#64748B]">Aucun historique disponible</p>
+                      <p className="text-center text-[#64748B]">Aucune facture disponible</p>
                     </div>
                   )}
-                </div>
-              </div>
-            )}
-
-            {activeTab === "billing" && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
-                    Plan et facturation
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-[#64748B]">Plan actuel</span>
-                          <span className="px-2 py-1 bg-[#F97316]/10 text-[#F97316] rounded-full text-xs font-medium">
-                            {mockBillingData.plan}
-                          </span>
-                        </div>
-                        <div className="mt-4">
-                          <div className="text-3xl font-bold text-[#0F172A]">
-                            {mockBillingData.monthlyPrice.toFixed(2)} €
-                          </div>
-                          <div className="text-sm text-[#64748B] mt-1">par mois</div>
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-[#E5E7EB]">
-                          <div className="text-xs text-[#64748B]">
-                            Prochaine facturation
-                          </div>
-                          <div className="text-sm font-medium text-[#0F172A] mt-1">
-                            {new Date(mockBillingData.nextBillingDate).toLocaleDateString("fr-FR", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold text-[#0F172A] mb-4">
-                    Historique des factures
-                  </h3>
-                  <div className="rounded-xl border border-[#E5E7EB] bg-white overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-[#F9FAFB]">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                            Numéro
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                            Date
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                            Montant
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                            Statut
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#E5E7EB]">
-                        {mockBillingData.invoices.map((invoice) => (
-                          <tr key={invoice.id} className="hover:bg-[#F9FAFB]">
-                            <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
-                              {invoice.invoiceNumber}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-[#64748B]">
-                              {new Date(invoice.date).toLocaleDateString("fr-FR")}
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">
-                              {invoice.amount.toFixed(2)} €
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                                {invoice.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <button
-                                onClick={() => {
-                                  showToast("Téléchargement de la facture...", "info");
-                                }}
-                                className="text-sm text-[#F97316] hover:text-[#EA580C]"
-                              >
-                                Télécharger
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
               </div>
             )}
