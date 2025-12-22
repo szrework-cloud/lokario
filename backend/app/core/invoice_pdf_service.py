@@ -323,6 +323,17 @@ def generate_invoice_pdf(invoice: Invoice) -> bytes:
         c.drawString(margin, totals_y, f"Exonération TVA: {invoice.vat_exemption_reference}")
         totals_y -= 4 * mm
     
+    # Mentions légales obligatoires pour auto-entrepreneurs
+    if hasattr(invoice, 'company') and invoice.company and invoice.company.is_auto_entrepreneur:
+        c.setFont("Helvetica", 8)
+        c.setFillColor(black)
+        c.drawString(margin, totals_y, "TVA non applicable, art. 293 B du CGI")
+        totals_y -= 4 * mm
+        # Note: SIRET et numéro d'inscription RM/RCS peuvent être ajoutés si disponibles
+        if invoice.seller_siret:
+            c.drawString(margin, totals_y, f"SIRET: {invoice.seller_siret}")
+            totals_y -= 4 * mm
+    
     if invoice.operation_category:
         c.setFont("Helvetica", 8)
         c.setFillColor(black)

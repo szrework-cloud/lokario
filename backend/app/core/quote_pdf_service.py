@@ -441,6 +441,10 @@ def generate_quote_pdf(
     if company.vat_exempt and company.vat_exemption_reference:
         left_content_html += f"<br/><br/><b>TVA non applicable, {company.vat_exemption_reference}</b>"
     
+    # Ajouter mentions légales obligatoires pour auto-entrepreneurs
+    if company.is_auto_entrepreneur:
+        left_content_html += f"<br/><br/><b>TVA non applicable, art. 293 B du CGI</b>"
+    
     # Ajouter date de début de prestation si présente
     if quote.service_start_date:
         start_date_str = quote.service_start_date.strftime('%d / %m / %Y') if hasattr(quote.service_start_date, 'strftime') else str(quote.service_start_date)
@@ -593,6 +597,23 @@ def generate_quote_pdf(
                 # Remplacer les retours à la ligne dans le texte
                 formatted_line = line.strip().replace('\n', '<br/>')
                 story.append(Paragraph(formatted_line, cgv_style))
+    
+    # Mentions légales obligatoires pour auto-entrepreneurs (avant la mention de contrat)
+    if company.is_auto_entrepreneur:
+        story.append(Spacer(1, 10*mm))
+        legal_mention_style = ParagraphStyle(
+            'LegalMention',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#64748B'),
+            alignment=TA_LEFT,
+            spaceAfter=6,
+            leftIndent=0
+        )
+        story.append(Paragraph("<b>Mentions légales (Entrepreneur Individuel) :</b>", legal_mention_style))
+        story.append(Paragraph("TVA non applicable, art. 293 B du CGI", legal_mention_style))
+        # Note: SIRET et numéro d'inscription RM/RCS peuvent être ajoutés si disponibles dans les settings de l'entreprise
+        story.append(Spacer(1, 6*mm))
     
     # Mention "Devis faisant office de contrat après signature"
     story.append(Spacer(1, 10*mm))
