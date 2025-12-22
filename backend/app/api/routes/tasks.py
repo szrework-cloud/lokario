@@ -922,7 +922,7 @@ def update_task(
                 
                 create_notification(
                     db=db,
-                    company_id=company_id,
+                    company_id=current_user.company_id,
                     notification_type=NotificationType.TASK_OVERDUE,
                     title="Tâche en retard",
                     message=f"La tâche '{task.title}' est en retard (échéance: {due_str})",
@@ -953,7 +953,7 @@ def update_task(
                 
                 create_notification(
                     db=db,
-                    company_id=company_id,
+                    company_id=current_user.company_id,
                     notification_type=NotificationType.TASK_CRITICAL,
                     title="Tâche critique à venir",
                     message=f"La tâche '{task.title}' est due le {due_str} (priorité {task.priority})",
