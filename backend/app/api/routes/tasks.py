@@ -868,15 +868,15 @@ def update_task(
         # Gérer le statut
         if "status" in update_data:
             try:
-            update_data["status"] = TaskStatus(update_data["status"])
-            # Si on marque comme terminé, mettre completed_at
-            if update_data["status"] == TaskStatus.TERMINE and not task.completed_at:
-                update_data["completed_at"] = datetime.now()
-            # Si on décoche (change de TERMINE vers autre chose), enlever completed_at
-            elif task.status == TaskStatus.TERMINE and update_data["status"] != TaskStatus.TERMINE:
-                update_data["completed_at"] = None
-        except ValueError:
-            del update_data["status"]
+                update_data["status"] = TaskStatus(update_data["status"])
+                # Si on marque comme terminé, mettre completed_at
+                if update_data["status"] == TaskStatus.TERMINE and not task.completed_at:
+                    update_data["completed_at"] = datetime.now()
+                # Si on décoche (change de TERMINE vers autre chose), enlever completed_at
+                elif task.status == TaskStatus.TERMINE and update_data["status"] != TaskStatus.TERMINE:
+                    update_data["completed_at"] = None
+            except ValueError:
+                del update_data["status"]
         
         # Valider les foreign keys
         if "assigned_to_id" in update_data and update_data["assigned_to_id"]:
