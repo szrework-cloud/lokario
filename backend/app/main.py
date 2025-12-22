@@ -93,7 +93,8 @@ def is_origin_allowed(origin: str) -> bool:
 # En production, seulement les origines spécifiques
 
 # Fonction pour déterminer si une origine est autorisée
-def allow_origin_func(origin: str, host: str) -> bool:
+# IMPORTANT: La signature doit être (origin: str) -> bool pour FastAPI CORSMiddleware
+def allow_origin_func(origin: str) -> bool:
     """Fonction pour déterminer si une origine est autorisée"""
     if not origin:
         return False
