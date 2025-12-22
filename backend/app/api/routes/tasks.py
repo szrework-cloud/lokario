@@ -17,8 +17,8 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
 def _check_company_access(current_user: User):
-    """Vérifier que l'utilisateur est attaché à une entreprise"""
-    if current_user.company_id is None:
+    """Vérifier que l'utilisateur est attaché à une entreprise (sauf super_admin)"""
+    if current_user.company_id is None and current_user.role != "super_admin":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User is not attached to a company"
@@ -593,7 +593,18 @@ def create_task(
     current_user: User = Depends(get_current_active_user)
 ):
     """Crée une nouvelle tâche"""
-    _check_company_access(current_user)
+    # Pour les super_admins, vérifier qu'un company_id est fourni dans les données
+    if current_user.role == "super_admin" and current_user.company_id is None:
+        # Les super_admins doivent spécifier un company_id dans task_data
+        if not hasattr(task_data, 'company_id') or task_data.company_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Super admin must specify a company_id when creating tasks"
+            )
+        company_id = task_data.company_id
+    else:
+        _check_company_access(current_user)
+        company_id = current_user.company_id
     
     # Si l'utilisateur est un "user" et qu'aucune assignation n'est spécifiée, assigner automatiquement à lui
     assigned_to_id = task_data.assigned_to_id
@@ -604,7 +615,7 @@ def create_task(
     if assigned_to_id:
         assigned_user = db.query(User).filter(
             User.id == assigned_to_id,
-            User.company_id == current_user.company_id
+            User.company_id == company_id
         ).first()
         if not assigned_user:
             raise HTTPException(
@@ -617,7 +628,7 @@ def create_task(
         from app.db.models.client import Client
         client = db.query(Client).filter(
             Client.id == task_data.client_id,
-            Client.company_id == current_user.company_id
+            Client.company_id == company_id
         ).first()
         if not client:
             raise HTTPException(
@@ -630,7 +641,7 @@ def create_task(
         from app.db.models.project import Project
         project = db.query(Project).filter(
             Project.id == task_data.project_id,
-            Project.company_id == current_user.company_id
+            Project.company_id == company_id
         ).first()
         if not project:
             raise HTTPException(
@@ -643,7 +654,7 @@ def create_task(
         from app.db.models.conversation import Conversation
         conversation = db.query(Conversation).filter(
             Conversation.id == task_data.conversation_id,
-            Conversation.company_id == current_user.company_id
+            Conversation.company_id == company_id
         ).first()
         if not conversation:
             raise HTTPException(
@@ -659,7 +670,7 @@ def create_task(
     if task_data.due_date and recurrence == "none":
         # Tâche unique avec date spécifique
         task = Task(
-            company_id=current_user.company_id,
+            company_id=company_id,
             title=task_data.title,
             description=task_data.description,
             assigned_to_id=assigned_to_id,
@@ -699,7 +710,7 @@ def create_task(
                     
                     create_notification(
                         db=db,
-                        company_id=current_user.company_id,
+                        company_id=company_id,
                         notification_type=NotificationType.TASK_CRITICAL,
                         title="Tâche critique à venir",
                         message=f"La tâche '{task.title}' est due le {due_str} (priorité {task.priority})",
@@ -763,7 +774,7 @@ def create_task(
         tasks_to_create = []
         for execution_date in execution_dates:
             task = Task(
-                company_id=current_user.company_id,
+                company_id=company_id,
                 title=task_data.title,
                 description=task_data.description,
                 assigned_to_id=assigned_to_id,
@@ -908,7 +919,7 @@ def update_task(
                 
                 create_notification(
                     db=db,
-                    company_id=current_user.company_id,
+                    company_id=company_id,
                     notification_type=NotificationType.TASK_OVERDUE,
                     title="Tâche en retard",
                     message=f"La tâche '{task.title}' est en retard (échéance: {due_str})",
@@ -939,7 +950,7 @@ def update_task(
                 
                 create_notification(
                     db=db,
-                    company_id=current_user.company_id,
+                    company_id=company_id,
                     notification_type=NotificationType.TASK_CRITICAL,
                     title="Tâche critique à venir",
                     message=f"La tâche '{task.title}' est due le {due_str} (priorité {task.priority})",

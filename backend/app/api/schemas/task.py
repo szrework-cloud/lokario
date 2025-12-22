@@ -48,6 +48,7 @@ class TaskBase(BaseModel):
 class TaskCreate(TaskBase):
     category: Optional[str] = None  # "Interne", "Client", "Fournisseur", "Administratif" - pour compatibilité frontend
     type: Optional[str] = None  # Si fourni directement, utiliser celui-ci
+    company_id: Optional[int] = None  # Pour super_admin uniquement
     
     def get_task_type(self) -> TaskType:
         """Mapper category vers TaskType Enum"""
