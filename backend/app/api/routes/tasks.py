@@ -972,25 +972,29 @@ def update_task(
                 logger.warning(f"Erreur lors de la création de la notification pour la tâche {task.id}: {e}")
     
     # Charger les relations
+    task_id = task.id  # Sauvegarder l'ID avant la requête
     try:
-        task = db.query(Task).options(
+        task_with_relations = db.query(Task).options(
             joinedload(Task.assigned_to),
             joinedload(Task.client),
             joinedload(Task.project),
             joinedload(Task.conversation)
-        ).filter(Task.id == task.id).first()
+        ).filter(Task.id == task_id).first()
         
-        if not task:
+        if not task_with_relations:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Task not found after update"
             )
         
-        return TaskRead.from_orm_with_relations(task)
+        return TaskRead.from_orm_with_relations(task_with_relations)
+    except HTTPException:
+        # Re-raise les HTTPException
+        raise
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Erreur lors du chargement des relations de la tâche {task.id}: {e}", exc_info=True)
+        logger.error(f"Erreur lors du chargement des relations de la tâche {task_id}: {e}", exc_info=True)
         # Si le chargement des relations échoue, retourner quand même la tâche de base
         # La mise à jour a réussi, on ne veut pas faire échouer la requête
         db.refresh(task)
