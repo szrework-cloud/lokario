@@ -387,7 +387,8 @@ def export_user_data(
                 "priority": task.priority,
                 "type": task.type.value if hasattr(task.type, 'value') else str(task.type),
                 "due_date": task.due_date.isoformat() if task.due_date else None,
-                "due_time": task.due_time,
+                # due_time a été supprimé du modèle Task
+                # "due_time": task.due_time,
                 "client_id": task.client_id,
                 "project_id": task.project_id,
                 "assigned_to_id": task.assigned_to_id,
