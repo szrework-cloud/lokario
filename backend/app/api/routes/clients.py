@@ -234,8 +234,39 @@ async def import_clients_csv(
                     detail="Impossible de décoder le fichier. Utilisez UTF-8 ou Latin-1."
                 )
         
-        # Parser le CSV
-        csv_reader = csv.DictReader(io.StringIO(text))
+        # Normaliser les retours à la ligne (unifier en \n)
+        text_normalized = text.replace('\r\n', '\n').replace('\r', '\n')
+        
+        # Parser le CSV avec une configuration robuste
+        # Le problème "new-line character seen in unquoted field" survient quand
+        # un champ contient un retour à la ligne sans être entre guillemets
+        csv_file = io.StringIO(text_normalized)
+        
+        try:
+            csv_reader = csv.DictReader(
+                csv_file,
+                quoting=csv.QUOTE_MINIMAL,
+                doublequote=True,
+                skipinitialspace=True
+            )
+        except csv.Error as e:
+            # Si erreur de parsing CSV, fournir un message plus clair
+            error_msg = str(e)
+            if "new-line character seen in unquoted field" in error_msg.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "Erreur de format CSV : des champs contiennent des retours à la ligne "
+                        "sans être entre guillemets. Veuillez mettre des guillemets autour des "
+                        "champs contenant des retours à la ligne, ou exporter à nouveau le fichier "
+                        "depuis Lokario pour obtenir un format valide."
+                    )
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Erreur de format CSV : {error_msg}"
+                )
         
         # Vérifier que les colonnes attendues sont présentes
         expected_columns = ["Nom", "Email", "Téléphone", "Adresse", "Ville", "Code postal", "Pays", "SIRET"]
@@ -261,7 +292,27 @@ async def import_clients_csv(
                     column_mapping[expected_columns[i]] = col
         
         # Traiter chaque ligne
-        for row_num, row in enumerate(csv_reader, start=2):  # start=2 car ligne 1 = headers
+        try:
+            rows = list(csv_reader)  # Lire toutes les lignes d'un coup pour détecter les erreurs de format tôt
+        except csv.Error as e:
+            error_msg = str(e)
+            if "new-line character seen in unquoted field" in error_msg.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "Erreur de format CSV : des champs contiennent des retours à la ligne "
+                        "sans être entre guillemets. Veuillez mettre des guillemets autour des "
+                        "champs contenant des retours à la ligne, ou exporter à nouveau le fichier "
+                        "depuis Lokario pour obtenir un format valide."
+                    )
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Erreur de format CSV lors de la lecture : {error_msg}"
+                )
+        
+        for row_num, row in enumerate(rows, start=2):  # start=2 car ligne 1 = headers
             try:
                 # Extraire les données (gérer les colonnes avec ou sans mapping)
                 def get_value(key: str) -> Optional[str]:

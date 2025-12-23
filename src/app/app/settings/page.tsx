@@ -213,7 +213,7 @@ export default function SettingsPage() {
       // Si pas encore de settings chargés mais qu'on a l'email de l'utilisateur, l'utiliser temporairement
       setCompanyEmail(user.email);
     }
-  }, [company, settings, primaryEmail, user?.email]);
+  }, [company, settings, primaryEmail, user?.email, token]);
 
   // État pour les paramètres de rendez-vous
   const [appointmentSettings, setAppointmentSettings] = useState<{
@@ -488,11 +488,15 @@ export default function SettingsPage() {
               // Synchroniser les deux previews
               setLogoPreview(blobUrl);
               setQuoteLogoPreview(blobUrl);
+            } else if (response.status === 404) {
+              // Logo n'existe pas encore (peut arriver si le serveur n'a pas encore sauvegardé)
+              // Ne pas logger d'erreur, c'est normal
+              logger.debug("Logo pas encore disponible après upload (404)");
             } else {
-              console.error("Erreur lors du chargement du logo après upload:", response.status, response.statusText);
+              logger.debug(`Erreur lors du chargement du logo après upload: ${response.status} ${response.statusText}`);
             }
           } catch (err) {
-            console.error("Erreur lors du chargement du logo après upload:", err);
+            logger.debug("Erreur réseau lors du chargement du logo après upload:", err);
           }
         }
         
@@ -574,7 +578,7 @@ export default function SettingsPage() {
               const currentSettings = settings?.settings || {};
               const companyInfo = ((currentSettings as any).company_info || {});
               
-              if (companyInfo.logo_path) {
+              if (companyInfo.logo_path && companyInfo.logo_path.trim()) {
                 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
                 const response = await fetch(`${API_URL}/companies/me/logo`, {
                   headers: {
@@ -589,8 +593,28 @@ export default function SettingsPage() {
                     URL.revokeObjectURL(logoPreview);
                   }
                   setLogoPreview(blobUrl);
+                  // Synchroniser aussi avec quoteLogoPreview
+                  if (quoteLogoPreview && quoteLogoPreview.startsWith("blob:")) {
+                    URL.revokeObjectURL(quoteLogoPreview);
+                  }
+                  setQuoteLogoPreview(blobUrl);
                 } else if (response.status === 404) {
-                  console.error(`Logo non trouvé après rechargement: ${response.status}, logo_path: ${companyInfo.logo_path}`);
+                  // Logo n'existe plus (fichier perdu) - gérer silencieusement
+                  logger.debug(`Logo non trouvé après rechargement (404), logo_path: ${companyInfo.logo_path}`);
+                  setLogoPreview((prev) => {
+                    if (prev && prev.startsWith("blob:")) {
+                      URL.revokeObjectURL(prev);
+                    }
+                    return null;
+                  });
+                  setQuoteLogoPreview((prev) => {
+                    if (prev && prev.startsWith("blob:")) {
+                      URL.revokeObjectURL(prev);
+                    }
+                    return null;
+                  });
+                } else {
+                  logger.debug(`Erreur lors du chargement du logo après rechargement: ${response.status}`);
                 }
               } else {
                 logger.debug("Pas de logo_path dans les settings après rechargement");

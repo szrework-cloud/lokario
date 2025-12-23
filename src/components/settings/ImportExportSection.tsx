@@ -61,19 +61,31 @@ export function ImportExportSection() {
 
       const clients = await response.json();
       
+      // Fonction pour échapper correctement les valeurs CSV
+      const escapeCsvValue = (value: any): string => {
+        if (value === null || value === undefined) return "";
+        const str = String(value);
+        // Si la valeur contient des guillemets, des virgules, ou des retours à la ligne, il faut la mettre entre guillemets
+        // et échapper les guillemets doubles
+        if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+      
       // Convertir en CSV avec tous les champs disponibles
       const headers = ["Nom", "Email", "Téléphone", "Adresse", "Ville", "Code postal", "Pays", "SIRET"];
       const csvRows = [
-        headers.join(","),
+        headers.map(escapeCsvValue).join(","),
         ...clients.map((client: any) => [
-          `"${client.name || ""}"`,
-          `"${client.email || ""}"`,
-          `"${client.phone || ""}"`,
-          `"${client.address || ""}"`,
-          `"${client.city || ""}"`,
-          `"${client.postal_code || ""}"`,
-          `"${client.country || ""}"`,
-          `"${client.siret || ""}"`
+          escapeCsvValue(client.name),
+          escapeCsvValue(client.email),
+          escapeCsvValue(client.phone),
+          escapeCsvValue(client.address),
+          escapeCsvValue(client.city),
+          escapeCsvValue(client.postal_code),
+          escapeCsvValue(client.country),
+          escapeCsvValue(client.siret)
         ].join(","))
       ];
       
