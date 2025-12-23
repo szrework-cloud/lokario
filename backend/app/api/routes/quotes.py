@@ -90,17 +90,21 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         from sqlalchemy import text
         
         # Requête SQL pour trouver le numéro maximum pour cette entreprise et cette année
+        # Utiliser bindparam pour s'assurer que les paramètres sont correctement bindés
+        from sqlalchemy import bindparam
+        
+        pattern = f"DEV-{current_year}-%"
         query = text("""
             SELECT number 
             FROM quotes 
             WHERE company_id = :company_id 
             AND number LIKE :pattern
-        """)
+        """).bindparams(
+            company_id=company_id,
+            pattern=pattern
+        )
         
-        result = db.execute(query, {
-            "company_id": company_id,
-            "pattern": f"DEV-{current_year}-%"
-        })
+        result = db.execute(query)
         
         quotes_numbers = [row[0] for row in result.fetchall()]
         
