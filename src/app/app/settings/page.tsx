@@ -883,6 +883,44 @@ export default function SettingsPage() {
                       >
                         Recadrer
                       </button>
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          if (!token) return;
+                          
+                          if (!confirm("Êtes-vous sûr de vouloir supprimer le logo ?")) {
+                            return;
+                          }
+                          
+                          try {
+                            const { apiDelete } = await import("@/lib/api");
+                            await apiDelete("/companies/me/logo", token);
+                            
+                            // Réinitialiser les previews
+                            if (logoPreview && logoPreview.startsWith("blob:")) {
+                              URL.revokeObjectURL(logoPreview);
+                            }
+                            setLogoPreview(null);
+                            if (quoteLogoPreview && quoteLogoPreview.startsWith("blob:")) {
+                              URL.revokeObjectURL(quoteLogoPreview);
+                            }
+                            setQuoteLogoPreview(null);
+                            setLogoFile(null);
+                            
+                            // Recharger les settings pour mettre à jour logo_path
+                            await reloadSettings();
+                            
+                            showToast("Logo supprimé avec succès", "success");
+                          } catch (err: any) {
+                            console.error("Erreur lors de la suppression du logo:", err);
+                            showToast(err.message || "Erreur lors de la suppression du logo", "error");
+                          }
+                        }}
+                        className="text-xs text-red-600 hover:text-red-700 underline font-medium"
+                      >
+                        Supprimer
+                      </button>
                     </div>
                   </div>
                 )}

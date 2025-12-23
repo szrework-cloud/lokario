@@ -1066,6 +1066,90 @@ async def get_company_logo(
         )
 
 
+@router.delete("/me/logo", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_company_logo(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Supprime le logo de l'entreprise depuis Supabase Storage ou stockage local.
+    Autorisé uniquement pour owner et super_admin.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Vérification du rôle
+    if current_user.role not in ("owner", "super_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions. Owner or super_admin role required.",
+        )
+    
+    if not current_user.company_id:
+        raise HTTPException(status_code=404, detail="User has no company")
+    
+    from app.db.models.company_settings import CompanySettings
+    from app.core.supabase_storage_service import (
+        delete_file as delete_from_supabase,
+        is_supabase_storage_configured
+    )
+    from pathlib import Path
+    
+    company_settings = db.query(CompanySettings).filter(
+        CompanySettings.company_id == current_user.company_id
+    ).first()
+    
+    if not company_settings:
+        raise HTTPException(status_code=404, detail="Company settings not found")
+    
+    company_info = company_settings.settings.get("company_info", {})
+    logo_path = company_info.get("logo_path")
+    
+    if not logo_path:
+        # Pas de logo à supprimer, retourner 204 quand même
+        return None
+    
+    # Supprimer le fichier depuis Supabase Storage si configuré
+    use_supabase = is_supabase_storage_configured() and (
+        logo_path.startswith(f"{current_user.company_id}/") or "/" in logo_path
+    )
+    
+    if use_supabase:
+        try:
+            logger.info(f"🗑️  Suppression du logo depuis Supabase Storage: {logo_path}")
+            deleted = delete_from_supabase(logo_path)
+            if deleted:
+                logger.info(f"✅ Logo supprimé de Supabase Storage: {logo_path}")
+            else:
+                logger.warning(f"⚠️  Logo non trouvé dans Supabase Storage: {logo_path}")
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de la suppression depuis Supabase Storage ({logo_path}): {e}")
+            # Continuer pour supprimer aussi du stockage local si présent
+    
+    # Supprimer aussi du stockage local si présent
+    try:
+        logo_path_normalized = logo_path.lstrip('/')
+        file_path = UPLOAD_DIR / logo_path_normalized
+        
+        if file_path.exists():
+            logger.info(f"🗑️  Suppression du logo depuis le stockage local: {file_path}")
+            file_path.unlink()
+            logger.info(f"✅ Logo supprimé du stockage local: {file_path}")
+    except Exception as e:
+        logger.warning(f"⚠️  Erreur lors de la suppression du stockage local ({logo_path}): {e}")
+    
+    # Supprimer le logo_path des settings
+    company_info.pop("logo_path", None)
+    company_info.pop("logo_crop_position", None)  # Supprimer aussi les paramètres de recadrage
+    
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(company_settings, "settings")
+    db.commit()
+    
+    logger.info(f"✅ Logo supprimé avec succès pour company_id={current_user.company_id}")
+    return None
+
+
 @router.get("/{company_id}/usage")
 def get_company_usage(
     company_id: int,
