@@ -108,8 +108,11 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         
         quotes_numbers = [row[0] for row in result.fetchall()]
         
+        # Utiliser print() en plus de logger pour garantir la visibilité
+        print(f"[QUOTE NUMBER] Devis trouvés pour company_id={company_id}, année={current_year}: {len(quotes_numbers)} devis")
         logger.info(f"[QUOTE NUMBER] Devis trouvés pour company_id={company_id}, année={current_year}: {len(quotes_numbers)} devis")
         if quotes_numbers:
+            print(f"[QUOTE NUMBER] Numéros existants pour company_id={company_id}: {quotes_numbers}")
             logger.info(f"[QUOTE NUMBER] Numéros existants pour company_id={company_id}: {quotes_numbers}")  # Afficher tous les numéros pour debug
         
         if quotes_numbers:
@@ -127,9 +130,11 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
                     logger.warning(f"[QUOTE NUMBER] Format de numéro invalide ignoré: {quote_number}")
                     continue
             next_number = max_number + 1
+            print(f"[QUOTE NUMBER] Numéros valides trouvés: {sorted(valid_numbers)}, maximum: {max_number}, prochain: {next_number:03d}")
             logger.info(f"[QUOTE NUMBER] Numéros valides trouvés: {sorted(valid_numbers)}, maximum: {max_number}, prochain: {next_number:03d}")
         else:
             next_number = 1
+            print(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
             logger.info(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
     
     # Boucle pour trouver un numéro disponible (gestion des race conditions)
@@ -177,6 +182,7 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         # Si la contrainte composite existe (count_company > 0), on doit aussi incrémenter
         if count_global == 0 and count_company == 0:
             # Numéro disponible, on peut l'utiliser
+            print(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1})")
             logger.info(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1})")
             return number
         
