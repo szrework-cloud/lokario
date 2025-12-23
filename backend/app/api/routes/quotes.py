@@ -174,7 +174,7 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
             return number
         
         # Numéro déjà utilisé, incrémenter et réessayer
-        logger.warning(f"[QUOTE NUMBER] Numéro {number} déjà utilisé (count={count}), incrémentation...")
+        logger.warning(f"[QUOTE NUMBER] Numéro {number} déjà utilisé (count_global={count_global}, count_company={count_company}), incrémentation...")
         next_number += 1
         attempt += 1
     
