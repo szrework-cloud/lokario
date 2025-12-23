@@ -125,7 +125,7 @@ export default function ClientDetailPage() {
             contactPhone: clientData.contactPhone,
             address: clientData.address,
             city: clientData.city,
-            postalCode: clientData.postal_code,
+            postalCode: clientData.postalCode,
             country: clientData.country,
             siret: clientData.siret,
             tags: clientData.tags,
