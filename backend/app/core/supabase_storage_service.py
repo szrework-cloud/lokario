@@ -70,12 +70,16 @@ def ensure_bucket_exists(bucket_name: Optional[str] = None) -> bool:
     
     try:
         # Vérifier si le bucket existe
+        logger.info(f"🔍 Vérification du bucket '{bucket}' dans Supabase Storage")
         buckets = client.storage.list_buckets()
+        bucket_names = [b.name for b in buckets]
+        logger.info(f"📦 Buckets existants: {bucket_names}")
         bucket_exists = any(b.name == bucket for b in buckets)
         
         if not bucket_exists:
             # Créer le bucket
-            client.storage.create_bucket(
+            logger.info(f"🔄 Création du bucket '{bucket}' dans Supabase Storage")
+            result = client.storage.create_bucket(
                 bucket,
                 options={
                     "public": False,  # Bucket privé (nécessite authentification)
@@ -83,13 +87,15 @@ def ensure_bucket_exists(bucket_name: Optional[str] = None) -> bool:
                     "allowed_mime_types": settings.ALLOWED_MIME_TYPES
                 }
             )
-            logger.info(f"✅ Bucket '{bucket}' créé dans Supabase Storage")
+            logger.info(f"✅ Bucket '{bucket}' créé dans Supabase Storage: {result}")
         else:
-            logger.debug(f"✅ Bucket '{bucket}' existe déjà")
+            logger.info(f"✅ Bucket '{bucket}' existe déjà")
         
         return True
     except Exception as e:
         logger.error(f"❌ Erreur lors de la vérification/création du bucket '{bucket}': {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 
@@ -136,6 +142,8 @@ def upload_file(
         file_like = io.BytesIO(file_content)
         
         # Upload du fichier
+        logger.info(f"🔄 Tentative d'upload vers Supabase Storage: bucket={settings.SUPABASE_STORAGE_BUCKET}, path={storage_path}, size={len(file_content)} bytes")
+        
         response = client.storage.from_(settings.SUPABASE_STORAGE_BUCKET).upload(
             path=storage_path,
             file=file_like,
@@ -145,15 +153,26 @@ def upload_file(
             }
         )
         
+        logger.info(f"📥 Réponse Supabase upload: {response}")
+        
+        # La réponse peut être un dict avec 'path' ou directement le path
         if response:
-            logger.info(f"✅ Fichier uploadé vers Supabase Storage: {storage_path}")
-            return storage_path
+            # Extraire le path de la réponse
+            if isinstance(response, dict):
+                uploaded_path = response.get('path') or response.get('id') or storage_path
+            else:
+                uploaded_path = storage_path
+            
+            logger.info(f"✅ Fichier uploadé vers Supabase Storage: {uploaded_path}")
+            return uploaded_path
         else:
-            logger.error(f"❌ Échec de l'upload vers Supabase Storage: {storage_path}")
+            logger.error(f"❌ Échec de l'upload vers Supabase Storage: {storage_path} - Réponse vide")
             return None
             
     except Exception as e:
         logger.error(f"❌ Erreur lors de l'upload vers Supabase Storage ({file_path}): {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 
