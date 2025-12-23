@@ -564,8 +564,9 @@ def import_user_data(
                         existing_client.country = client_data["country"]
                     if "siret" in client_data:
                         existing_client.siret = client_data["siret"]
-                    if "vat_number" in client_data:
-                        existing_client.vat_number = client_data["vat_number"]
+                    # vat_number n'existe pas dans le modèle Client, on l'ignore
+                    # if "vat_number" in client_data:
+                    #     existing_client.vat_number = client_data["vat_number"]
                     if "notes" in client_data:
                         existing_client.notes = client_data["notes"]
                 else:
