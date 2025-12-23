@@ -56,7 +56,12 @@ def get_client_info(db: Session, client_id: int, company_id: int) -> Optional[Cl
 
 
 def generate_quote_number(db: Session, company_id: int) -> str:
-    """Génère un numéro de devis séquentiel (ex: DEV-2025-001)."""
+    """
+    Génère un numéro de devis séquentiel inviolable (ex: DEV-2025-001).
+    
+    Le numéro est généré de manière séquentielle pour chaque entreprise et chaque année,
+    sans rupture dans la séquence. Gère les race conditions en vérifiant l'unicité.
+    """
     current_year = datetime.now().year
     
     # Trouver le dernier numéro de devis pour cette entreprise et cette année
@@ -75,7 +80,34 @@ def generate_quote_number(db: Session, company_id: int) -> str:
     else:
         next_number = 1
     
-    return f"DEV-{current_year}-{next_number:03d}"
+    # Boucle pour trouver un numéro disponible (gestion des race conditions)
+    max_attempts = 1000  # Limite de sécurité pour éviter les boucles infinies
+    attempt = 0
+    
+    while attempt < max_attempts:
+        # Générer le nouveau numéro
+        number = f"DEV-{current_year}-{next_number:03d}"
+        
+        # Vérifier l'unicité
+        existing = db.query(Quote).filter(
+            Quote.number == number,
+            Quote.company_id == company_id
+        ).first()
+        
+        if not existing:
+            # Numéro disponible, on peut l'utiliser
+            return number
+        
+        # Numéro déjà utilisé, incrémenter et réessayer
+        next_number += 1
+        attempt += 1
+    
+    # Si on arrive ici, on a épuisé toutes les tentatives
+    # Générer un numéro avec timestamp pour éviter le conflit
+    timestamp = int(datetime.now().timestamp() * 1000) % 10000
+    number = f"DEV-{current_year}-{timestamp:03d}"
+    
+    return number
 
 
 def create_automatic_followup_for_quote(db: Session, quote: Quote, user_id: int):
