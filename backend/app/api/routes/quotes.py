@@ -65,18 +65,23 @@ def generate_quote_number(db: Session, company_id: int) -> str:
     current_year = datetime.now().year
     
     # Trouver le dernier numéro de devis pour cette entreprise et cette année
-    last_quote = db.query(Quote).filter(
+    # Récupérer tous les devis de l'année pour trouver le numéro le plus élevé
+    quotes_this_year = db.query(Quote).filter(
         Quote.company_id == company_id,
         Quote.number.like(f"DEV-{current_year}-%")
-    ).order_by(Quote.number.desc()).first()
+    ).all()
     
-    if last_quote:
-        # Extraire le numéro séquentiel
-        try:
-            last_number = int(last_quote.number.split("-")[-1])
-            next_number = last_number + 1
-        except (ValueError, IndexError):
-            next_number = 1
+    if quotes_this_year:
+        # Extraire tous les numéros et trouver le maximum
+        max_number = 0
+        for quote in quotes_this_year:
+            try:
+                number_part = int(quote.number.split("-")[-1])
+                if number_part > max_number:
+                    max_number = number_part
+            except (ValueError, IndexError):
+                continue
+        next_number = max_number + 1
     else:
         next_number = 1
     
