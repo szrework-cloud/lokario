@@ -2704,13 +2704,30 @@ export default function SettingsPage() {
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-sm font-medium text-[#0F172A]">
-                                {member.full_name || member.email}
-                              </p>
-                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                                {member.role === "owner" ? "Propriétaire" : member.role === "super_admin" ? "Admin" : "Utilisateur"}
-                              </span>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-[#0F172A]">
+                                  {member.full_name || member.email}
+                                </p>
+                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                                  {member.role === "owner" ? "Propriétaire" : member.role === "super_admin" ? "Admin" : "Utilisateur"}
+                                </span>
+                              </div>
+                              {/* Bouton de suppression (uniquement pour les owners qui suppriment des users) */}
+                              {member.role === "user" && (user?.role === "owner" || user?.role === "super_admin") && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteConfirmModal({
+                                    isOpen: true,
+                                    userId: member.id,
+                                    userName: member.full_name || member.email,
+                                  })}
+                                  className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Supprimer cet utilisateur"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                             <p className="text-xs text-[#64748B]">{member.email}</p>
                             
@@ -2763,22 +2780,6 @@ export default function SettingsPage() {
                               </p>
                             )}
                           </div>
-                          
-                          {/* Bouton de suppression (uniquement pour les owners qui suppriment des users) */}
-                          {member.role === "user" && (user?.role === "owner" || user?.role === "super_admin") && (
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirmModal({
-                                isOpen: true,
-                                userId: member.id,
-                                userName: member.full_name || member.email,
-                              })}
-                              className="ml-4 p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Supprimer cet utilisateur"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
                         </div>
                       </CardContent>
                     </Card>
