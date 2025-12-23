@@ -93,6 +93,14 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         # IMPORTANT: Filtrer STRICTEMENT par company_id pour que chaque entreprise commence à 1
         pattern = f"DEV-{current_year}-%"
         
+        # Debug: Vérifier le company_id reçu
+        print(f"[QUOTE NUMBER DEBUG] company_id reçu: {company_id} (type: {type(company_id)})")
+        print(f"[QUOTE NUMBER DEBUG] pattern: {pattern}")
+        
+        # Vérifier d'abord combien de devis existent pour cette entreprise (sans filtre sur le numéro)
+        total_quotes_for_company = db.query(Quote).filter(Quote.company_id == company_id).count()
+        print(f"[QUOTE NUMBER DEBUG] Total devis pour company_id={company_id}: {total_quotes_for_company}")
+        
         # Utiliser l'ORM pour être sûr que le filtrage fonctionne correctement
         quotes = db.query(Quote).filter(
             Quote.company_id == company_id,
@@ -100,10 +108,21 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         ).all()
         
         # Debug: afficher les devis trouvés
-        print(f"[QUOTE NUMBER DEBUG] Requête ORM pour company_id={company_id}, pattern={pattern}")
-        print(f"[QUOTE NUMBER DEBUG] Devis trouvés: {len(quotes)}")
+        print(f"[QUOTE NUMBER DEBUG] Devis trouvés avec pattern {pattern}: {len(quotes)}")
         for quote in quotes:
-            print(f"[QUOTE NUMBER DEBUG]   - ID: {quote.id}, Number: {quote.number}, Company ID: {quote.company_id}")
+            print(f"[QUOTE NUMBER DEBUG]   - ID: {quote.id}, Number: {quote.number}, Company ID: {quote.company_id} (vérifié: {quote.company_id == company_id})")
+        
+        # Vérification supplémentaire: compter avec une requête SQL directe pour comparer
+        from sqlalchemy import text
+        sql_check = text("""
+            SELECT COUNT(*) 
+            FROM quotes 
+            WHERE company_id = :company_id 
+            AND number LIKE :pattern
+        """)
+        sql_result = db.execute(sql_check, {"company_id": company_id, "pattern": pattern})
+        sql_count = sql_result.scalar()
+        print(f"[QUOTE NUMBER DEBUG] Vérification SQL directe: {sql_count} devis trouvés")
         
         quotes_numbers = [quote.number for quote in quotes]
         
