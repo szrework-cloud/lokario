@@ -852,6 +852,7 @@ export default function SettingsPage() {
                           objectFit: 'cover',
                           width: '100%',
                           height: '100%',
+                          backgroundColor: '#FFFFFF',
                         }}
                         onError={(e) => {
                           // Si l'image ne charge pas, masquer l'erreur
@@ -2278,6 +2279,7 @@ export default function SettingsPage() {
                           src={quoteLogoPreview}
                           alt="Logo"
                           className="h-16 w-auto object-contain"
+                          style={{ backgroundColor: '#FFFFFF' }}
                         />
                         <button
                           type="button"

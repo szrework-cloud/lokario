@@ -391,216 +391,20 @@ async def upload_company_logo(
     
     # Lire le contenu du fichier
     file_content = await file.read()
-    original_size = len(file_content)
-    
-    # Redimensionner l'image si nécessaire, mais préserver le format et la transparence
+    file_size = len(file_content)
     file_ext = original_file_ext  # Garder le format original
-    try:
-        from PIL import Image  # pyright: ignore[reportMissingImports]
-        import io
-        
-        # Ouvrir l'image depuis les bytes
-        image = Image.open(io.BytesIO(file_content))
-        original_mode = image.mode
-        
-        # Détecter la transparence de manière plus robuste
-        has_transparency = False
-        if image.mode in ('RGBA', 'LA'):
-            has_transparency = True
-        elif image.mode == 'P':
-            # Pour les images en mode palette, vérifier si elles ont de la transparence
-            if 'transparency' in image.info:
-                has_transparency = True
-            else:
-                # Vérifier si la palette contient des pixels transparents
-                try:
-                    image_rgba = image.convert('RGBA')
-                    # Vérifier si au moins un pixel a de l'alpha < 255
-                    alpha_channel = image_rgba.split()[-1]
-                    if alpha_channel.getextrema()[0] < 255:
-                        has_transparency = True
-                except:
-                    pass
-        
-        # Redimensionner si l'image est trop grande (max 800x800 pour les logos)
-        # Préserver le mode avec transparence lors du redimensionnement
-        max_dimension = 800
-        if image.width > max_dimension or image.height > max_dimension:
-            # Calculer les nouvelles dimensions en gardant le ratio
-            ratio = min(max_dimension / image.width, max_dimension / image.height)
-            new_width = int(image.width * ratio)
-            new_height = int(image.height * ratio)
-            # Si l'image a de la transparence, s'assurer qu'elle est en RGBA avant redimensionnement
-            if has_transparency and image.mode != 'RGBA':
-                if image.mode == 'P':
-                    image = image.convert('RGBA')
-                elif image.mode == 'LA':
-                    # Convertir LA en RGBA
-                    rgb_image = Image.new('RGB', image.size, (255, 255, 255))
-                    rgb_image.paste(image.convert('RGB'))
-                    alpha = image.split()[-1] if len(image.split()) > 1 else None
-                    if alpha:
-                        image = Image.merge('RGBA', (*rgb_image.split(), alpha))
-                    else:
-                        image = rgb_image.convert('RGBA')
-            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        
-        # Sauvegarder dans le format original en préservant la transparence
-        output = io.BytesIO()
-        
-        if original_file_ext.lower() in ['.png', '.PNG']:
-            # Pour PNG, préserver la transparence
-            if has_transparency:
-                # Garder en PNG avec transparence
-                # S'assurer que l'image est en mode RGBA
-                if image.mode != 'RGBA':
-                    if image.mode == 'P':
-                        image = image.convert('RGBA')
-                    elif image.mode == 'LA':
-                        rgb_image = Image.new('RGB', image.size, (255, 255, 255))
-                        rgb_image.paste(image.convert('RGB'))
-                        alpha = image.split()[-1] if len(image.split()) > 1 else None
-                        if alpha:
-                            image = Image.merge('RGBA', (*rgb_image.split(), alpha))
-                        else:
-                            image = rgb_image.convert('RGBA')
-                image.save(output, format='PNG', optimize=True)
-                file_ext = '.png'
-            else:
-                # PNG sans transparence, convertir en JPEG pour réduire la taille
-                # Créer un fond blanc avant conversion pour éviter le fond noir
-                if image.mode in ('RGBA', 'LA', 'P'):
-                    # Créer un fond blanc
-                    rgb_image = Image.new('RGB', image.size, (255, 255, 255))
-                    if image.mode == 'P':
-                        image = image.convert('RGBA')
-                    # Coller l'image sur le fond blanc
-                    if image.mode == 'RGBA':
-                        rgb_image.paste(image, mask=image.split()[-1])  # Utiliser le canal alpha comme masque
-                    else:
-                        rgb_image.paste(image)
-                    image = rgb_image
-                elif image.mode != 'RGB':
-                    # Pour tout autre mode, créer un fond blanc par sécurité
-                    rgb_image = Image.new('RGB', image.size, (255, 255, 255))
-                    rgb_image.paste(image.convert('RGB'))
-                    image = rgb_image
-                # Essayer différentes qualités JPEG
-                quality = 85
-                for q in range(85, 40, -10):
-                    output.seek(0)
-                    output.truncate(0)
-                    image.save(output, format='JPEG', quality=q, optimize=True)
-                    if len(output.getvalue()) <= 2 * 1024 * 1024:  # 2MB
-                        quality = q
-                        break
-                file_ext = '.jpg'
-        elif original_file_ext.lower() in ['.jpg', '.jpeg', '.JPG', '.JPEG']:
-            # Pour JPEG, optimiser la qualité
-            # Créer un fond blanc si l'image a de la transparence
-            if image.mode in ('RGBA', 'LA', 'P'):
-                rgb_image = Image.new('RGB', image.size, (255, 255, 255))
-                if image.mode == 'P':
-                    image = image.convert('RGBA')
-                if image.mode == 'RGBA':
-                    rgb_image.paste(image, mask=image.split()[-1])
-                else:
-                    rgb_image.paste(image)
-                image = rgb_image
-            elif image.mode != 'RGB':
-                image = image.convert('RGB')
-            quality = 85
-            for q in range(85, 40, -10):
-                output.seek(0)
-                output.truncate(0)
-                image.save(output, format='JPEG', quality=q, optimize=True)
-                if len(output.getvalue()) <= 2 * 1024 * 1024:  # 2MB
-                    quality = q
-                    break
-            file_ext = '.jpg'
-        else:
-            # Format non supporté, utiliser l'original
-            output.write(file_content)
-        
-        # Si même après optimisation c'est trop gros, réduire encore la taille
-        if len(output.getvalue()) > 2 * 1024 * 1024:
-            max_dimension = 600
-            if image.width > max_dimension or image.height > max_dimension:
-                ratio = min(max_dimension / image.width, max_dimension / image.height)
-                new_width = int(image.width * ratio)
-                new_height = int(image.height * ratio)
-                image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            
-            output.seek(0)
-            output.truncate(0)
-            if file_ext == '.png' and has_transparency:
-                image.save(output, format='PNG', optimize=True)
-            else:
-                # Créer un fond blanc avant conversion pour éviter le fond noir
-                if image.mode in ('RGBA', 'LA', 'P'):
-                    rgb_image = Image.new('RGB', image.size, (255, 255, 255))
-                    if image.mode == 'P':
-                        image = image.convert('RGBA')
-                    if image.mode == 'RGBA':
-                        rgb_image.paste(image, mask=image.split()[-1])
-                    else:
-                        rgb_image.paste(image)
-                    image = rgb_image
-                elif image.mode != 'RGB':
-                    image = image.convert('RGB')
-                image.save(output, format='JPEG', quality=75, optimize=True)
-                file_ext = '.jpg'
-        
-        file_content = output.getvalue()
-        file_size = len(file_content)
-        
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Logo processed: {original_size} bytes -> {file_size} bytes (format: {file_ext})")
-        
-    except ImportError:
-        # Si Pillow n'est pas disponible, utiliser le fichier original
-        file_size = original_size
-        file_ext = original_file_ext
-        max_size = 2 * 1024 * 1024  # 2MB
-        if file_size > max_size:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File too large. Maximum size is 2MB. Please install Pillow for automatic compression."
-            )
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Error compressing image, using original: {str(e)}")
-        file_size = original_size
-        file_ext = original_file_ext
-        # Vérifier quand même la taille
-        max_size = 2 * 1024 * 1024  # 2MB
-        if file_size > max_size:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File too large. Maximum size is 2MB"
-            )
     
-    # Vérifier le MIME type réel (après compression, ce sera toujours JPEG)
-    try:
-        import filetype  # pyright: ignore[reportMissingImports]
-        detected_type = filetype.guess(file_content)
-        if detected_type:
-            real_mime_type = detected_type.mime
-            # Après compression, on accepte uniquement JPEG
-            allowed_mime_types = ["image/jpeg"]
-            if real_mime_type not in allowed_mime_types:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"File type mismatch. Detected MIME type '{real_mime_type}' is not allowed."
-                )
-    except ImportError:
-        # Si filetype n'est pas disponible, on skip cette vérification
-        pass
-    except Exception:
-        # Ignorer les autres erreurs de filetype
-        pass
+    # Vérifier uniquement la taille maximale (pas de conversion)
+    max_size = 10 * 1024 * 1024  # 10MB
+    if file_size > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large. Maximum size is 10MB."
+        )
+    
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logo uploaded without processing: {file_size} bytes (format: {file_ext})")
     
     # Générer un nom de fichier unique
     unique_filename = f"logo_{uuid.uuid4()}{file_ext}"
@@ -1045,8 +849,13 @@ async def get_company_logo(
             file_content = download_from_supabase(logo_path)
             if file_content:
                 logger.info(f"✅ Logo successfully downloaded from Supabase Storage: {logo_path}")
-                # Déterminer le type MIME
-                media_type = "image/png" if logo_path.endswith(".png") else "image/jpeg"
+                # Déterminer le type MIME selon l'extension
+                if logo_path.lower().endswith(".png"):
+                    media_type = "image/png"
+                elif logo_path.lower().endswith((".jpg", ".jpeg")):
+                    media_type = "image/jpeg"
+                else:
+                    media_type = "image/png"  # Par défaut
                 return Response(
                     content=file_content,
                     media_type=media_type,
@@ -1117,9 +926,17 @@ async def get_company_logo(
                             db.rollback()
                     raise HTTPException(status_code=404, detail="Logo file not found")
         
+        # Déterminer le type MIME selon l'extension
+        if logo_path.lower().endswith(".png"):
+            media_type = "image/png"
+        elif logo_path.lower().endswith((".jpg", ".jpeg")):
+            media_type = "image/jpeg"
+        else:
+            media_type = "image/png"  # Par défaut
+        
         return FileResponse(
             path=str(file_path),
-            media_type="image/jpeg" if logo_path.endswith((".jpg", ".jpeg")) else "image/png"
+            media_type=media_type
         )
 
 
