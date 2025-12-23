@@ -195,13 +195,13 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         
         logger.debug(f"[QUOTE NUMBER] Vérification unicité: {number} -> count_global={count_global}, count_company={count_company}")
         
-        # Si la contrainte globale existe encore (count_global > 0 mais count_company = 0),
-        # on doit incrémenter car la contrainte globale bloquera
-        # Si la contrainte composite existe (count_company > 0), on doit aussi incrémenter
-        if count_global == 0 and count_company == 0:
-            # Numéro disponible, on peut l'utiliser
-            print(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1})")
-            logger.info(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1})")
+        # IMPORTANT: Avec la contrainte composite (company_id, number), on ne vérifie QUE count_company
+        # Chaque entreprise peut avoir le même numéro (ex: DEV-2025-001 pour company_id=1 et company_id=6)
+        # On ignore count_global car il n'est plus pertinent avec la contrainte composite
+        if count_company == 0:
+            # Numéro disponible pour cette entreprise, on peut l'utiliser
+            print(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1}) - disponible pour company_id={company_id}")
+            logger.info(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1}) - disponible pour company_id={company_id}")
             return number
         
         # Numéro déjà utilisé, incrémenter et réessayer
