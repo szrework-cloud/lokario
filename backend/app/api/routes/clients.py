@@ -13,6 +13,18 @@ from app.db.models.user import User
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 
+def clean_control_characters(text: str) -> str:
+    """
+    Supprime les caractères de contrôle problématiques (NUL, etc.) d'une chaîne.
+    """
+    if not text:
+        return text
+    # Supprimer les caractères NUL et autres caractères de contrôle (0x00-0x1F sauf \n, \r, \t)
+    # Garder seulement les caractères imprimables et les retours à la ligne normaux
+    cleaned = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
+    return cleaned
+
+
 def sanitize_csv_text(text: str) -> str:
     """
     Nettoie le texte CSV en corrigeant les problèmes de format, notamment les retours à la ligne
@@ -25,8 +37,8 @@ def sanitize_csv_text(text: str) -> str:
     if len(lines) < 2:
         return text
     
-    # Lire l'en-tête
-    header = lines[0]
+    # Lire l'en-tête et nettoyer les caractères de contrôle
+    header = clean_control_characters(lines[0])
     sanitized_lines = [header]
     
     # Compter le nombre de colonnes attendues
@@ -40,7 +52,7 @@ def sanitize_csv_text(text: str) -> str:
     # Traiter les lignes de données
     i = 1
     while i < len(lines):
-        line = lines[i].rstrip('\r')
+        line = clean_control_characters(lines[i].rstrip('\r'))
         
         if not line.strip():
             i += 1
@@ -327,6 +339,9 @@ async def import_clients_csv(
         # Normaliser les retours à la ligne (unifier en \n)
         text_normalized = text.replace('\r\n', '\n').replace('\r', '\n')
         
+        # Supprimer les caractères de contrôle problématiques (NUL, etc.)
+        text_normalized = clean_control_characters(text_normalized)
+        
         # Nettoyer le CSV pour corriger les problèmes de format (retours à la ligne dans les champs non quotés)
         try:
             text_sanitized = sanitize_csv_text(text_normalized)
@@ -413,8 +428,13 @@ async def import_clients_csv(
                 # Extraire les données (gérer les colonnes avec ou sans mapping)
                 def get_value(key: str) -> Optional[str]:
                     mapped_key = column_mapping.get(key, key)
-                    value = row.get(mapped_key, row.get(key, "")).strip()
-                    return value if value else None
+                    value = row.get(mapped_key, row.get(key, ""))
+                    if value:
+                        # Nettoyer les caractères de contrôle problématiques
+                        value = clean_control_characters(str(value))
+                        value = value.strip()
+                        return value if value else None
+                    return None
                 
                 name = get_value("Nom")
                 email = get_value("Email")

@@ -447,9 +447,11 @@ export default function SettingsPage() {
       setIsSaving(true);
       try {
         // Uploader le logo si un nouveau fichier a été sélectionné (synchroniser avec Facturation)
+        let uploadedLogoPath: string | null = null;
         if (logoFile && token) {
           const { apiUploadFile } = await import("@/lib/api");
-          await apiUploadFile("/companies/me/logo", logoFile, token);
+          const uploadResponse = await apiUploadFile<{ logo_path: string }>("/companies/me/logo", logoFile, token);
+          uploadedLogoPath = uploadResponse.logo_path;
           
           // Libérer les anciennes URLs blob immédiatement pour forcer le rechargement
           if (logoPreview) {
@@ -510,18 +512,21 @@ export default function SettingsPage() {
         const refreshedSettings = settings?.settings || {};
         const existingCompanyInfo = ((refreshedSettings as any).company_info || {});
         
+        // Utiliser le logo_path de l'upload si disponible, sinon celui des settings
+        const logoPathToUse = uploadedLogoPath || existingCompanyInfo.logo_path;
+        
         // Log pour debug
-        logger.debug("Sauvegarde settings - logo_path existant:", existingCompanyInfo.logo_path);
+        logger.debug("Sauvegarde settings - logo_path:", logoPathToUse, "uploaded:", uploadedLogoPath, "existing:", existingCompanyInfo.logo_path);
         
         // Synchroniser le logo_path dans quote_design aussi si présent dans company_info
         const existingBilling = ((refreshedSettings as any).billing || {});
         const existingQuoteDesign = existingBilling.quote_design || {};
-        const logoPathToSync = existingCompanyInfo.logo_path;
+        const logoPathToSync = logoPathToUse;
         
         const updatedSettings = {
           ...refreshedSettings,
           company_info: {
-            ...existingCompanyInfo, // Préserver toutes les valeurs existantes (dont logo_path)
+            ...existingCompanyInfo, // Préserver toutes les valeurs existantes
             email: companyEmail || null,
             phone: companyPhone || null,
             address: companyAddress || null,
@@ -534,27 +539,18 @@ export default function SettingsPage() {
             vat_number: companyVatNumber || null,
             timezone: companyTimezone || "Europe/Paris",
             logo_crop_position: cropPosition, // Sauvegarder les paramètres de recadrage
-            // logo_path est préservé depuis existingCompanyInfo
+            // Utiliser le logo_path de l'upload si disponible, sinon préserver l'existant
+            ...(logoPathToUse ? { logo_path: logoPathToUse } : {}),
           },
           billing: {
             ...existingBilling,
             quote_design: {
               ...existingQuoteDesign,
-              // Synchroniser le logo_path dans quote_design si présent dans company_info
+              // Synchroniser le logo_path dans quote_design si présent
               ...(logoPathToSync ? { logo_path: logoPathToSync } : {}),
             },
           },
         };
-        
-        // Vérifier que logo_path est bien préservé
-        if (existingCompanyInfo.logo_path && !updatedSettings.company_info.logo_path) {
-          console.error("ERREUR: logo_path perdu lors de la sauvegarde!");
-          updatedSettings.company_info.logo_path = existingCompanyInfo.logo_path;
-          // Synchroniser aussi dans quote_design
-          if (!updatedSettings.billing.quote_design.logo_path) {
-            updatedSettings.billing.quote_design.logo_path = existingCompanyInfo.logo_path;
-          }
-        }
         
         await saveSettings(updatedSettings);
         
