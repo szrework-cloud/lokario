@@ -249,7 +249,7 @@ export function ImportExportSection() {
         title="Format CSV pour l'import de clients"
         size="lg"
       >
-        <div className="w-full space-y-6 px-4 py-4">
+        <div className="w-full space-y-6 px-3 py-3">
           {/* Instructions */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start gap-3">

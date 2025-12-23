@@ -59,7 +59,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
               </div>
             </div>
           </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center p-4">{children}</CardContent>
+          <CardContent className="flex flex-col items-center justify-center p-3">{children}</CardContent>
         </Card>
       </div>
     </div>
