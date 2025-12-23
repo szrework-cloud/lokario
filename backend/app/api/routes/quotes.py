@@ -134,26 +134,41 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         number = f"DEV-{current_year}-{next_number:03d}"
         
         # Vérifier l'unicité avec une requête SQL directe
-        # Utiliser une transaction isolée pour s'assurer de voir les données commitées
+        # IMPORTANT: Si la contrainte globale ix_quotes_number existe encore (migration non appliquée),
+        # on doit vérifier l'unicité globale, pas seulement par entreprise
         from sqlalchemy import text
         
-        check_query = text("""
+        # D'abord, vérifier si la contrainte globale existe encore
+        # En vérifiant si un numéro existe globalement (pas seulement pour cette entreprise)
+        check_query_global = text("""
+            SELECT COUNT(*) 
+            FROM quotes 
+            WHERE number = :number
+        """)
+        
+        result_global = db.execute(check_query_global, {"number": number})
+        count_global = result_global.scalar()
+        
+        # Vérifier aussi pour cette entreprise spécifique (pour la contrainte composite)
+        check_query_company = text("""
             SELECT COUNT(*) 
             FROM quotes 
             WHERE company_id = :company_id 
             AND number = :number
         """)
         
-        result = db.execute(check_query, {
+        result_company = db.execute(check_query_company, {
             "company_id": company_id,
             "number": number
         })
+        count_company = result_company.scalar()
         
-        count = result.scalar()
+        logger.debug(f"[QUOTE NUMBER] Vérification unicité: {number} -> count_global={count_global}, count_company={count_company}")
         
-        logger.debug(f"[QUOTE NUMBER] Vérification unicité: {number} -> count={count}")
-        
-        if count == 0:
+        # Si la contrainte globale existe encore (count_global > 0 mais count_company = 0),
+        # on doit incrémenter car la contrainte globale bloquera
+        # Si la contrainte composite existe (count_company > 0), on doit aussi incrémenter
+        if count_global == 0 and count_company == 0:
             # Numéro disponible, on peut l'utiliser
             logger.info(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1})")
             return number
@@ -653,9 +668,22 @@ def create_quote(
                     
                     if retry_count >= max_retries:
                         logger.error(f"[QUOTE CREATE] Échec après {max_retries} tentatives de génération de numéro unique")
+                        # Vérifier si c'est la contrainte globale qui cause le problème
+                        if "ix_quotes_number" in error_str:
+                            detail = (
+                                "Impossible de générer un numéro de devis unique. "
+                                "La contrainte globale 'ix_quotes_number' existe encore dans la base de données. "
+                                "La migration doit être appliquée pour permettre à chaque entreprise d'avoir ses propres numéros de devis. "
+                                "Exécutez: alembic upgrade head"
+                            )
+                        else:
+                            detail = (
+                                "Impossible de générer un numéro de devis unique après plusieurs tentatives. "
+                                "Veuillez réessayer ou contacter le support."
+                            )
                         raise HTTPException(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Impossible de générer un numéro de devis unique après plusieurs tentatives. Veuillez réessayer."
+                            detail=detail
                         )
                     # Continuer la boucle pour réessayer
                     continue
