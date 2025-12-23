@@ -4,11 +4,14 @@ from typing import List, Optional
 import csv
 import io
 import re
+import logging
 from app.db.session import get_db
 from app.db.models.client import Client
 from app.api.schemas.client import ClientCreate, ClientUpdate, ClientRead, ClientWithStats
 from app.api.deps import get_current_active_user
 from app.db.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -343,23 +346,64 @@ async def import_clients_csv(
         # Lire le contenu du fichier
         content = await file.read()
         
+        # Détecter si c'est un fichier Excel/Numbers (format binaire) plutôt qu'un CSV texte
+        # Les fichiers Excel/Numbers commencent souvent par des signatures binaires spécifiques
+        excel_signatures = [
+            b'PK\x03\x04',  # ZIP/Excel (.xlsx)
+            b'\xd0\xcf\x11\xe0',  # OLE2/Excel (.xls)
+            b'PK\x05\x06',  # ZIP (Numbers peut utiliser ZIP)
+        ]
+        
+        is_binary = any(content.startswith(sig) for sig in excel_signatures)
+        
+        # Vérifier aussi si le fichier contient beaucoup de caractères non-textuels
+        if not is_binary:
+            # Compter les caractères non-textuels (hors ASCII imprimable, \n, \r, \t)
+            non_text_count = sum(1 for b in content[:1000] if b < 32 and b not in [9, 10, 13])
+            if non_text_count > 50:  # Si plus de 5% de caractères non-textuels dans les 1000 premiers bytes
+                is_binary = True
+        
+        if is_binary:
+            logger.error(f"[CSV Import] Fichier détecté comme binaire (Excel/Numbers), pas un CSV texte")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Le fichier semble être un fichier Excel ou Numbers, pas un fichier CSV texte. "
+                    "Veuillez exporter votre fichier en format CSV depuis Excel/Numbers : "
+                    "Fichier > Exporter > CSV (ou Format CSV)."
+                )
+            )
+        
+        logger.info(f"[CSV Import] Début import: {file.filename} ({len(content) / (1024*1024):.2f} MB)")
+        logger.info(f"[CSV Import] Premiers 200 bytes (hex): {content[:200].hex()}")
+        logger.info(f"[CSV Import] Premiers 200 bytes (repr): {repr(content[:200])}")
+        
         # Décoder en UTF-8 (gérer BOM si présent)
         try:
             text = content.decode('utf-8-sig')  # utf-8-sig gère le BOM
+            logger.info(f"[CSV Import] Décodage UTF-8-sig réussi")
         except UnicodeDecodeError:
             try:
                 text = content.decode('latin-1')
+                logger.info(f"[CSV Import] Décodage Latin-1 réussi")
             except UnicodeDecodeError:
+                logger.error(f"[CSV Import] Impossible de décoder le fichier (ni UTF-8, ni Latin-1)")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Impossible de décoder le fichier. Utilisez UTF-8 ou Latin-1."
                 )
+        
+        # Log les premiers caractères du texte décodé
+        logger.info(f"[CSV Import] Premiers 500 caractères du texte décodé: {repr(text[:500])}")
         
         # Normaliser les retours à la ligne (unifier en \n)
         text_normalized = text.replace('\r\n', '\n').replace('\r', '\n')
         
         # Supprimer les caractères de contrôle problématiques (NUL, etc.)
         text_normalized = clean_control_characters(text_normalized)
+        
+        logger.info(f"[CSV Import] Texte normalisé - longueur: {len(text_normalized)} caractères")
+        logger.info(f"[CSV Import] Premiers 500 caractères après normalisation: {repr(text_normalized[:500])}")
         
         # Nettoyer le CSV pour corriger les problèmes de format (retours à la ligne dans les champs non quotés)
         try:
@@ -402,8 +446,31 @@ async def import_clients_csv(
         expected_columns = ["Nom", "Email", "Téléphone", "Adresse", "Ville", "Code postal", "Pays", "SIRET"]
         reader_columns = csv_reader.fieldnames or []
         
-        # Log pour debug (utiliser print pour l'instant)
-        print(f"[CSV Import] Colonnes trouvées dans le fichier: {reader_columns}")
+        logger.info(f"[CSV Import] Colonnes trouvées dans le fichier: {reader_columns}")
+        logger.info(f"[CSV Import] Nombre de colonnes: {len(reader_columns) if reader_columns else 0}")
+        
+        # Vérifier si les colonnes semblent corrompues (contiennent beaucoup de caractères non-ASCII imprimables)
+        if reader_columns:
+            corrupted = False
+            for col in reader_columns:
+                if col:
+                    # Compter les caractères non-ASCII imprimables
+                    non_printable = sum(1 for c in col if ord(c) < 32 or ord(c) > 126)
+                    if non_printable > len(col) * 0.3:  # Si plus de 30% de caractères non-ASCII imprimables
+                        corrupted = True
+                        logger.error(f"[CSV Import] Colonne corrompue détectée: {repr(col[:100])}")
+                        break
+            
+            if corrupted:
+                logger.error(f"[CSV Import] Les colonnes semblent corrompues. Le fichier n'est probablement pas un CSV texte valide.")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "Le fichier CSV semble corrompu ou n'est pas un fichier CSV texte valide. "
+                        "Si vous avez exporté depuis Excel ou Numbers, assurez-vous d'utiliser "
+                        "'Fichier > Exporter > CSV' et non simplement renommer le fichier."
+                    )
+                )
         
         # Mapper les colonnes (gérer les variations de noms)
         column_mapping = {}
@@ -424,12 +491,27 @@ async def import_clients_csv(
                 if i < len(expected_columns):
                     column_mapping[expected_columns[i]] = col
         
-        print(f"[CSV Import] Mapping des colonnes: {column_mapping}")
+        logger.info(f"[CSV Import] Mapping des colonnes: {column_mapping}")
+        
+        if not column_mapping:
+            logger.warning(f"[CSV Import] Aucune colonne n'a pu être mappée. Colonnes du fichier: {reader_columns}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Aucune colonne attendue n'a été trouvée dans le fichier. "
+                    f"Colonnes trouvées: {', '.join(reader_columns[:10]) if reader_columns else 'Aucune'}. "
+                    f"Colonnes attendues: {', '.join(expected_columns)}"
+                )
+            )
         
         # Traiter chaque ligne
         try:
             all_rows = list(csv_reader)  # Lire toutes les lignes d'un coup pour détecter les erreurs de format tôt
-            print(f"[CSV Import] Nombre total de lignes lues: {len(all_rows)}")
+            logger.info(f"[CSV Import] Nombre total de lignes lues: {len(all_rows)}")
+            
+            # Log la première ligne pour debug
+            if all_rows:
+                logger.info(f"[CSV Import] Première ligne de données: {dict(list(all_rows[0].items())[:5])}")
             
             # Filtrer les lignes complètement vides (toutes les valeurs sont vides ou None)
             rows = []
@@ -443,7 +525,13 @@ async def import_clients_csv(
                 if has_data:
                     rows.append(row)
             
-            print(f"[CSV Import] Nombre de lignes avec données après filtrage: {len(rows)}")
+            logger.info(f"[CSV Import] Nombre de lignes avec données après filtrage: {len(rows)}")
+            
+            if len(rows) == 0:
+                logger.warning(f"[CSV Import] Aucune ligne avec données trouvée après filtrage. Toutes les lignes sont vides.")
+                # Log quelques lignes pour comprendre pourquoi elles sont filtrées
+                for i, row in enumerate(all_rows[:5]):
+                    logger.info(f"[CSV Import] Ligne {i+2} (exemple filtré): {dict(list(row.items())[:3])}")
         except csv.Error as e:
             error_msg = str(e)
             if "new-line character seen in unquoted field" in error_msg.lower():
@@ -496,8 +584,8 @@ async def import_clients_csv(
                 
                 # Log pour debug (premières lignes seulement)
                 if row_num <= 5:
-                    print(f"[CSV Import] Ligne {row_num} - Nom: {name}, Email: {email}, Phone: {phone}")
-                    print(f"[CSV Import] Ligne {row_num} - Row data: {dict(row)}")
+                    logger.info(f"[CSV Import] Ligne {row_num} - Nom: '{name}', Email: '{email}', Phone: '{phone}'")
+                    logger.info(f"[CSV Import] Ligne {row_num} - Row data (premiers champs): {dict(list(row.items())[:3])}")
                 
                 # Vérifier si la ligne est complètement vide (tous les champs sont vides)
                 # Cela inclut les lignes avec seulement des espaces, des virgules, ou des caractères vides
@@ -506,7 +594,7 @@ async def import_clients_csv(
                     # Ignorer silencieusement les lignes complètement vides
                     # Ces lignes sont probablement des lignes vides dans le CSV (espaces, virgules seules, etc.)
                     if row_num <= 5:
-                        print(f"[CSV Import] Ligne {row_num} ignorée (complètement vide)")
+                        logger.info(f"[CSV Import] Ligne {row_num} ignorée (complètement vide)")
                     continue
                 
                 # Au minimum, il faut un nom ou un email pour créer/mettre à jour un client
@@ -515,7 +603,7 @@ async def import_clients_csv(
                     error_msg = f"Ligne {row_num}: Nom ou Email requis"
                     errors.append(error_msg)
                     if row_num <= 5:
-                        print(f"[CSV Import] WARNING: {error_msg}")
+                        logger.warning(f"[CSV Import] {error_msg}")
                     continue
                 
                 # Normaliser l'email (lowercase, trim) pour éviter les doublons
@@ -626,6 +714,8 @@ async def import_clients_csv(
         # Commit toutes les modifications
         db.commit()
         
+        logger.info(f"[CSV Import] Import terminé. Créés: {created_count}, Mis à jour: {updated_count}, Erreurs: {error_count}")
+        
         return {
             "message": "Import terminé",
             "created": created_count,
@@ -638,6 +728,7 @@ async def import_clients_csv(
         raise
     except Exception as e:
         db.rollback()
+        logger.error(f"[CSV Import] Erreur fatale lors de l'import: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur lors de l'import: {str(e)}"
