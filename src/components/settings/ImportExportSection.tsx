@@ -113,7 +113,7 @@ export function ImportExportSection() {
         }
       }
 
-      showToast(message, result.errors > 0 ? "warning" : "success");
+      showToast(message, result.errors > 0 ? "info" : "success");
       
       // Réinitialiser l'input pour permettre de réimporter le même fichier
       if (fileInputRef.current) {
