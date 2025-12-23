@@ -3,6 +3,7 @@ import logging
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal, ROUND_HALF_UP
@@ -528,9 +529,6 @@ def create_quote(
         company_settings = company_settings_obj.settings if company_settings_obj else None
         valid_tax_rates = get_valid_tax_rates(company_settings)
         
-        # Générer le numéro de devis
-        number = generate_quote_number(db, current_user.company_id)
-        
         # Déterminer le statut
         print(f"[QUOTE CREATE] Statut reçu depuis le frontend: '{quote_data.status}'")
         if quote_data.status:
@@ -547,23 +545,68 @@ def create_quote(
             quote_status = QuoteStatus.BROUILLON
             print(f"[QUOTE CREATE] Aucun statut fourni, utilisation du statut par défaut: {quote_status}")
         
-        # Créer le devis
-        quote = Quote(
-            company_id=current_user.company_id,
-            client_id=quote_data.client_id,
-            project_id=quote_data.project_id,
-            number=number,
-            status=quote_status,
-            notes=quote_data.notes,
-            conditions=quote_data.conditions,
-            discount_type=quote_data.discount_type,
-            discount_value=quote_data.discount_value,
-            discount_label=quote_data.discount_label,
-            amount=Decimal("0"),  # Sera recalculé
-        )
+        # Boucle de retry pour gérer les race conditions sur le numéro de devis
+        max_retries = 10
+        retry_count = 0
+        quote = None
         
-        db.add(quote)
-        db.flush()  # Pour obtenir l'ID
+        while retry_count < max_retries:
+            try:
+                # Générer le numéro de devis
+                number = generate_quote_number(db, current_user.company_id)
+                logger.info(f"[QUOTE CREATE] Tentative {retry_count + 1}: Génération du numéro {number}")
+                
+                # Créer le devis
+                quote = Quote(
+                    company_id=current_user.company_id,
+                    client_id=quote_data.client_id,
+                    project_id=quote_data.project_id,
+                    number=number,
+                    status=quote_status,
+                    notes=quote_data.notes,
+                    conditions=quote_data.conditions,
+                    discount_type=quote_data.discount_type,
+                    discount_value=quote_data.discount_value,
+                    discount_label=quote_data.discount_label,
+                    amount=Decimal("0"),  # Sera recalculé
+                )
+                
+                db.add(quote)
+                db.flush()  # Pour obtenir l'ID
+                
+                # Si on arrive ici, le flush a réussi, on peut sortir de la boucle
+                break
+                
+            except IntegrityError as e:
+                # Vérifier si c'est une erreur de duplication de numéro
+                error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                if "ix_quotes_number" in error_str or "duplicate key" in error_str.lower():
+                    retry_count += 1
+                    logger.warning(f"[QUOTE CREATE] Conflit de numéro détecté (tentative {retry_count}/{max_retries}), réessai avec un nouveau numéro...")
+                    db.rollback()  # Rollback pour libérer la transaction
+                    
+                    if retry_count >= max_retries:
+                        logger.error(f"[QUOTE CREATE] Échec après {max_retries} tentatives de génération de numéro unique")
+                        raise HTTPException(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Impossible de générer un numéro de devis unique après plusieurs tentatives. Veuillez réessayer."
+                        )
+                    # Continuer la boucle pour réessayer
+                    continue
+                else:
+                    # Autre type d'erreur d'intégrité, la propager
+                    db.rollback()
+                    raise
+            except Exception as e:
+                # Autre erreur, rollback et propager
+                db.rollback()
+                raise
+        
+        if quote is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Impossible de créer le devis après plusieurs tentatives."
+            )
         
         # Créer les lignes
         for idx, line_data in enumerate(quote_data.lines):
