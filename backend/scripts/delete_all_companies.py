@@ -43,7 +43,10 @@ def main():
     try:
         engine = create_engine(settings.DATABASE_URL)
         
+        # Utiliser autocommit pour éviter les problèmes de transactions
         with engine.connect() as conn:
+            # Désactiver l'autobegin en utilisant autocommit
+            conn = conn.execution_options(autocommit=True)
             print("🗑️  Suppression des données...")
             
             # Ordre de suppression (en respectant les contraintes de clés étrangères)
@@ -107,10 +110,9 @@ def main():
                         print(f"   ⏭️  {table}: Déjà vide (0 ligne)")
                         continue
                     
-                    # Supprimer les données dans une transaction séparée
-                    with conn.begin():
-                        result = conn.execute(text(f"DELETE FROM {table}"))
-                        count_deleted = result.rowcount
+                    # Supprimer les données (autocommit est activé)
+                    result = conn.execute(text(f"DELETE FROM {table}"))
+                    count_deleted = result.rowcount
                     
                     # Vérifier après suppression
                     count_after = conn.execute(count_query).scalar()
@@ -132,8 +134,7 @@ def main():
             for seq_table in sequences_to_reset:
                 try:
                     seq_query = text(f"SELECT setval(pg_get_serial_sequence('{seq_table}', 'id'), 1, false)")
-                    with conn.begin():
-                        conn.execute(seq_query)
+                    conn.execute(seq_query)
                     print(f"   ✅ Séquence {seq_table} réinitialisée")
                 except Exception as e:
                     # La séquence peut ne pas exister, c'est OK
