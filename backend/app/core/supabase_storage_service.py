@@ -138,15 +138,13 @@ def upload_file(
         else:
             storage_path = file_path
         
-        # Convertir les bytes en objet file-like pour Supabase
-        file_like = io.BytesIO(file_content)
-        
-        # Upload du fichier
+        # Upload du fichier - Supabase accepte directement les bytes
         logger.info(f"🔄 Tentative d'upload vers Supabase Storage: bucket={settings.SUPABASE_STORAGE_BUCKET}, path={storage_path}, size={len(file_content)} bytes")
         
+        # Le SDK Supabase accepte directement les bytes (pas besoin de BytesIO)
         response = client.storage.from_(settings.SUPABASE_STORAGE_BUCKET).upload(
             path=storage_path,
-            file=file_like,
+            file=file_content,  # Passer directement les bytes
             file_options={
                 "content-type": content_type or "application/octet-stream",
                 "upsert": True  # Remplacer si existe déjà
