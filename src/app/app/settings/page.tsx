@@ -2281,9 +2281,36 @@ export default function SettingsPage() {
                         />
                         <button
                           type="button"
-                          onClick={() => {
-                            setQuoteLogoFile(null);
-                            setQuoteLogoPreview(null);
+                          onClick={async () => {
+                            if (!token) return;
+                            
+                            if (!confirm("Êtes-vous sûr de vouloir supprimer le logo ?")) {
+                              return;
+                            }
+                            
+                            try {
+                              const { apiDelete } = await import("@/lib/api");
+                              await apiDelete("/companies/me/logo", token);
+                              
+                              // Réinitialiser les previews
+                              if (logoPreview && logoPreview.startsWith("blob:")) {
+                                URL.revokeObjectURL(logoPreview);
+                              }
+                              setLogoPreview(null);
+                              if (quoteLogoPreview && quoteLogoPreview.startsWith("blob:")) {
+                                URL.revokeObjectURL(quoteLogoPreview);
+                              }
+                              setQuoteLogoPreview(null);
+                              setQuoteLogoFile(null);
+                              
+                              // Recharger les settings pour mettre à jour logo_path
+                              await reloadSettings();
+                              
+                              showToast("Logo supprimé avec succès", "success");
+                            } catch (err: any) {
+                              console.error("Erreur lors de la suppression du logo:", err);
+                              showToast(err.message || "Erreur lors de la suppression du logo", "error");
+                            }
                           }}
                           className="ml-auto px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded border border-red-200"
                         >
