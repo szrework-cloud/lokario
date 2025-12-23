@@ -43,7 +43,6 @@ export function ImportExportSection() {
       
       showToast("Vos données ont été exportées avec succès", "success");
     } catch (error: any) {
-      console.error("Erreur lors de l'export:", error);
       showToast("Erreur lors de l'export des données", "error");
     } finally {
       setIsExporting(false);
@@ -109,7 +108,6 @@ export function ImportExportSection() {
       
       showToast(`${clients.length} clients exportés avec succès`, "success");
     } catch (error: any) {
-      console.error("Erreur lors de l'export des clients:", error);
       showToast("Erreur lors de l'export des clients", "error");
     } finally {
       setIsExporting(false);
@@ -139,8 +137,6 @@ export function ImportExportSection() {
 
     setIsImporting(true);
     try {
-      console.log(`[Import CSV] Début import: ${file.name} (${fileSizeMB} MB)`);
-      
       const result = await apiUploadFile<{
         message: string;
         created: number;
@@ -148,8 +144,6 @@ export function ImportExportSection() {
         errors: number;
         error_details: string[];
       }>("/clients/import", file, token);
-
-      console.log(`[Import CSV] Résultat:`, result);
 
       // Stocker le résultat pour l'affichage
       setImportResult({
@@ -171,15 +165,9 @@ export function ImportExportSection() {
         fileInputRef.current.value = "";
       }
     } catch (error: any) {
-      console.error("Erreur lors de l'import des clients:", error);
       const errorMessage = error.message || "Erreur lors de l'import des clients";
       setImportError(errorMessage);
       showToast(errorMessage, "error");
-      console.error("Détails de l'erreur:", {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
     } finally {
       setIsImporting(false);
     }
