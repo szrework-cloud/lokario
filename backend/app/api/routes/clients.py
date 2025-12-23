@@ -40,8 +40,11 @@ def clean_control_characters(text: str) -> str:
         and ord(char) != 0xFFFD
     )
     
-    # Nettoyer les espaces multiples et les retours à la ligne multiples
-    cleaned = re.sub(r'\s+', ' ', cleaned)  # Remplacer les espaces multiples par un seul
+    # Nettoyer les espaces multiples (mais PAS les retours à la ligne, nécessaires pour le CSV)
+    # Remplacer seulement les espaces/tabs multiples par un seul espace, en préservant les \n et \r
+    cleaned = re.sub(r'[ \t]+', ' ', cleaned)  # Remplacer espaces/tabs multiples par un seul espace
+    # Nettoyer les retours à la ligne multiples (mais garder au moins un \n)
+    cleaned = re.sub(r'\n\s*\n+', '\n', cleaned)  # Remplacer lignes vides multiples par une seule ligne vide
     cleaned = cleaned.strip()
     
     return cleaned
