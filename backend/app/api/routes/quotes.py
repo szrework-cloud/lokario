@@ -673,8 +673,6 @@ def create_quote(
                 _send_quote_via_inbox(db, quote, client, company, current_user)
             except Exception as e:
                 # On log l'erreur mais on ne fait pas échouer la création du devis
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.error(f"Erreur lors de l'envoi du devis via inbox: {e}", exc_info=True)
                 print(f"[QUOTE CREATE] ❌ Erreur lors de l'envoi: {e}")
                 import traceback
@@ -684,8 +682,6 @@ def create_quote(
             try:
                 create_automatic_followup_for_quote(db, quote, current_user.id)
             except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.error(f"Erreur lors de la création de la relance automatique: {e}", exc_info=True)
                 # Ne pas faire échouer la création du devis si la relance échoue
         else:
@@ -697,8 +693,6 @@ def create_quote(
         raise
     except Exception as e:
         db.rollback()
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Error creating quote: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
