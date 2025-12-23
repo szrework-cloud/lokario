@@ -125,26 +125,24 @@ def main():
                     # Continuer avec les autres tables même en cas d'erreur
                     continue
             
-            try:
-                
-                # Réinitialiser les séquences (pour PostgreSQL)
-                print()
-                print("   🔄 Réinitialisation des séquences...")
-                sequences_to_reset = ['companies', 'users', 'clients', 'quotes', 'invoices', 'tasks', 'projects', 'conversations']
-                for seq_table in sequences_to_reset:
-                    try:
-                        seq_query = text(f"SELECT setval(pg_get_serial_sequence('{seq_table}', 'id'), 1, false)")
-                        with conn.begin():
-                            conn.execute(seq_query)
-                        print(f"   ✅ Séquence {seq_table} réinitialisée")
-                    except Exception as e:
-                        # La séquence peut ne pas exister, c'est OK
-                        if "does not exist" not in str(e).lower():
-                            print(f"   ⚠️  Séquence {seq_table}: {str(e)}")
-                
-                print()
-                print("✅ Toutes les données ont été supprimées avec succès !")
-                return 0
+            # Réinitialiser les séquences (pour PostgreSQL)
+            print()
+            print("   🔄 Réinitialisation des séquences...")
+            sequences_to_reset = ['companies', 'users', 'clients', 'quotes', 'invoices', 'tasks', 'projects', 'conversations']
+            for seq_table in sequences_to_reset:
+                try:
+                    seq_query = text(f"SELECT setval(pg_get_serial_sequence('{seq_table}', 'id'), 1, false)")
+                    with conn.begin():
+                        conn.execute(seq_query)
+                    print(f"   ✅ Séquence {seq_table} réinitialisée")
+                except Exception as e:
+                    # La séquence peut ne pas exister, c'est OK
+                    if "does not exist" not in str(e).lower():
+                        print(f"   ⚠️  Séquence {seq_table}: {str(e)}")
+            
+            print()
+            print("✅ Toutes les données ont été supprimées avec succès !")
+            return 0
                 
     except Exception as e:
         print(f"❌ Erreur de connexion: {e}")
