@@ -1,28 +1,17 @@
 #!/usr/bin/env python3
 """
 Script simple pour vérifier si la migration de la contrainte quotes.number est appliquée.
+Peut être exécuté depuis la racine du projet.
 """
 
 import sys
 import os
 
-# Trouver le chemin du backend (peut être exécuté depuis la racine ou depuis backend/)
-script_dir = os.path.dirname(os.path.abspath(__file__))
-backend_dir = os.path.dirname(script_dir)
-
-# Si on est à la racine du projet, backend_dir sera "backend"
-# Si on est dans backend/, backend_dir sera le parent
-if os.path.basename(backend_dir) != 'backend':
-    # On est probablement dans backend/scripts/, donc backend_dir est déjà backend/
-    pass
-else:
-    # On est à la racine, backend_dir est correct
-    pass
-
-# Ajouter le backend au path Python
+# Ajouter le backend au path
+backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend')
 sys.path.insert(0, backend_dir)
 
-# Changer le répertoire de travail vers backend pour les imports
+# Changer vers le répertoire backend
 os.chdir(backend_dir)
 
 from sqlalchemy import create_engine, text
@@ -77,6 +66,8 @@ def main():
                 
     except Exception as e:
         print(f"❌ Erreur: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 if __name__ == "__main__":

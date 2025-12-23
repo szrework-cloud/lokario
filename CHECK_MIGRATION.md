@@ -2,17 +2,26 @@
 
 ## Méthode rapide
 
-Exécutez simplement :
+Exécutez simplement depuis la **racine du projet** :
 
 ```bash
-cd backend
-python scripts/check_quotes_migration.py
+python check_migration.py
 ```
 
 ## Sur Railway
 
+Depuis la racine du projet :
+
 ```bash
-railway run python backend/scripts/check_quotes_migration.py
+railway run python check_migration.py
+```
+
+## Alternative : Depuis le dossier backend
+
+Si vous êtes dans le dossier `backend/` :
+
+```bash
+python scripts/check_quotes_migration.py
 ```
 
 ## Résultats possibles
