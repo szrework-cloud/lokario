@@ -402,13 +402,16 @@ async def import_clients_csv(
         expected_columns = ["Nom", "Email", "Téléphone", "Adresse", "Ville", "Code postal", "Pays", "SIRET"]
         reader_columns = csv_reader.fieldnames or []
         
+        # Log pour debug (utiliser print pour l'instant)
+        print(f"[CSV Import] Colonnes trouvées dans le fichier: {reader_columns}")
+        
         # Mapper les colonnes (gérer les variations de noms)
         column_mapping = {}
         for expected in expected_columns:
             # Chercher une correspondance exacte ou insensible à la casse
             found = None
             for col in reader_columns:
-                if col.strip().lower() == expected.lower():
+                if col and col.strip().lower() == expected.lower():
                     found = col
                     break
             if found:
@@ -421,9 +424,13 @@ async def import_clients_csv(
                 if i < len(expected_columns):
                     column_mapping[expected_columns[i]] = col
         
+        print(f"[CSV Import] Mapping des colonnes: {column_mapping}")
+        
         # Traiter chaque ligne
         try:
             all_rows = list(csv_reader)  # Lire toutes les lignes d'un coup pour détecter les erreurs de format tôt
+            print(f"[CSV Import] Nombre total de lignes lues: {len(all_rows)}")
+            
             # Filtrer les lignes complètement vides (toutes les valeurs sont vides ou None)
             rows = []
             for row in all_rows:
@@ -435,6 +442,8 @@ async def import_clients_csv(
                 )
                 if has_data:
                     rows.append(row)
+            
+            print(f"[CSV Import] Nombre de lignes avec données après filtrage: {len(rows)}")
         except csv.Error as e:
             error_msg = str(e)
             if "new-line character seen in unquoted field" in error_msg.lower():
@@ -485,18 +494,28 @@ async def import_clients_csv(
                 country = get_value("Pays")
                 siret = get_value("SIRET")
                 
+                # Log pour debug (premières lignes seulement)
+                if row_num <= 5:
+                    print(f"[CSV Import] Ligne {row_num} - Nom: {name}, Email: {email}, Phone: {phone}")
+                    print(f"[CSV Import] Ligne {row_num} - Row data: {dict(row)}")
+                
                 # Vérifier si la ligne est complètement vide (tous les champs sont vides)
                 # Cela inclut les lignes avec seulement des espaces, des virgules, ou des caractères vides
                 all_empty = not any([name, email, phone, address, city, postal_code, country, siret])
                 if all_empty:
                     # Ignorer silencieusement les lignes complètement vides
                     # Ces lignes sont probablement des lignes vides dans le CSV (espaces, virgules seules, etc.)
+                    if row_num <= 5:
+                        print(f"[CSV Import] Ligne {row_num} ignorée (complètement vide)")
                     continue
                 
                 # Au minimum, il faut un nom ou un email pour créer/mettre à jour un client
                 if not name and not email:
                     error_count += 1
-                    errors.append(f"Ligne {row_num}: Nom ou Email requis")
+                    error_msg = f"Ligne {row_num}: Nom ou Email requis"
+                    errors.append(error_msg)
+                    if row_num <= 5:
+                        print(f"[CSV Import] WARNING: {error_msg}")
                     continue
                 
                 # Normaliser l'email (lowercase, trim) pour éviter les doublons
