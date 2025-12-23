@@ -57,8 +57,10 @@ def main():
             
             # Afficher les résultats
             print("📊 Résultats:")
-            print(f"   Contrainte globale 'ix_quotes_number': {'❌ EXISTE ENCORE' if global_exists else '✅ N\'EXISTE PAS'}")
-            print(f"   Contrainte composite 'uq_quotes_company_number': {'✅ EXISTE' if composite_exists else '❌ N\'EXISTE PAS'}")
+            global_status = "❌ EXISTE ENCORE" if global_exists else "✅ N'EXISTE PAS"
+            composite_status = "✅ EXISTE" if composite_exists else "❌ N'EXISTE PAS"
+            print(f"   Contrainte globale 'ix_quotes_number': {global_status}")
+            print(f"   Contrainte composite 'uq_quotes_company_number': {composite_status}")
             print()
             
             # Conclusion
