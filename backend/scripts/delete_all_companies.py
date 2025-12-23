@@ -50,35 +50,36 @@ def main():
                 print("🗑️  Suppression des données...")
                 
                 # Ordre de suppression (en respectant les contraintes de clés étrangères)
+                # IMPORTANT: Supprimer les tables enfants AVANT les tables parents
                 tables_to_delete = [
-                    # Tables avec dépendances (supprimer en premier)
-                    "quote_signature_audit_logs",
-                    "quote_signatures",
-                    "quote_lines",
-                    "quotes",
-                    "invoice_lines",
-                    "invoice_audit_logs",
-                    "invoices",
-                    "followups",
-                    "appointments",
-                    "appointment_types",
-                    "tasks",
-                    "checklist_instances",
-                    "checklist_templates",
-                    "conversations",
-                    "inbox_messages",
-                    "message_attachments",
-                    "inbox_integrations",
-                    "inbox_folders",
-                    "notifications",
-                    "chatbot_conversations",
-                    "billing_line_templates",
-                    "project_clients",
-                    "projects",
-                    "clients",
-                    "company_settings",
-                    "users",
-                    "companies",
+                    # Tables enfants (supprimer en premier)
+                    "quote_signature_audit_logs",  # Référence quote_signatures
+                    "quote_signatures",  # Référence quotes
+                    "quote_lines",  # Référence quotes
+                    "invoice_lines",  # Référence invoices
+                    "invoice_audit_logs",  # Référence invoices
+                    "message_attachments",  # Référence inbox_messages
+                    "inbox_messages",  # Référence conversations (IMPORTANT: avant conversations)
+                    "followups",  # Peut référencer conversations
+                    "appointments",  # Peut référencer conversations
+                    "tasks",  # Peut référencer conversations
+                    "checklist_instances",  # Référence checklist_templates
+                    "chatbot_conversations",  # Référence companies, users
+                    # Tables parents (supprimer après les enfants)
+                    "quotes",  # Référence companies, clients
+                    "invoices",  # Référence companies, clients
+                    "conversations",  # Référence companies, clients (après inbox_messages)
+                    "appointment_types",  # Référence companies
+                    "checklist_templates",  # Référence companies
+                    "inbox_integrations",  # Référence companies
+                    "inbox_folders",  # Référence companies
+                    "notifications",  # Référence users
+                    "billing_line_templates",  # Référence companies
+                    "projects",  # Référence companies
+                    "clients",  # Référence companies
+                    "company_settings",  # Référence companies
+                    "users",  # Référence companies
+                    "companies",  # Table racine (supprimer en dernier)
                 ]
                 
                 # D'abord, vérifier quelles tables existent
@@ -93,11 +94,14 @@ def main():
                 existing_tables = [row[0] for row in conn.execute(check_tables).fetchall()]
                 print(f"   📊 Tables trouvées: {len(existing_tables)}")
                 
+                # Supprimer table par table dans des transactions séparées pour éviter les problèmes
                 for table in tables_to_delete:
                     if table not in existing_tables:
                         print(f"   ⏭️  {table}: Table n'existe pas, ignorée")
                         continue
                     
+                    # Transaction séparée pour chaque table
+                    table_trans = conn.begin()
                     try:
                         # Compter d'abord combien de lignes il y a
                         count_query = text(f"SELECT COUNT(*) FROM {table}")
@@ -105,6 +109,7 @@ def main():
                         
                         if count_before == 0:
                             print(f"   ⏭️  {table}: Déjà vide (0 ligne)")
+                            table_trans.rollback()
                             continue
                         
                         # Supprimer les données
@@ -114,15 +119,18 @@ def main():
                         # Vérifier après suppression
                         count_after = conn.execute(count_query).scalar()
                         
+                        table_trans.commit()
+                        
                         if count_after == 0:
                             print(f"   ✅ {table}: {count_deleted} ligne(s) supprimée(s)")
                         else:
                             print(f"   ⚠️  {table}: {count_deleted} supprimée(s), mais {count_after} restante(s)")
                             
                     except Exception as e:
+                        table_trans.rollback()
                         print(f"   ❌ {table}: Erreur - {str(e)}")
-                        import traceback
-                        traceback.print_exc()
+                        # Continuer avec les autres tables même en cas d'erreur
+                        continue
                 
                 # Réinitialiser les séquences (pour PostgreSQL)
                 print()
