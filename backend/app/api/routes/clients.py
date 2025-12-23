@@ -15,13 +15,32 @@ router = APIRouter(prefix="/clients", tags=["clients"])
 
 def clean_control_characters(text: str) -> str:
     """
-    Supprime les caractères de contrôle problématiques (NUL, etc.) d'une chaîne.
+    Nettoie une chaîne en supprimant les caractères problématiques pour PostgreSQL.
+    Supprime les caractères de contrôle, les caractères invalides, et normalise l'encodage.
     """
     if not text:
         return text
-    # Supprimer les caractères NUL et autres caractères de contrôle (0x00-0x1F sauf \n, \r, \t)
+    
+    try:
+        # D'abord, essayer de décoder/re-encoder pour éliminer les caractères invalides
+        # Cela gère les problèmes d'encodage comme 'ð' qui est un caractère mal encodé
+        text = text.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+    except:
+        pass
+    
+    # Supprimer les caractères de contrôle problématiques (0x00-0x1F sauf \n, \r, \t)
     # Garder seulement les caractères imprimables et les retours à la ligne normaux
-    cleaned = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
+    cleaned = ''.join(
+        char for char in text 
+        if (ord(char) >= 32 and ord(char) < 0xD800) or char in '\n\r\t'
+        # Exclure les caractères de substitution (0xFFFD) et autres caractères problématiques
+        and ord(char) != 0xFFFD
+    )
+    
+    # Nettoyer les espaces multiples et les retours à la ligne multiples
+    cleaned = re.sub(r'\s+', ' ', cleaned)  # Remplacer les espaces multiples par un seul
+    cleaned = cleaned.strip()
+    
     return cleaned
 
 
@@ -438,6 +457,7 @@ async def import_clients_csv(
         flush_interval = 100  # Flush tous les 100 clients
         
         for row_num, row in enumerate(rows, start=2):  # start=2 car ligne 1 = headers
+            # Utiliser un try/except pour chaque ligne avec rollback en cas d'erreur
             try:
                 # Extraire les données (gérer les colonnes avec ou sans mapping)
                 # Les cases vides sont ignorées (retourne None)
@@ -445,11 +465,15 @@ async def import_clients_csv(
                     mapped_key = column_mapping.get(key, key)
                     value = row.get(mapped_key, row.get(key, ""))
                     if value:
-                        # Nettoyer les caractères de contrôle problématiques
-                        value = clean_control_characters(str(value))
-                        value = value.strip()
-                        # Retourner None si la valeur est vide après nettoyage
-                        return value if value else None
+                        try:
+                            # Nettoyer les caractères de contrôle problématiques
+                            value = clean_control_characters(str(value))
+                            value = value.strip()
+                            # Retourner None si la valeur est vide après nettoyage
+                            return value if value else None
+                        except Exception as e:
+                            # Si le nettoyage échoue, retourner None
+                            return None
                     return None  # Case vide = None (ignoré)
                 
                 name = get_value("Nom")
@@ -553,13 +577,31 @@ async def import_clients_csv(
                     db.add(new_client)
                     created_count += 1
                 
-                # Flush périodique pour éviter les problèmes de mémoire
+                # Flush et commit périodique pour éviter les problèmes de mémoire et de transaction
                 if (created_count + updated_count) % flush_interval == 0:
-                    db.flush()
+                    try:
+                        db.flush()
+                        db.commit()  # Commit périodique pour éviter les transactions trop longues
+                    except Exception as flush_error:
+                        # Si le flush/commit échoue, rollback et continuer
+                        db.rollback()
+                        error_count += 1
+                        errors.append(f"Ligne {row_num}: Erreur lors du flush/commit - {str(flush_error)}")
+                        continue
                 
             except Exception as e:
+                # En cas d'erreur, rollback cette transaction et continuer avec la ligne suivante
+                try:
+                    db.rollback()
+                except:
+                    pass  # Ignorer les erreurs de rollback
+                
                 error_count += 1
-                errors.append(f"Ligne {row_num}: {str(e)}")
+                error_msg = str(e)
+                # Raccourcir les messages d'erreur très longs
+                if len(error_msg) > 200:
+                    error_msg = error_msg[:200] + "..."
+                errors.append(f"Ligne {row_num}: {error_msg}")
                 continue
         
         # Commit toutes les modifications
