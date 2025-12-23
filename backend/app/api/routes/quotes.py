@@ -106,24 +106,27 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         
         logger.info(f"[QUOTE NUMBER] Devis trouvés pour company_id={company_id}, année={current_year}: {len(quotes_numbers)} devis")
         if quotes_numbers:
-            logger.debug(f"[QUOTE NUMBER] Numéros existants: {quotes_numbers[:10]}...")  # Limiter l'affichage
+            logger.info(f"[QUOTE NUMBER] Numéros existants pour company_id={company_id}: {quotes_numbers}")  # Afficher tous les numéros pour debug
         
         if quotes_numbers:
             # Extraire tous les numéros et trouver le maximum
             max_number = 0
+            valid_numbers = []
             for quote_number in quotes_numbers:
                 try:
                     # Format attendu: DEV-YYYY-NNN
                     number_part = int(quote_number.split("-")[-1])
+                    valid_numbers.append(number_part)
                     if number_part > max_number:
                         max_number = number_part
                 except (ValueError, IndexError):
+                    logger.warning(f"[QUOTE NUMBER] Format de numéro invalide ignoré: {quote_number}")
                     continue
             next_number = max_number + 1
-            logger.info(f"[QUOTE NUMBER] Numéro maximum trouvé: {max_number}, prochain: {next_number}")
+            logger.info(f"[QUOTE NUMBER] Numéros valides trouvés: {sorted(valid_numbers)}, maximum: {max_number}, prochain: {next_number:03d}")
         else:
             next_number = 1
-            logger.info(f"[QUOTE NUMBER] Aucun devis existant, démarrage à 1")
+            logger.info(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
     
     # Boucle pour trouver un numéro disponible (gestion des race conditions)
     max_attempts = 1000  # Limite de sécurité pour éviter les boucles infinies
