@@ -14,6 +14,14 @@ import { logger } from "@/lib/logger";
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { title, subtitle, rightContent } = usePage();
 
+  // Réinitialiser le background du body (au cas où il aurait été modifié par les pages publiques)
+  useEffect(() => {
+    document.body.style.backgroundColor = "#F9FAFB";
+    return () => {
+      // Ne pas réinitialiser au démontage pour éviter les conflits
+    };
+  }, []);
+
   return (
     <div className="flex h-screen bg-[#F9FAFB]">
       <AppSidebar />
