@@ -41,12 +41,10 @@ def main():
     print("🔄 Connexion à la base de données...")
     
     try:
-        engine = create_engine(settings.DATABASE_URL)
-        
         # Utiliser autocommit pour éviter les problèmes de transactions
+        engine = create_engine(settings.DATABASE_URL, isolation_level="AUTOCOMMIT")
+        
         with engine.connect() as conn:
-            # Désactiver l'autobegin en utilisant autocommit
-            conn = conn.execution_options(autocommit=True)
             print("🗑️  Suppression des données...")
             
             # Ordre de suppression (en respectant les contraintes de clés étrangères)
