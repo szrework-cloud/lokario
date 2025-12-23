@@ -461,8 +461,10 @@ def export_user_data(
                 "status": followup.status.value if hasattr(followup.status, 'value') else str(followup.status),
                 # is_automatic a été supprimé du modèle FollowUp
                 # "is_automatic": followup.is_automatic,
-                "scheduled_at": followup.scheduled_at.isoformat() if followup.scheduled_at else None,
-                "sent_at": followup.sent_at.isoformat() if followup.sent_at else None,
+                # scheduled_at et sent_at n'existent pas dans FollowUp (sent_at est dans FollowUpHistory)
+                "due_date": followup.due_date.isoformat() if followup.due_date else None,
+                "actual_date": followup.actual_date.isoformat() if followup.actual_date else None,
+                "amount": float(followup.amount) if followup.amount else None,
                 "created_at": followup.created_at.isoformat() if followup.created_at else None,
             })
         
