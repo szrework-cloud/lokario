@@ -459,7 +459,8 @@ def export_user_data(
                 "client_id": followup.client_id,
                 "type": followup.type.value if hasattr(followup.type, 'value') else str(followup.type),
                 "status": followup.status.value if hasattr(followup.status, 'value') else str(followup.status),
-                "is_automatic": followup.is_automatic,
+                # is_automatic a été supprimé du modèle FollowUp
+                # "is_automatic": followup.is_automatic,
                 "scheduled_at": followup.scheduled_at.isoformat() if followup.scheduled_at else None,
                 "sent_at": followup.sent_at.isoformat() if followup.sent_at else None,
                 "created_at": followup.created_at.isoformat() if followup.created_at else None,
