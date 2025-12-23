@@ -81,27 +81,62 @@ def main():
                     "companies",
                 ]
                 
+                # D'abord, vérifier quelles tables existent
+                print("   🔍 Vérification des tables existantes...")
+                check_tables = text("""
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_type = 'BASE TABLE'
+                    ORDER BY table_name
+                """)
+                existing_tables = [row[0] for row in conn.execute(check_tables).fetchall()]
+                print(f"   📊 Tables trouvées: {len(existing_tables)}")
+                
                 for table in tables_to_delete:
+                    if table not in existing_tables:
+                        print(f"   ⏭️  {table}: Table n'existe pas, ignorée")
+                        continue
+                    
                     try:
+                        # Compter d'abord combien de lignes il y a
+                        count_query = text(f"SELECT COUNT(*) FROM {table}")
+                        count_before = conn.execute(count_query).scalar()
+                        
+                        if count_before == 0:
+                            print(f"   ⏭️  {table}: Déjà vide (0 ligne)")
+                            continue
+                        
+                        # Supprimer les données
                         result = conn.execute(text(f"DELETE FROM {table}"))
-                        count = result.rowcount
-                        if count > 0:
-                            print(f"   ✅ {table}: {count} ligne(s) supprimée(s)")
+                        count_deleted = result.rowcount
+                        
+                        # Vérifier après suppression
+                        count_after = conn.execute(count_query).scalar()
+                        
+                        if count_after == 0:
+                            print(f"   ✅ {table}: {count_deleted} ligne(s) supprimée(s)")
+                        else:
+                            print(f"   ⚠️  {table}: {count_deleted} supprimée(s), mais {count_after} restante(s)")
+                            
                     except Exception as e:
-                        print(f"   ⚠️  {table}: {str(e)}")
+                        print(f"   ❌ {table}: Erreur - {str(e)}")
+                        import traceback
+                        traceback.print_exc()
                 
                 # Réinitialiser les séquences (pour PostgreSQL)
-                try:
-                    conn.execute(text("""
-                        SELECT setval(pg_get_serial_sequence('companies', 'id'), 1, false);
-                        SELECT setval(pg_get_serial_sequence('users', 'id'), 1, false);
-                        SELECT setval(pg_get_serial_sequence('clients', 'id'), 1, false);
-                        SELECT setval(pg_get_serial_sequence('quotes', 'id'), 1, false);
-                        SELECT setval(pg_get_serial_sequence('invoices', 'id'), 1, false);
-                    """))
-                    print("   ✅ Séquences réinitialisées")
-                except Exception as e:
-                    print(f"   ⚠️  Réinitialisation des séquences: {str(e)}")
+                print()
+                print("   🔄 Réinitialisation des séquences...")
+                sequences_to_reset = ['companies', 'users', 'clients', 'quotes', 'invoices', 'tasks', 'projects', 'conversations']
+                for seq_table in sequences_to_reset:
+                    try:
+                        seq_query = text(f"SELECT setval(pg_get_serial_sequence('{seq_table}', 'id'), 1, false)")
+                        conn.execute(seq_query)
+                        print(f"   ✅ Séquence {seq_table} réinitialisée")
+                    except Exception as e:
+                        # La séquence peut ne pas exister, c'est OK
+                        if "does not exist" not in str(e).lower():
+                            print(f"   ⚠️  Séquence {seq_table}: {str(e)}")
                 
                 trans.commit()
                 print()
