@@ -6,7 +6,7 @@ import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/hooks/useAuth";
 import { apiGet, apiUploadFile } from "@/lib/api";
-import { Download, FileSpreadsheet, FileJson, Upload, Info } from "lucide-react";
+import { Download, FileSpreadsheet, FileJson, Upload, Info, AlertCircle, X } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 
 export function ImportExportSection() {
@@ -15,6 +15,13 @@ export function ImportExportSection() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [showCsvInfoModal, setShowCsvInfoModal] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importErrorDetails, setImportErrorDetails] = useState<string[]>([]);
+  const [importResult, setImportResult] = useState<{
+    created: number;
+    updated: number;
+    errors: number;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExportAll = async () => {
@@ -113,9 +120,16 @@ export function ImportExportSection() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Réinitialiser les erreurs précédentes
+    setImportError(null);
+    setImportErrorDetails([]);
+    setImportResult(null);
+
     // Vérifier que c'est un fichier CSV
     if (!file.name.endsWith('.csv')) {
-      showToast("Le fichier doit être au format CSV", "error");
+      const errorMsg = "Le fichier doit être au format CSV";
+      setImportError(errorMsg);
+      showToast(errorMsg, "error");
       return;
     }
 
@@ -137,15 +151,17 @@ export function ImportExportSection() {
 
       console.log(`[Import CSV] Résultat:`, result);
 
+      // Stocker le résultat pour l'affichage
+      setImportResult({
+        created: result.created,
+        updated: result.updated,
+        errors: result.errors
+      });
+
       let message = `Import terminé : ${result.created} créé(s), ${result.updated} mis à jour`;
       if (result.errors > 0) {
         message += `, ${result.errors} erreur(s)`;
-        if (result.error_details.length > 0) {
-          console.warn("Erreurs d'import:", result.error_details);
-          // Afficher les premières erreurs dans la console pour debug
-          const firstErrors = result.error_details.slice(0, 5);
-          console.warn("Premières erreurs:", firstErrors);
-        }
+        setImportErrorDetails(result.error_details || []);
       }
 
       showToast(message, result.errors > 0 ? "info" : "success");
@@ -157,6 +173,7 @@ export function ImportExportSection() {
     } catch (error: any) {
       console.error("Erreur lors de l'import des clients:", error);
       const errorMessage = error.message || "Erreur lors de l'import des clients";
+      setImportError(errorMessage);
       showToast(errorMessage, "error");
       console.error("Détails de l'erreur:", {
         message: error.message,
@@ -166,6 +183,131 @@ export function ImportExportSection() {
     } finally {
       setIsImporting(false);
     }
+  };
+
+  // Fonction pour formater les messages d'erreur avec les emojis et sections
+  const formatErrorMessage = (message: string): React.ReactNode => {
+    // Diviser le message en lignes
+    const lines = message.split('\n');
+    
+    let inList = false;
+    let listItems: string[] = [];
+    const elements: React.ReactNode[] = [];
+    
+    const flushList = () => {
+      if (listItems.length > 0) {
+        elements.push(
+          <ul key={`list-${elements.length}`} className="list-disc list-inside space-y-1 ml-2 mt-1">
+            {listItems.map((item, idx) => (
+              <li key={idx} className="text-sm text-gray-700">
+                {item}
+              </li>
+            ))}
+          </ul>
+        );
+        listItems = [];
+      }
+      inList = false;
+    };
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      
+      // Ignorer les lignes vides
+      if (!trimmedLine) {
+        flushList();
+        return;
+      }
+      
+      // Titre avec emoji
+      if (trimmedLine.startsWith('❌')) {
+        flushList();
+        elements.push(
+          <h4 key={index} className="font-semibold text-red-700 text-base mt-3 first:mt-0">
+            {trimmedLine}
+          </h4>
+        );
+        return;
+      }
+      
+      // Section Causes probables
+      if (trimmedLine.startsWith('🔍')) {
+        flushList();
+        elements.push(
+          <h5 key={index} className="font-semibold text-gray-800 text-sm mt-3">
+            {trimmedLine}
+          </h5>
+        );
+        inList = true;
+        return;
+      }
+      
+      // Section Solutions
+      if (trimmedLine.startsWith('✅')) {
+        flushList();
+        elements.push(
+          <h5 key={index} className="font-semibold text-green-700 text-sm mt-3">
+            {trimmedLine}
+          </h5>
+        );
+        inList = true;
+        return;
+      }
+      
+      // Section Astuce
+      if (trimmedLine.startsWith('💡')) {
+        flushList();
+        elements.push(
+          <p key={index} className="text-sm text-blue-700 italic mt-3 bg-blue-50 p-2 rounded">
+            {trimmedLine}
+          </p>
+        );
+        return;
+      }
+      
+      // Section Colonnes
+      if (trimmedLine.startsWith('📋')) {
+        flushList();
+        elements.push(
+          <p key={index} className="text-sm text-gray-700 font-medium mt-2">
+            {trimmedLine}
+          </p>
+        );
+        return;
+      }
+      
+      // Liste à puces
+      if (trimmedLine.startsWith('•') || trimmedLine.startsWith('-')) {
+        if (!inList) {
+          flushList();
+          inList = true;
+        }
+        listItems.push(trimmedLine.substring(1).trim());
+        return;
+      }
+      
+      // Numérotation
+      if (/^\d+\./.test(trimmedLine)) {
+        if (!inList) {
+          flushList();
+          inList = true;
+        }
+        listItems.push(trimmedLine.substring(trimmedLine.indexOf('.') + 1).trim());
+        return;
+      }
+      
+      // Texte normal
+      flushList();
+      elements.push(
+        <p key={index} className="text-sm text-gray-700 mt-1">
+          {trimmedLine}
+        </p>
+      );
+    });
+    
+    flushList();
+    
+    return <div className="space-y-1">{elements}</div>;
   };
 
 
@@ -210,6 +352,85 @@ export function ImportExportSection() {
               {isImporting ? "Import en cours..." : "Importer des clients (CSV)"}
             </AnimatedButton>
           </div>
+
+          {/* Résultat de l'import */}
+          {importResult && (
+            <div className={`mt-4 p-4 rounded-lg border ${
+              importResult.errors > 0 
+                ? 'bg-yellow-50 border-yellow-200' 
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <div className="flex items-start gap-2">
+                <Info className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                  importResult.errors > 0 ? 'text-yellow-600' : 'text-green-600'
+                }`} />
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    importResult.errors > 0 ? 'text-yellow-900' : 'text-green-900'
+                  }`}>
+                    Import terminé : {importResult.created} créé(s), {importResult.updated} mis à jour
+                    {importResult.errors > 0 && `, ${importResult.errors} erreur(s)`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Erreur principale */}
+          {importError && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-red-900 mb-2">
+                      Erreur lors de l'import
+                    </h4>
+                    <button
+                      onClick={() => setImportError(null)}
+                      className="text-red-600 hover:text-red-800 transition-colors"
+                      aria-label="Fermer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="text-sm text-red-800 whitespace-pre-wrap">
+                    {formatErrorMessage(importError)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Détails des erreurs de validation */}
+          {importErrorDetails.length > 0 && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-yellow-900 mb-2">
+                      Erreurs de validation ({importErrorDetails.length})
+                    </h4>
+                    <button
+                      onClick={() => setImportErrorDetails([])}
+                      className="text-yellow-600 hover:text-yellow-800 transition-colors"
+                      aria-label="Fermer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <ul className="text-sm text-yellow-800 space-y-1 max-h-60 overflow-y-auto">
+                    {importErrorDetails.map((error, index) => (
+                      <li key={index} className="list-disc list-inside">
+                        {error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Export */}
