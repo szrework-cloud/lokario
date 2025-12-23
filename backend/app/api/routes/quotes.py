@@ -89,47 +89,23 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         # Cela garantit qu'on voit tous les devis commités, même après un rollback
         from sqlalchemy import text
         
-        # Requête SQL pour trouver le numéro maximum pour cette entreprise et cette année
+        # Utiliser l'ORM SQLAlchemy au lieu de text() pour garantir le filtrage correct par company_id
         # IMPORTANT: Filtrer STRICTEMENT par company_id pour que chaque entreprise commence à 1
-        from sqlalchemy import bindparam
-        
         pattern = f"DEV-{current_year}-%"
         
-        # Vérifier d'abord avec une requête de debug pour voir ce qui est trouvé
-        debug_query = text("""
-            SELECT id, number, company_id 
-            FROM quotes 
-            WHERE company_id = :company_id 
-            AND number LIKE :pattern
-            ORDER BY number
-        """).bindparams(
-            company_id=company_id,
-            pattern=pattern
-        )
+        # Utiliser l'ORM pour être sûr que le filtrage fonctionne correctement
+        quotes = db.query(Quote).filter(
+            Quote.company_id == company_id,
+            Quote.number.like(pattern)
+        ).all()
         
-        debug_result = db.execute(debug_query)
-        debug_rows = debug_result.fetchall()
+        # Debug: afficher les devis trouvés
+        print(f"[QUOTE NUMBER DEBUG] Requête ORM pour company_id={company_id}, pattern={pattern}")
+        print(f"[QUOTE NUMBER DEBUG] Devis trouvés: {len(quotes)}")
+        for quote in quotes:
+            print(f"[QUOTE NUMBER DEBUG]   - ID: {quote.id}, Number: {quote.number}, Company ID: {quote.company_id}")
         
-        # Afficher les détails pour debug
-        print(f"[QUOTE NUMBER DEBUG] Requête SQL pour company_id={company_id}, pattern={pattern}")
-        print(f"[QUOTE NUMBER DEBUG] Lignes trouvées: {len(debug_rows)}")
-        for row in debug_rows:
-            print(f"[QUOTE NUMBER DEBUG]   - ID: {row[0]}, Number: {row[1]}, Company ID: {row[2]}")
-        
-        # Requête principale pour récupérer les numéros
-        query = text("""
-            SELECT number 
-            FROM quotes 
-            WHERE company_id = :company_id 
-            AND number LIKE :pattern
-        """).bindparams(
-            company_id=company_id,
-            pattern=pattern
-        )
-        
-        result = db.execute(query)
-        
-        quotes_numbers = [row[0] for row in result.fetchall()]
+        quotes_numbers = [quote.number for quote in quotes]
         
         # Utiliser print() en plus de logger pour garantir la visibilité
         print(f"[QUOTE NUMBER] Devis trouvés pour company_id={company_id}, année={current_year}: {len(quotes_numbers)} devis")
