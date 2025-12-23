@@ -152,7 +152,7 @@ export function ImportExportSection() {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Import */}
-        <div className="border border-[#E5E7EB] rounded-lg p-4">
+        <div className="border-2 border-white rounded-lg p-4 bg-white shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <Upload className="w-5 h-5 text-[#F97316]" />
             <h4 className="text-sm font-semibold text-[#0F172A]">
