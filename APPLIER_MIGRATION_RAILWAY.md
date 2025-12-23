@@ -1,96 +1,127 @@
-# 🔄 Appliquer la migration sur Railway (Staging)
+# Applier la migration sur Railway
 
-## Problème
-Les colonnes `city`, `postal_code`, `country`, `siret` n'existent pas dans la base de données PostgreSQL de staging, ce qui cause une erreur 500 lors de la récupération d'un client.
+## 🚀 Méthode 1 : Via Railway Dashboard (La plus simple)
 
-## Solution : Appliquer la migration
+### Étape 1 : Ouvrir Railway Dashboard
+1. Allez sur [railway.app](https://railway.app)
+2. Connectez-vous avec votre compte
+3. Ouvrez votre projet **"lokario"**
+4. Cliquez sur votre service **backend**
 
-### Option 1 : Via Railway CLI (Recommandé)
+### Étape 2 : Ouvrir le Shell
+1. Dans le service backend, cliquez sur l'onglet **"Deployments"**
+2. Cliquez sur le dernier déploiement (le plus récent)
+3. Cliquez sur le bouton **"Shell"** (ou **"Open Shell"**)
 
-1. **Installer Railway CLI** (si pas déjà fait) :
-   ```bash
-   npm i -g @railway/cli
-   ```
+### Étape 3 : Exécuter la migration
+Dans le shell qui s'ouvre, tapez :
 
-2. **Se connecter à Railway** :
-   ```bash
-   railway login
-   ```
-
-3. **Lier le projet** :
-   ```bash
-   cd "/Users/glr_adem/Documents/B2B SAAS/backend"
-   railway link
-   ```
-
-4. **Appliquer la migration** :
-   ```bash
-   railway run alembic upgrade head
-   ```
-
-### Option 2 : Via Railway Dashboard (Terminal)
-
-1. **Aller dans Railway Dashboard** :
-   - Ouvrir votre projet Railway
-   - Sélectionner le service backend
-   - Aller dans l'onglet **"Deployments"** ou **"Settings"**
-
-2. **Ouvrir un terminal Railway** :
-   - Cliquer sur **"View Logs"** ou **"Shell"**
-   - Ou utiliser l'option **"Run Command"**
-
-3. **Exécuter la migration** :
-   ```bash
-   cd backend
-   alembic upgrade head
-   ```
-
-### Option 3 : Via script local avec DATABASE_URL
-
-1. **Récupérer DATABASE_URL depuis Railway** :
-   - Railway Dashboard → Service backend → Variables
-   - Copier la valeur de `DATABASE_URL`
-
-2. **Exécuter le script localement** :
-   ```bash
-   cd "/Users/glr_adem/Documents/B2B SAAS/backend"
-   export DATABASE_URL="<votre-url-railway>"
-   chmod +x scripts/apply_migration_railway.sh
-   ./scripts/apply_migration_railway.sh
-   ```
-
-### Option 4 : Via SQL direct (si les autres méthodes échouent)
-
-Si vous avez accès direct à la base de données PostgreSQL :
-
-```sql
--- Ajouter les colonnes manuellement
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS city VARCHAR(100);
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20);
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS country VARCHAR(100);
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS siret VARCHAR(14);
-
--- Marquer la migration comme appliquée
--- (Récupérer la révision depuis alembic/versions/add_city_postal_code_country_siret_to_clients.py)
-INSERT INTO alembic_version (version_num) 
-VALUES ('add_city_postal_code_country_siret')
-ON CONFLICT (version_num) DO NOTHING;
+```bash
+cd backend
+alembic upgrade head
 ```
 
-## Vérification
+**OU** si vous êtes déjà dans le bon répertoire :
 
-Après avoir appliqué la migration, vérifiez que les colonnes existent :
-
-```sql
-SELECT column_name, data_type, is_nullable 
-FROM information_schema.columns 
-WHERE table_name = 'clients' 
-AND column_name IN ('city', 'postal_code', 'country', 'siret');
+```bash
+alembic upgrade head
 ```
 
-Vous devriez voir les 4 colonnes listées.
+### Étape 4 : Vérifier le résultat
+Vous devriez voir quelque chose comme :
+```
+INFO  [alembic.runtime.migration] Running upgrade ... -> fix_quotes_number_unique, fix_quotes_number_unique_constraint
+✅ Index unique global ix_quotes_number supprimé
+✅ Contrainte unique composite (company_id, number) créée
+```
 
-## Note importante
+## 🚀 Méthode 2 : Via Railway CLI
 
-⚠️ **La migration doit être appliquée sur la base de données de staging (Railway)**, pas seulement en local. La base de données locale (SQLite) et la base de données de staging (PostgreSQL) sont séparées.
+### Étape 1 : Lier le projet (si pas déjà fait)
+```bash
+cd "/Users/glr_adem/Documents/B2B SAAS"
+railway link
+```
+Sélectionnez votre projet "lokario" dans la liste.
 
+### Étape 2 : Exécuter la migration
+```bash
+railway run alembic upgrade head
+```
+
+**OU** si vous devez aller dans le dossier backend :
+
+```bash
+railway run sh -c "cd backend && alembic upgrade head"
+```
+
+## ✅ Vérifier que ça a fonctionné
+
+### Option 1 : Via l'API (Le plus simple)
+Ouvrez dans votre navigateur :
+```
+https://lokario-staging.up.railway.app/quotes/migration-status
+```
+
+Vous devriez voir :
+```json
+{
+  "status": "ok",
+  "message": "La migration est appliquée correctement."
+}
+```
+
+### Option 2 : Via le Shell Railway
+Dans le shell Railway, exécutez :
+```bash
+alembic current
+```
+
+Vous devriez voir la version de migration actuelle, qui devrait inclure `fix_quotes_number_unique`.
+
+## 🔍 En cas de problème
+
+### Si la commande `alembic` n'est pas trouvée
+```bash
+# Vérifier que vous êtes dans le bon répertoire
+pwd
+# Devrait afficher quelque chose comme /app ou /app/backend
+
+# Si vous êtes à la racine, allez dans backend
+cd backend
+
+# Réessayer
+alembic upgrade head
+```
+
+### Si la migration échoue
+1. **Vérifier les logs** dans Railway Dashboard
+2. **Vérifier l'état actuel** :
+   ```bash
+   alembic current
+   ```
+3. **Voir l'historique** :
+   ```bash
+   alembic history
+   ```
+
+### Si vous voyez "Multiple head revisions"
+Cela signifie qu'il y a plusieurs branches de migration. Exécutez :
+```bash
+alembic merge heads -m "merge heads"
+alembic upgrade head
+```
+
+## 📝 Notes importantes
+
+- ⚠️ **Sauvegarde** : Railway fait automatiquement des sauvegardes, mais vous pouvez aussi en faire une manuelle depuis Supabase Dashboard
+- ⏱️ **Durée** : La migration prend généralement moins de 10 secondes
+- ✅ **Pas de downtime** : La migration est rapide et ne bloque pas l'application
+- 🔄 **Rétrocompatibilité** : Les devis existants ne sont pas affectés
+
+## 🎯 Après la migration
+
+Une fois la migration appliquée :
+1. ✅ Vérifiez avec l'endpoint API : `/quotes/migration-status`
+2. ✅ Testez la création d'un devis dans l'application
+3. ✅ Vérifiez que vous pouvez créer des devis avec le même numéro pour différentes entreprises
