@@ -15,7 +15,7 @@ router = APIRouter(prefix="/clients", tags=["clients"])
 @router.get("", response_model=List[ClientRead])
 def get_clients(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=10000),  # Augmenté à 10000 pour permettre l'export complet
     search: Optional[str] = Query(None, description="Recherche par nom, email, téléphone"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
