@@ -111,3 +111,4 @@ def downgrade() -> None:
     except Exception as e:
         print(f"⚠️  Erreur lors du downgrade: {e}")
 
+

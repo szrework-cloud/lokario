@@ -62,22 +62,37 @@ def generate_quote_number(db: Session, company_id: int) -> str:
     
     Le numéro est généré de manière séquentielle pour chaque entreprise et chaque année,
     sans rupture dans la séquence. Gère les race conditions en vérifiant l'unicité.
+    Utilise une requête SQL directe pour s'assurer de voir tous les devis existants,
+    même dans le contexte d'une transaction.
     """
     current_year = datetime.now().year
     
-    # Trouver le dernier numéro de devis pour cette entreprise et cette année
-    # Récupérer tous les devis de l'année pour trouver le numéro le plus élevé
-    quotes_this_year = db.query(Quote).filter(
-        Quote.company_id == company_id,
-        Quote.number.like(f"DEV-{current_year}-%")
-    ).all()
+    # Utiliser une requête SQL directe pour trouver le numéro maximum
+    # Cela garantit qu'on voit tous les devis commités, même après un rollback
+    from sqlalchemy import text
     
-    if quotes_this_year:
+    # Requête SQL pour trouver le numéro maximum pour cette entreprise et cette année
+    query = text("""
+        SELECT number 
+        FROM quotes 
+        WHERE company_id = :company_id 
+        AND number LIKE :pattern
+    """)
+    
+    result = db.execute(query, {
+        "company_id": company_id,
+        "pattern": f"DEV-{current_year}-%"
+    })
+    
+    quotes_numbers = [row[0] for row in result.fetchall()]
+    
+    if quotes_numbers:
         # Extraire tous les numéros et trouver le maximum
         max_number = 0
-        for quote in quotes_this_year:
+        for quote_number in quotes_numbers:
             try:
-                number_part = int(quote.number.split("-")[-1])
+                # Format attendu: DEV-YYYY-NNN
+                number_part = int(quote_number.split("-")[-1])
                 if number_part > max_number:
                     max_number = number_part
             except (ValueError, IndexError):
@@ -94,17 +109,28 @@ def generate_quote_number(db: Session, company_id: int) -> str:
         # Générer le nouveau numéro
         number = f"DEV-{current_year}-{next_number:03d}"
         
-        # Vérifier l'unicité
-        existing = db.query(Quote).filter(
-            Quote.number == number,
-            Quote.company_id == company_id
-        ).first()
+        # Vérifier l'unicité avec une requête SQL directe
+        check_query = text("""
+            SELECT COUNT(*) 
+            FROM quotes 
+            WHERE company_id = :company_id 
+            AND number = :number
+        """)
         
-        if not existing:
+        result = db.execute(check_query, {
+            "company_id": company_id,
+            "number": number
+        })
+        
+        count = result.scalar()
+        
+        if count == 0:
             # Numéro disponible, on peut l'utiliser
+            logger.info(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1})")
             return number
         
         # Numéro déjà utilisé, incrémenter et réessayer
+        logger.debug(f"[QUOTE NUMBER] Numéro {number} déjà utilisé, incrémentation...")
         next_number += 1
         attempt += 1
     
@@ -112,6 +138,7 @@ def generate_quote_number(db: Session, company_id: int) -> str:
     # Générer un numéro avec timestamp pour éviter le conflit
     timestamp = int(datetime.now().timestamp() * 1000) % 10000
     number = f"DEV-{current_year}-{timestamp:03d}"
+    logger.warning(f"[QUOTE NUMBER] Épuisement des tentatives, utilisation d'un numéro avec timestamp: {number}")
     
     return number
 
@@ -580,7 +607,11 @@ def create_quote(
             except IntegrityError as e:
                 # Vérifier si c'est une erreur de duplication de numéro
                 error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
-                if "ix_quotes_number" in error_str or "duplicate key" in error_str.lower():
+                # Vérifier les deux noms de contrainte (ancien et nouveau)
+                if ("ix_quotes_number" in error_str or 
+                    "uq_quotes_company_number" in error_str or 
+                    "duplicate key" in error_str.lower() or
+                    "unique constraint" in error_str.lower()):
                     retry_count += 1
                     logger.warning(f"[QUOTE CREATE] Conflit de numéro détecté (tentative {retry_count}/{max_retries}), réessai avec un nouveau numéro...")
                     db.rollback()  # Rollback pour libérer la transaction
