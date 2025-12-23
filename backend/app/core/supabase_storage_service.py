@@ -141,15 +141,22 @@ def upload_file(
         # Upload du fichier - Supabase accepte directement les bytes
         logger.info(f"🔄 Tentative d'upload vers Supabase Storage: bucket={settings.SUPABASE_STORAGE_BUCKET}, path={storage_path}, size={len(file_content)} bytes")
         
+        # Supprimer le fichier existant s'il existe (pour remplacer)
+        try:
+            client.storage.from_(settings.SUPABASE_STORAGE_BUCKET).remove([storage_path])
+            logger.debug(f"🗑️  Fichier existant supprimé (s'il existait): {storage_path}")
+        except Exception as e:
+            # Ignorer si le fichier n'existe pas
+            logger.debug(f"Fichier n'existe pas encore (normal): {storage_path}")
+        
         # Le SDK Supabase accepte directement les bytes (pas besoin de BytesIO)
-        # Note: upsert doit être passé comme paramètre séparé, pas dans file_options
+        # Note: Le SDK Python ne supporte pas upsert, on supprime puis upload
         response = client.storage.from_(settings.SUPABASE_STORAGE_BUCKET).upload(
             path=storage_path,
             file=file_content,  # Passer directement les bytes
             file_options={
                 "content-type": content_type or "application/octet-stream"
-            },
-            upsert=True  # Remplacer si existe déjà (paramètre séparé)
+            }
         )
         
         logger.info(f"📥 Réponse Supabase upload: {response}")
