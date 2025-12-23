@@ -34,7 +34,7 @@ def format_date(date: Optional[datetime]) -> str:
     return date.strftime("%d/%m/%Y")
 
 
-def generate_invoice_pdf(invoice: Invoice) -> bytes:
+def generate_invoice_pdf(invoice: Invoice, client=None) -> bytes:
     """
     Génère un PDF de facture conforme avec toutes les mentions légales.
     
@@ -147,15 +147,64 @@ def generate_invoice_pdf(invoice: Invoice) -> bytes:
     c.setFont("Helvetica", 9)
     c.setFillColor(black)
     
-    if invoice.client_name:
-        c.drawString(120 * mm, client_y, invoice.client_name)
+    # Utiliser les données du client si disponible, sinon utiliser celles de l'invoice
+    client_name = None
+    client_address = None
+    client_email = None
+    client_phone = None
+    client_city = None
+    client_postal_code = None
+    
+    if client:
+        client_name = client.name
+        client_address = getattr(client, 'address', None)
+        client_email = client.email
+        client_phone = client.phone
+        client_city = getattr(client, 'city', None)
+        client_postal_code = getattr(client, 'postal_code', None)
+    else:
+        # Fallback sur les données stockées dans l'invoice
+        client_name = invoice.client_name
+        client_address = invoice.client_address
+    
+    if client_name:
+        c.drawString(120 * mm, client_y, client_name)
         client_y -= 4 * mm
     
-    if invoice.client_address:
-        address_lines = invoice.client_address.split('\n')
-        for line in address_lines[:3]:
-            c.drawString(120 * mm, client_y, line)
+    # Construire l'adresse complète : adresse, code postal, ville
+    address_parts = []
+    if client_address:
+        address_parts.append(client_address)
+    if client_postal_code:
+        address_parts.append(client_postal_code)
+    if client_city:
+        address_parts.append(client_city)
+    
+    if address_parts:
+        # Afficher l'adresse sur une ou plusieurs lignes si nécessaire
+        full_address = " ".join(address_parts)
+        if len(full_address) > 40:
+            # Diviser si trop long
+            if client_address:
+                c.drawString(120 * mm, client_y, client_address)
+                client_y -= 4 * mm
+            city_line = " ".join([p for p in [client_postal_code, client_city] if p])
+            if city_line:
+                c.drawString(120 * mm, client_y, city_line)
+                client_y -= 4 * mm
+        else:
+            c.drawString(120 * mm, client_y, full_address)
             client_y -= 4 * mm
+    
+    # Email
+    if client_email:
+        c.drawString(120 * mm, client_y, client_email)
+        client_y -= 4 * mm
+    
+    # Téléphone
+    if client_phone:
+        c.drawString(120 * mm, client_y, f"Tél: {client_phone}")
+        client_y -= 4 * mm
     
     if invoice.client_siren:
         c.drawString(120 * mm, client_y, f"SIREN: {invoice.client_siren}")

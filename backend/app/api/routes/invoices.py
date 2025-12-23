@@ -1649,8 +1649,15 @@ def get_invoice_pdf(
             detail="Invoice not found"
         )
     
+    # Charger le client pour avoir accès aux nouvelles données (city, postal_code, etc.)
+    from app.db.models.client import Client
+    client = db.query(Client).filter(
+        Client.id == invoice.client_id,
+        Client.company_id == current_user.company_id
+    ).first()
+    
     try:
-        pdf_bytes = generate_invoice_pdf(invoice)
+        pdf_bytes = generate_invoice_pdf(invoice, client=client)
         # Adapter le nom du fichier selon le type (facture ou avoir)
         if invoice.invoice_type == InvoiceType.AVOIR:
             filename = f"avoir_{invoice.number}.pdf"

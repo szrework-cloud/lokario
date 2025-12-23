@@ -282,14 +282,27 @@ def generate_quote_pdf(
     if company_info_data.get("email"):
         company_coords.append(company_info_data.get("email"))
     
-    # Construire les coordonnées du client
+    # Construire les coordonnées du client avec toutes les données disponibles
     client_info = []
     if client.name:
         client_info.append(f"<b>{client.name}</b>")
+    
+    # Adresse complète : adresse, code postal, ville
+    address_parts = []
     if hasattr(client, 'address') and client.address:
-        client_info.append(client.address)
-    elif client.email:
+        address_parts.append(client.address)
+    if hasattr(client, 'postal_code') and client.postal_code:
+        address_parts.append(client.postal_code)
+    if hasattr(client, 'city') and client.city:
+        address_parts.append(client.city)
+    if address_parts:
+        client_info.append(" ".join(address_parts))
+    
+    # Email
+    if client.email:
         client_info.append(client.email)
+    
+    # Téléphone
     if client.phone:
         client_info.append(f"Tél: {client.phone}")
     
