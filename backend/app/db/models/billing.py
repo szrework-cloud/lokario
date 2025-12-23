@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric, Enum, Text, Boolean, JSON
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric, Enum, Text, Boolean, JSON, UniqueConstraint
 from decimal import Decimal
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -30,12 +30,15 @@ class InvoiceType(str, enum.Enum):
 
 class Quote(Base):
     __tablename__ = "quotes"
+    __table_args__ = (
+        UniqueConstraint('company_id', 'number', name='uq_quotes_company_number'),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
-    number = Column(String, nullable=False, unique=True, index=True)  # "DEV-2025-023"
+    number = Column(String, nullable=False, index=True)  # "DEV-2025-023" - Unicité avec company_id via UniqueConstraint
     amount = Column(Numeric(10, 2), nullable=False)  # Conservé pour compatibilité
     status = Column(Enum(QuoteStatus), nullable=False, default=QuoteStatus.ENVOYE)
     sent_at = Column(DateTime(timezone=True), nullable=True)
