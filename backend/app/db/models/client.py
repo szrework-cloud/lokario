@@ -14,6 +14,10 @@ class Client(Base):
     phone = Column(String, nullable=True)
     sector = Column(String, nullable=True)  # commerce, beauté, resto, services, etc.
     address = Column(Text, nullable=True)
+    city = Column(String(100), nullable=True)
+    postal_code = Column(String(20), nullable=True)
+    country = Column(String(100), nullable=True)
+    siret = Column(String(14), nullable=True)
     notes = Column(Text, nullable=True)
     type = Column(String, nullable=True, default="Client")  # "Client" ou "Fournisseur"
     tags = Column(JSON, nullable=True)  # Liste de tags : ["VIP", "régulier", "nouveau"]

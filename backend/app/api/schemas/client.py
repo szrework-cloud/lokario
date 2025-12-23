@@ -9,6 +9,10 @@ class ClientBase(BaseModel):
     phone: Optional[str] = None
     sector: Optional[str] = None
     address: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    siret: Optional[str] = None
     notes: Optional[str] = None
     type: Optional[str] = "Client"  # "Client" ou "Fournisseur"
     tags: Optional[List[str]] = None  # ["VIP", "régulier", "nouveau"]
@@ -24,6 +28,10 @@ class ClientUpdate(BaseModel):
     phone: Optional[str] = None
     sector: Optional[str] = None
     address: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    siret: Optional[str] = None
     notes: Optional[str] = None
     type: Optional[str] = None
     tags: Optional[List[str]] = None

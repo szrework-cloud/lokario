@@ -101,6 +101,10 @@ def create_client(
         phone=client_data.phone,
         sector=client_data.sector,
         address=client_data.address,
+        city=client_data.city,
+        postal_code=client_data.postal_code,
+        country=client_data.country,
+        siret=client_data.siret,
         notes=client_data.notes,
         type=client_data.type or "Client",
         tags=client_data.tags or [],
@@ -193,7 +197,7 @@ async def import_clients_csv(
 ):
     """
     Importe des clients depuis un fichier CSV.
-    Format attendu : Nom, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET, TVA
+    Format attendu : Nom, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET
     """
     if current_user.company_id is None:
         raise HTTPException(
@@ -234,7 +238,7 @@ async def import_clients_csv(
         csv_reader = csv.DictReader(io.StringIO(text))
         
         # Vérifier que les colonnes attendues sont présentes
-        expected_columns = ["Nom", "Email", "Téléphone", "Adresse", "Ville", "Code postal", "Pays", "SIRET", "TVA"]
+        expected_columns = ["Nom", "Email", "Téléphone", "Adresse", "Ville", "Code postal", "Pays", "SIRET"]
         reader_columns = csv_reader.fieldnames or []
         
         # Mapper les colonnes (gérer les variations de noms)
@@ -273,7 +277,6 @@ async def import_clients_csv(
                 postal_code = get_value("Code postal")
                 country = get_value("Pays")
                 siret = get_value("SIRET")
-                vat_number = get_value("TVA")
                 
                 # Au minimum, il faut un nom ou un email
                 if not name and not email:
@@ -313,8 +316,6 @@ async def import_clients_csv(
                         existing_client.country = country
                     if siret:
                         existing_client.siret = siret
-                    if vat_number:
-                        existing_client.vat_number = vat_number
                     updated_count += 1
                 else:
                     # Créer un nouveau client
@@ -328,7 +329,6 @@ async def import_clients_csv(
                         postal_code=postal_code,
                         country=country,
                         siret=siret,
-                        vat_number=vat_number,
                     )
                     db.add(new_client)
                     created_count += 1

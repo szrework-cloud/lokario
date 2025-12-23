@@ -10,6 +10,10 @@ export interface Client {
   contactEmail?: string;
   contactPhone?: string;
   address?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  siret?: string;
   tags?: ("VIP" | "régulier" | "nouveau")[];
   lastContact?: string;
   tasksCount?: number;
@@ -27,6 +31,10 @@ export interface ClientCreate {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
+  siret?: string;
   notes?: string;
   tags?: string[];
 }
@@ -38,6 +46,10 @@ export interface ClientUpdate {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
+  siret?: string;
   notes?: string;
   tags?: string[];
 }
@@ -50,6 +62,10 @@ interface ClientAPIResponse {
   phone?: string | null;
   sector?: string | null;
   address?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  siret?: string | null;
   notes?: string | null;
   type?: string | null;
   tags?: string[] | null;
@@ -70,6 +86,10 @@ function mapClientFromAPI(apiClient: ClientAPIResponse): Client {
     contactEmail: apiClient.email || undefined,
     contactPhone: apiClient.phone || undefined,
     address: apiClient.address || undefined,
+    city: apiClient.city || undefined,
+    postalCode: apiClient.postal_code || undefined,
+    country: apiClient.country || undefined,
+    siret: apiClient.siret || undefined,
     tags: (apiClient.tags as ("VIP" | "régulier" | "nouveau")[]) || undefined,
     // Les stats seront calculées plus tard via d'autres endpoints
     tasksCount: 0,
@@ -241,6 +261,10 @@ export async function updateClient(
   if (clientData.email !== undefined) payload.email = clientData.email;
   if (clientData.phone !== undefined) payload.phone = clientData.phone;
   if (clientData.address !== undefined) payload.address = clientData.address;
+  if (clientData.city !== undefined) payload.city = clientData.city;
+  if (clientData.postal_code !== undefined) payload.postal_code = clientData.postal_code;
+  if (clientData.country !== undefined) payload.country = clientData.country;
+  if (clientData.siret !== undefined) payload.siret = clientData.siret;
   if (clientData.notes !== undefined) payload.notes = clientData.notes;
   if (clientData.tags !== undefined) payload.tags = clientData.tags;
 

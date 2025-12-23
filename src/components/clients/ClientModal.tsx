@@ -29,6 +29,10 @@ export function ClientModal({ isOpen, onClose, onSuccess, client, onDelete }: Cl
     email: "",
     phone: "",
     address: "",
+    city: "",
+    postal_code: "",
+    country: "",
+    siret: "",
     notes: "",
     tags: [] as string[],
   });
@@ -43,6 +47,10 @@ export function ClientModal({ isOpen, onClose, onSuccess, client, onDelete }: Cl
         email: client.contactEmail || "",
         phone: client.contactPhone || "",
         address: client.address || "",
+        city: client.city || "",
+        postal_code: client.postalCode || "",
+        country: client.country || "",
+        siret: client.siret || "",
         notes: "",
         tags: client.tags || [],
       });
@@ -55,6 +63,10 @@ export function ClientModal({ isOpen, onClose, onSuccess, client, onDelete }: Cl
         email: "",
         phone: "",
         address: "",
+        city: "",
+        postal_code: "",
+        country: "",
+        siret: "",
         notes: "",
         tags: [],
       });
@@ -249,6 +261,65 @@ export function ClientModal({ isOpen, onClose, onSuccess, client, onDelete }: Cl
               rows={2}
               className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="Adresse complète"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          {/* Ville, Code postal, Pays */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                Ville
+              </label>
+              <input
+                type="text"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                placeholder="Ville"
+                disabled={isSubmitting}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                Code postal
+              </label>
+              <input
+                type="text"
+                value={formData.postal_code}
+                onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                placeholder="Code postal"
+                disabled={isSubmitting}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                Pays
+              </label>
+              <input
+                type="text"
+                value={formData.country}
+                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                placeholder="Pays"
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
+          {/* SIRET */}
+          <div>
+            <label className="block text-sm font-medium text-[#0F172A] mb-1">
+              SIRET
+            </label>
+            <input
+              type="text"
+              value={formData.siret}
+              onChange={(e) => setFormData({ ...formData, siret: e.target.value })}
+              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              placeholder="SIRET (14 chiffres)"
+              maxLength={14}
               disabled={isSubmitting}
             />
           </div>

@@ -60,7 +60,7 @@ export function ImportExportSection() {
       const clients = await response.json();
       
       // Convertir en CSV avec tous les champs disponibles
-      const headers = ["Nom", "Email", "Téléphone", "Adresse", "Ville", "Code postal", "Pays", "SIRET", "TVA"];
+      const headers = ["Nom", "Email", "Téléphone", "Adresse", "Ville", "Code postal", "Pays", "SIRET"];
       const csvRows = [
         headers.join(","),
         ...clients.map((client: any) => [
@@ -71,8 +71,7 @@ export function ImportExportSection() {
           `"${client.city || ""}"`,
           `"${client.postal_code || ""}"`,
           `"${client.country || ""}"`,
-          `"${client.siret || ""}"`,
-          `"${client.vat_number || ""}"`
+          `"${client.siret || ""}"`
         ].join(","))
       ];
       
@@ -230,7 +229,7 @@ export function ImportExportSection() {
             <li className="flex items-start gap-2">
               <FileSpreadsheet className="w-4 h-4 mt-0.5 text-[#F97316]" />
               <div>
-                <strong>CSV :</strong> Import/Export des clients uniquement. Format : Nom, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET, TVA. Les clients existants (par email ou nom) seront mis à jour.
+                <strong>CSV :</strong> Import/Export des clients uniquement. Format : Nom, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET. Les clients existants (par email ou nom) seront mis à jour.
               </div>
             </li>
           </ul>

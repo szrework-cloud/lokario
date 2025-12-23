@@ -26,6 +26,10 @@ interface ClientDetail {
   contactEmail?: string;
   contactPhone?: string;
   address?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  siret?: string;
   tags?: ("VIP" | "régulier" | "nouveau")[];
   lastContact?: string;
   totalInvoiced?: number;
@@ -120,6 +124,10 @@ export default function ClientDetailPage() {
             contactEmail: clientData.contactEmail,
             contactPhone: clientData.contactPhone,
             address: clientData.address,
+            city: clientData.city,
+            postalCode: clientData.postal_code,
+            country: clientData.country,
+            siret: clientData.siret,
             tags: clientData.tags,
             lastContact: clientData.lastContact,
             totalInvoiced: clientData.totalInvoiced,
@@ -300,9 +308,33 @@ export default function ClientDetailPage() {
                 </div>
               )}
               {client.address && (
-                <div>
+                <div className="md:col-span-2">
                   <span className="text-sm font-medium text-[#64748B]">Adresse</span>
                   <p className="text-sm text-[#0F172A]">{client.address}</p>
+                </div>
+              )}
+              {client.city && (
+                <div>
+                  <span className="text-sm font-medium text-[#64748B]">Ville</span>
+                  <p className="text-sm text-[#0F172A]">{client.city}</p>
+                </div>
+              )}
+              {client.postalCode && (
+                <div>
+                  <span className="text-sm font-medium text-[#64748B]">Code postal</span>
+                  <p className="text-sm text-[#0F172A]">{client.postalCode}</p>
+                </div>
+              )}
+              {client.country && (
+                <div>
+                  <span className="text-sm font-medium text-[#64748B]">Pays</span>
+                  <p className="text-sm text-[#0F172A]">{client.country}</p>
+                </div>
+              )}
+              {client.siret && (
+                <div>
+                  <span className="text-sm font-medium text-[#64748B]">SIRET</span>
+                  <p className="text-sm text-[#0F172A]">{client.siret}</p>
                 </div>
               )}
               {client.sector && (
