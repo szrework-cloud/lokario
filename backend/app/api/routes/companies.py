@@ -402,15 +402,47 @@ async def upload_company_logo(
         # Ouvrir l'image depuis les bytes
         image = Image.open(io.BytesIO(file_content))
         original_mode = image.mode
-        has_transparency = image.mode in ('RGBA', 'LA', 'P') or 'transparency' in image.info
+        
+        # Détecter la transparence de manière plus robuste
+        has_transparency = False
+        if image.mode in ('RGBA', 'LA'):
+            has_transparency = True
+        elif image.mode == 'P':
+            # Pour les images en mode palette, vérifier si elles ont de la transparence
+            if 'transparency' in image.info:
+                has_transparency = True
+            else:
+                # Vérifier si la palette contient des pixels transparents
+                try:
+                    image_rgba = image.convert('RGBA')
+                    # Vérifier si au moins un pixel a de l'alpha < 255
+                    alpha_channel = image_rgba.split()[-1]
+                    if alpha_channel.getextrema()[0] < 255:
+                        has_transparency = True
+                except:
+                    pass
         
         # Redimensionner si l'image est trop grande (max 800x800 pour les logos)
+        # Préserver le mode avec transparence lors du redimensionnement
         max_dimension = 800
         if image.width > max_dimension or image.height > max_dimension:
             # Calculer les nouvelles dimensions en gardant le ratio
             ratio = min(max_dimension / image.width, max_dimension / image.height)
             new_width = int(image.width * ratio)
             new_height = int(image.height * ratio)
+            # Si l'image a de la transparence, s'assurer qu'elle est en RGBA avant redimensionnement
+            if has_transparency and image.mode != 'RGBA':
+                if image.mode == 'P':
+                    image = image.convert('RGBA')
+                elif image.mode == 'LA':
+                    # Convertir LA en RGBA
+                    rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+                    rgb_image.paste(image.convert('RGB'))
+                    alpha = image.split()[-1] if len(image.split()) > 1 else None
+                    if alpha:
+                        image = Image.merge('RGBA', (*rgb_image.split(), alpha))
+                    else:
+                        image = rgb_image.convert('RGBA')
             image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
         
         # Sauvegarder dans le format original en préservant la transparence
@@ -420,6 +452,18 @@ async def upload_company_logo(
             # Pour PNG, préserver la transparence
             if has_transparency:
                 # Garder en PNG avec transparence
+                # S'assurer que l'image est en mode RGBA
+                if image.mode != 'RGBA':
+                    if image.mode == 'P':
+                        image = image.convert('RGBA')
+                    elif image.mode == 'LA':
+                        rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+                        rgb_image.paste(image.convert('RGB'))
+                        alpha = image.split()[-1] if len(image.split()) > 1 else None
+                        if alpha:
+                            image = Image.merge('RGBA', (*rgb_image.split(), alpha))
+                        else:
+                            image = rgb_image.convert('RGBA')
                 image.save(output, format='PNG', optimize=True)
                 file_ext = '.png'
             else:
@@ -437,7 +481,10 @@ async def upload_company_logo(
                         rgb_image.paste(image)
                     image = rgb_image
                 elif image.mode != 'RGB':
-                    image = image.convert('RGB')
+                    # Pour tout autre mode, créer un fond blanc par sécurité
+                    rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+                    rgb_image.paste(image.convert('RGB'))
+                    image = rgb_image
                 # Essayer différentes qualités JPEG
                 quality = 85
                 for q in range(85, 40, -10):
@@ -450,7 +497,17 @@ async def upload_company_logo(
                 file_ext = '.jpg'
         elif original_file_ext.lower() in ['.jpg', '.jpeg', '.JPG', '.JPEG']:
             # Pour JPEG, optimiser la qualité
-            if image.mode != 'RGB':
+            # Créer un fond blanc si l'image a de la transparence
+            if image.mode in ('RGBA', 'LA', 'P'):
+                rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+                if image.mode == 'P':
+                    image = image.convert('RGBA')
+                if image.mode == 'RGBA':
+                    rgb_image.paste(image, mask=image.split()[-1])
+                else:
+                    rgb_image.paste(image)
+                image = rgb_image
+            elif image.mode != 'RGB':
                 image = image.convert('RGB')
             quality = 85
             for q in range(85, 40, -10):
