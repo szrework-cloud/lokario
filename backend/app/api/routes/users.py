@@ -357,7 +357,7 @@ def export_user_data(
                 "postal_code": client.postal_code,
                 "country": client.country,
                 "siret": client.siret,
-                "vat_number": client.vat_number,
+                "vat_number": getattr(client, 'vat_number', None),  # Champ optionnel qui n'existe pas dans le modèle
                 "notes": client.notes,
                 "created_at": client.created_at.isoformat() if client.created_at else None,
             })
@@ -580,7 +580,8 @@ def import_user_data(
                         postal_code=client_data.get("postal_code"),
                         country=client_data.get("country"),
                         siret=client_data.get("siret"),
-                        vat_number=client_data.get("vat_number"),
+                        # vat_number n'existe pas dans le modèle Client, on l'ignore
+                        # vat_number=client_data.get("vat_number"),
                         notes=client_data.get("notes"),
                     )
                     db.add(new_client)
