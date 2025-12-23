@@ -16,6 +16,8 @@ from app.db.models.invoice_audit import InvoiceAuditLog
 from app.db.models.followup import FollowUp, FollowUpHistory
 from app.db.models.conversation import Conversation, InboxMessage, MessageAttachment, InternalNote
 from app.db.models.appointment import Appointment
+from app.db.models.notification import Notification
+from app.db.models.chatbot import ChatbotConversation
 from app.api.schemas.user import UserRead, UserUpdate, UserWithCompany, UserPermissionsUpdate
 from app.api.deps import get_current_active_user, get_current_super_admin, get_current_user, get_current_user_for_restore
 
@@ -160,12 +162,13 @@ def update_user(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_super_admin)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
-    Supprime un utilisateur (super_admin uniquement).
+    Supprime un utilisateur.
+    - Super_admin: peut supprimer n'importe quel utilisateur, y compris les owners
+    - Owner: peut supprimer uniquement les utilisateurs (role="user") de sa propre entreprise
     Si c'est le dernier owner d'une entreprise, supprime aussi l'entreprise et tous ses utilisateurs.
-    Permet de supprimer n'importe quel utilisateur, y compris les owners.
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -178,9 +181,42 @@ def delete_user(
             detail="Cannot delete your own account"
         )
     
+    # Vérifier les permissions selon le rôle
+    if current_user.role == "super_admin":
+        # Super_admin peut tout supprimer
+        pass
+    elif current_user.role == "owner":
+        # Owner ne peut supprimer que les users de sa propre entreprise
+        if user.role != "user":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Owners can only delete users with role 'user' from their own company"
+            )
+        if user.company_id != current_user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot delete users from another company"
+            )
+    else:
+        # Les autres rôles ne peuvent pas supprimer
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to delete users"
+        )
+    
     # Sauvegarder les infos de l'utilisateur avant suppression
     company_id = user.company_id
     user_role = user.role
+    
+    # Supprimer toutes les notifications liées à cet utilisateur
+    notifications = db.query(Notification).filter(Notification.user_id == user_id).all()
+    for notification in notifications:
+        db.delete(notification)
+    
+    # Supprimer toutes les conversations chatbot liées à cet utilisateur
+    chatbot_conversations = db.query(ChatbotConversation).filter(ChatbotConversation.user_id == user_id).all()
+    for conversation in chatbot_conversations:
+        db.delete(conversation)  # Les messages seront supprimés automatiquement grâce au cascade
     
     # Supprimer l'utilisateur
     db.delete(user)

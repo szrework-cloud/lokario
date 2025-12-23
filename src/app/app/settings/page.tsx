@@ -9,12 +9,13 @@ import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader } from "@/components/ui/Loader";
 import { InboxIntegrationsTab } from "@/components/settings/InboxIntegrationsTab";
-import { getCompanyUsers, updateUserPermissions, User, UserPermissions } from "@/services/usersService";
+import { getCompanyUsers, updateUserPermissions, deleteUser, User, UserPermissions } from "@/services/usersService";
 import { useSubscription, useCreatePortalSession } from "@/hooks/queries/useStripe";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { DataPrivacySection } from "@/components/settings/DataPrivacySection";
 import { ImportExportSection } from "@/components/settings/ImportExportSection";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Trash2 } from "lucide-react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { logger } from "@/lib/logger";
 import { 
   getBillingLineTemplates, 
@@ -638,6 +639,12 @@ export default function SettingsPage() {
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [teamError, setTeamError] = useState<string | null>(null);
   const [updatingPermissions, setUpdatingPermissions] = useState<number | null>(null);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ isOpen: boolean; userId: number | null; userName: string }>({
+    isOpen: false,
+    userId: null,
+    userName: "",
+  });
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   // Charger l'équipe depuis le backend
   useEffect(() => {
@@ -675,6 +682,25 @@ export default function SettingsPage() {
       showToast(err.message || "Erreur lors de la mise à jour des permissions", "error");
     } finally {
       setUpdatingPermissions(null);
+    }
+  };
+
+  // Fonction pour supprimer un utilisateur
+  const handleDeleteUser = async () => {
+    if (!deleteConfirmModal.userId || !token) return;
+    
+    setIsDeletingUser(true);
+    try {
+      await deleteUser(token, deleteConfirmModal.userId);
+      // Retirer l'utilisateur de la liste
+      setTeamMembers(prev => prev.filter(u => u.id !== deleteConfirmModal.userId));
+      setDeleteConfirmModal({ isOpen: false, userId: null, userName: "" });
+      showToast("Utilisateur supprimé avec succès", "success");
+    } catch (err: any) {
+      console.error("Erreur lors de la suppression:", err);
+      showToast(err.message || "Erreur lors de la suppression de l'utilisateur", "error");
+    } finally {
+      setIsDeletingUser(false);
     }
   };
 
@@ -2737,6 +2763,22 @@ export default function SettingsPage() {
                               </p>
                             )}
                           </div>
+                          
+                          {/* Bouton de suppression (uniquement pour les owners qui suppriment des users) */}
+                          {member.role === "user" && (user?.role === "owner" || user?.role === "super_admin") && (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmModal({
+                                isOpen: true,
+                                userId: member.id,
+                                userName: member.full_name || member.email,
+                              })}
+                              className="ml-4 p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Supprimer cet utilisateur"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -2877,6 +2919,18 @@ export default function SettingsPage() {
           </>
       )}
 
+
+      {/* Modal de confirmation de suppression d'utilisateur */}
+      <ConfirmModal
+        isOpen={deleteConfirmModal.isOpen}
+        onClose={() => !isDeletingUser && setDeleteConfirmModal({ isOpen: false, userId: null, userName: "" })}
+        onConfirm={handleDeleteUser}
+        title="Supprimer l'utilisateur"
+        message={`Êtes-vous sûr de vouloir supprimer l'utilisateur "${deleteConfirmModal.userName}" ? Cette action est irréversible.`}
+        confirmText={isDeletingUser ? "Suppression..." : "Supprimer"}
+        cancelText="Annuler"
+        variant="danger"
+      />
 
       {/* Modal de recadrage du logo */}
       {showCropModal && imageToCrop && (

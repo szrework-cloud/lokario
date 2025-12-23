@@ -1,4 +1,4 @@
-import { apiGet, apiPatch } from "@/lib/api";
+import { apiGet, apiPatch, apiDelete } from "@/lib/api";
 
 export interface User {
   id: number;
@@ -46,4 +46,18 @@ export async function updateUserPermissions(
   
   const updatedUser = await apiPatch<User>(`/users/${userId}/permissions`, permissions, token);
   return updatedUser;
+}
+
+/**
+ * Supprime un utilisateur
+ */
+export async function deleteUser(
+  token: string | null,
+  userId: number
+): Promise<void> {
+  if (!token) {
+    throw new Error("Token is required");
+  }
+  
+  await apiDelete(`/users/${userId}`, token);
 }
