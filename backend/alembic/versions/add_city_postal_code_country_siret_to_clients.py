@@ -1,6 +1,6 @@
 """add_city_postal_code_country_siret_to_clients
 
-Revision ID: add_city_postal_code_country_siret
+Revision ID: add_client_address_fields
 Revises: 69f2b8b467ed
 Create Date: 2025-01-XX XX:XX:XX.XXXXXX
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'add_city_postal_code_country_siret'
+revision: str = 'add_client_address_fields'  # Nom raccourci pour respecter VARCHAR(32)
 down_revision: Union[str, None] = '69f2b8b467ed'  # Après remove_due_time_from_tasks
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
