@@ -56,7 +56,7 @@ def get_client_info(db: Session, client_id: int, company_id: int) -> Optional[Cl
     ).first()
 
 
-def generate_quote_number(db: Session, company_id: int) -> str:
+def generate_quote_number(db: Session, company_id: int, last_failed_number: Optional[str] = None) -> str:
     """
     Génère un numéro de devis séquentiel inviolable (ex: DEV-2025-001).
     
@@ -64,42 +64,66 @@ def generate_quote_number(db: Session, company_id: int) -> str:
     sans rupture dans la séquence. Gère les race conditions en vérifiant l'unicité.
     Utilise une requête SQL directe pour s'assurer de voir tous les devis existants,
     même dans le contexte d'une transaction.
+    
+    Args:
+        db: Session de base de données
+        company_id: ID de l'entreprise
+        last_failed_number: Numéro qui a échoué lors de la tentative précédente (pour incrémenter)
     """
     current_year = datetime.now().year
     
-    # Utiliser une requête SQL directe pour trouver le numéro maximum
-    # Cela garantit qu'on voit tous les devis commités, même après un rollback
-    from sqlalchemy import text
+    # Si un numéro a échoué, on commence à partir de celui-ci + 1
+    if last_failed_number:
+        try:
+            # Extraire le numéro séquentiel du numéro qui a échoué
+            failed_number_part = int(last_failed_number.split("-")[-1])
+            next_number = failed_number_part + 1
+            logger.info(f"[QUOTE NUMBER] Reprise après échec: dernier numéro tenté {last_failed_number}, prochain: {next_number}")
+        except (ValueError, IndexError):
+            # Si le parsing échoue, on continue avec la logique normale
+            last_failed_number = None
     
-    # Requête SQL pour trouver le numéro maximum pour cette entreprise et cette année
-    query = text("""
-        SELECT number 
-        FROM quotes 
-        WHERE company_id = :company_id 
-        AND number LIKE :pattern
-    """)
-    
-    result = db.execute(query, {
-        "company_id": company_id,
-        "pattern": f"DEV-{current_year}-%"
-    })
-    
-    quotes_numbers = [row[0] for row in result.fetchall()]
-    
-    if quotes_numbers:
-        # Extraire tous les numéros et trouver le maximum
-        max_number = 0
-        for quote_number in quotes_numbers:
-            try:
-                # Format attendu: DEV-YYYY-NNN
-                number_part = int(quote_number.split("-")[-1])
-                if number_part > max_number:
-                    max_number = number_part
-            except (ValueError, IndexError):
-                continue
-        next_number = max_number + 1
-    else:
-        next_number = 1
+    # Si pas de numéro échoué, trouver le numéro maximum existant
+    if not last_failed_number:
+        # Utiliser une requête SQL directe pour trouver le numéro maximum
+        # Cela garantit qu'on voit tous les devis commités, même après un rollback
+        from sqlalchemy import text
+        
+        # Requête SQL pour trouver le numéro maximum pour cette entreprise et cette année
+        query = text("""
+            SELECT number 
+            FROM quotes 
+            WHERE company_id = :company_id 
+            AND number LIKE :pattern
+        """)
+        
+        result = db.execute(query, {
+            "company_id": company_id,
+            "pattern": f"DEV-{current_year}-%"
+        })
+        
+        quotes_numbers = [row[0] for row in result.fetchall()]
+        
+        logger.info(f"[QUOTE NUMBER] Devis trouvés pour company_id={company_id}, année={current_year}: {len(quotes_numbers)} devis")
+        if quotes_numbers:
+            logger.debug(f"[QUOTE NUMBER] Numéros existants: {quotes_numbers[:10]}...")  # Limiter l'affichage
+        
+        if quotes_numbers:
+            # Extraire tous les numéros et trouver le maximum
+            max_number = 0
+            for quote_number in quotes_numbers:
+                try:
+                    # Format attendu: DEV-YYYY-NNN
+                    number_part = int(quote_number.split("-")[-1])
+                    if number_part > max_number:
+                        max_number = number_part
+                except (ValueError, IndexError):
+                    continue
+            next_number = max_number + 1
+            logger.info(f"[QUOTE NUMBER] Numéro maximum trouvé: {max_number}, prochain: {next_number}")
+        else:
+            next_number = 1
+            logger.info(f"[QUOTE NUMBER] Aucun devis existant, démarrage à 1")
     
     # Boucle pour trouver un numéro disponible (gestion des race conditions)
     max_attempts = 1000  # Limite de sécurité pour éviter les boucles infinies
@@ -110,6 +134,9 @@ def generate_quote_number(db: Session, company_id: int) -> str:
         number = f"DEV-{current_year}-{next_number:03d}"
         
         # Vérifier l'unicité avec une requête SQL directe
+        # Utiliser une transaction isolée pour s'assurer de voir les données commitées
+        from sqlalchemy import text
+        
         check_query = text("""
             SELECT COUNT(*) 
             FROM quotes 
@@ -124,13 +151,15 @@ def generate_quote_number(db: Session, company_id: int) -> str:
         
         count = result.scalar()
         
+        logger.debug(f"[QUOTE NUMBER] Vérification unicité: {number} -> count={count}")
+        
         if count == 0:
             # Numéro disponible, on peut l'utiliser
             logger.info(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1})")
             return number
         
         # Numéro déjà utilisé, incrémenter et réessayer
-        logger.debug(f"[QUOTE NUMBER] Numéro {number} déjà utilisé, incrémentation...")
+        logger.warning(f"[QUOTE NUMBER] Numéro {number} déjà utilisé (count={count}), incrémentation...")
         next_number += 1
         attempt += 1
     
@@ -576,11 +605,13 @@ def create_quote(
         max_retries = 10
         retry_count = 0
         quote = None
+        last_failed_number = None
+        number = None
         
         while retry_count < max_retries:
             try:
-                # Générer le numéro de devis
-                number = generate_quote_number(db, current_user.company_id)
+                # Générer le numéro de devis (passer le dernier numéro qui a échoué si disponible)
+                number = generate_quote_number(db, current_user.company_id, last_failed_number)
                 logger.info(f"[QUOTE CREATE] Tentative {retry_count + 1}: Génération du numéro {number}")
                 
                 # Créer le devis
@@ -607,13 +638,17 @@ def create_quote(
             except IntegrityError as e:
                 # Vérifier si c'est une erreur de duplication de numéro
                 error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                logger.error(f"[QUOTE CREATE] IntegrityError détecté: {error_str}")
+                
                 # Vérifier les deux noms de contrainte (ancien et nouveau)
                 if ("ix_quotes_number" in error_str or 
                     "uq_quotes_company_number" in error_str or 
                     "duplicate key" in error_str.lower() or
                     "unique constraint" in error_str.lower()):
                     retry_count += 1
-                    logger.warning(f"[QUOTE CREATE] Conflit de numéro détecté (tentative {retry_count}/{max_retries}), réessai avec un nouveau numéro...")
+                    if number:
+                        last_failed_number = number  # Sauvegarder le numéro qui a échoué
+                    logger.warning(f"[QUOTE CREATE] Conflit de numéro détecté (tentative {retry_count}/{max_retries}), numéro échoué: {number}, réessai avec un nouveau numéro...")
                     db.rollback()  # Rollback pour libérer la transaction
                     
                     if retry_count >= max_retries:
@@ -626,6 +661,7 @@ def create_quote(
                     continue
                 else:
                     # Autre type d'erreur d'intégrité, la propager
+                    logger.error(f"[QUOTE CREATE] Autre erreur d'intégrité: {error_str}")
                     db.rollback()
                     raise
             except Exception as e:
