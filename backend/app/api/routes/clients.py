@@ -404,7 +404,18 @@ async def import_clients_csv(
         
         # Traiter chaque ligne
         try:
-            rows = list(csv_reader)  # Lire toutes les lignes d'un coup pour détecter les erreurs de format tôt
+            all_rows = list(csv_reader)  # Lire toutes les lignes d'un coup pour détecter les erreurs de format tôt
+            # Filtrer les lignes complètement vides (toutes les valeurs sont vides ou None)
+            rows = []
+            for row in all_rows:
+                # Vérifier si la ligne a au moins une valeur non vide
+                has_data = any(
+                    value and str(value).strip() 
+                    for value in row.values() 
+                    if value is not None
+                )
+                if has_data:
+                    rows.append(row)
         except csv.Error as e:
             error_msg = str(e)
             if "new-line character seen in unquoted field" in error_msg.lower():
@@ -445,7 +456,15 @@ async def import_clients_csv(
                 country = get_value("Pays")
                 siret = get_value("SIRET")
                 
-                # Au minimum, il faut un nom ou un email
+                # Vérifier si la ligne est complètement vide (tous les champs sont vides)
+                # Cela inclut les lignes avec seulement des espaces, des virgules, ou des caractères vides
+                all_empty = not any([name, email, phone, address, city, postal_code, country, siret])
+                if all_empty:
+                    # Ignorer silencieusement les lignes complètement vides
+                    # Ces lignes sont probablement des lignes vides dans le CSV (espaces, virgules seules, etc.)
+                    continue
+                
+                # Au minimum, il faut un nom ou un email pour créer/mettre à jour un client
                 if not name and not email:
                     error_count += 1
                     errors.append(f"Ligne {row_num}: Nom ou Email requis")

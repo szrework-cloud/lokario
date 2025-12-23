@@ -389,25 +389,16 @@ async def upload_company_logo(
     file_content = await file.read()
     original_size = len(file_content)
     
-    # Compresser l'image si nécessaire
-    file_ext = ".jpg"  # Par défaut, on sauvegarde en JPEG après compression
+    # Redimensionner l'image si nécessaire, mais préserver le format et la transparence
+    file_ext = original_file_ext  # Garder le format original
     try:
         from PIL import Image  # pyright: ignore[reportMissingImports]
         import io
         
         # Ouvrir l'image depuis les bytes
         image = Image.open(io.BytesIO(file_content))
-        
-        # Convertir en RGB si nécessaire (pour les PNG avec transparence)
-        if image.mode in ('RGBA', 'LA', 'P'):
-            # Créer un fond blanc pour les images avec transparence
-            rgb_image = Image.new('RGB', image.size, (255, 255, 255))
-            if image.mode == 'P':
-                image = image.convert('RGBA')
-            rgb_image.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
-            image = rgb_image
-        elif image.mode != 'RGB':
-            image = image.convert('RGB')
+        original_mode = image.mode
+        has_transparency = image.mode in ('RGBA', 'LA', 'P') or 'transparency' in image.info
         
         # Redimensionner si l'image est trop grande (max 800x800 pour les logos)
         max_dimension = 800
@@ -418,22 +409,48 @@ async def upload_company_logo(
             new_height = int(image.height * ratio)
             image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
         
-        # Compresser l'image en JPEG avec qualité optimale
+        # Sauvegarder dans le format original en préservant la transparence
         output = io.BytesIO()
-        quality = 85  # Qualité initiale
         
-        # Essayer différentes qualités jusqu'à ce que la taille soit acceptable
-        for q in range(85, 40, -10):  # De 85% à 40% par pas de 10%
-            output.seek(0)
-            output.truncate(0)
-            image.save(output, format='JPEG', quality=q, optimize=True)
-            if len(output.getvalue()) <= 2 * 1024 * 1024:  # 2MB
-                quality = q
-                break
+        if original_file_ext.lower() in ['.png', '.PNG']:
+            # Pour PNG, préserver la transparence
+            if has_transparency:
+                # Garder en PNG avec transparence
+                image.save(output, format='PNG', optimize=True)
+                file_ext = '.png'
+            else:
+                # PNG sans transparence, convertir en JPEG pour réduire la taille
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+                # Essayer différentes qualités JPEG
+                quality = 85
+                for q in range(85, 40, -10):
+                    output.seek(0)
+                    output.truncate(0)
+                    image.save(output, format='JPEG', quality=q, optimize=True)
+                    if len(output.getvalue()) <= 2 * 1024 * 1024:  # 2MB
+                        quality = q
+                        break
+                file_ext = '.jpg'
+        elif original_file_ext.lower() in ['.jpg', '.jpeg', '.JPG', '.JPEG']:
+            # Pour JPEG, optimiser la qualité
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            quality = 85
+            for q in range(85, 40, -10):
+                output.seek(0)
+                output.truncate(0)
+                image.save(output, format='JPEG', quality=q, optimize=True)
+                if len(output.getvalue()) <= 2 * 1024 * 1024:  # 2MB
+                    quality = q
+                    break
+            file_ext = '.jpg'
+        else:
+            # Format non supporté, utiliser l'original
+            output.write(file_content)
         
-        # Si même à 40% c'est trop gros, réduire encore la taille
+        # Si même après optimisation c'est trop gros, réduire encore la taille
         if len(output.getvalue()) > 2 * 1024 * 1024:
-            # Réduire encore plus la taille (max 600x600)
             max_dimension = 600
             if image.width > max_dimension or image.height > max_dimension:
                 ratio = min(max_dimension / image.width, max_dimension / image.height)
@@ -443,14 +460,20 @@ async def upload_company_logo(
             
             output.seek(0)
             output.truncate(0)
-            image.save(output, format='JPEG', quality=75, optimize=True)
+            if file_ext == '.png' and has_transparency:
+                image.save(output, format='PNG', optimize=True)
+            else:
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+                image.save(output, format='JPEG', quality=75, optimize=True)
+                file_ext = '.jpg'
         
         file_content = output.getvalue()
         file_size = len(file_content)
         
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"Logo compressed: {original_size} bytes -> {file_size} bytes (quality: {quality}%)")
+        logger.info(f"Logo processed: {original_size} bytes -> {file_size} bytes (format: {file_ext})")
         
     except ImportError:
         # Si Pillow n'est pas disponible, utiliser le fichier original

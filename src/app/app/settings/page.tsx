@@ -135,79 +135,67 @@ export default function SettingsPage() {
       }
       
       // Charger le logo existant si disponible (synchroniser avec la section Facturation)
-      if (token) {
+      if (token && companyInfo.logo_path && companyInfo.logo_path.trim()) {
         const loadLogoForBothSections = async () => {
-          // Priorité : company_info.logo_path > quote_design.logo_path
-          const billingSettings = (settings.settings as any).billing || {};
-          const quoteDesign = billingSettings.quote_design || {};
-          const logoPathToUse = companyInfo.logo_path || quoteDesign.logo_path;
-          
-          // Ne charger que si on a un logo_path valide
-          if (logoPathToUse && logoPathToUse.trim()) {
-            try {
-              const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-              const response = await fetch(`${API_URL}/companies/me/logo`, {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
+          try {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+            const response = await fetch(`${API_URL}/companies/me/logo`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            if (response.ok) {
+              const blob = await response.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              // Synchroniser les deux previews
+              setLogoPreview((prev) => {
+                if (prev && prev.startsWith("blob:")) {
+                  URL.revokeObjectURL(prev);
+                }
+                return blobUrl;
               });
-              if (response.ok) {
-                const blob = await response.blob();
-                const blobUrl = URL.createObjectURL(blob);
-                // Synchroniser les deux previews
-                setLogoPreview((prev) => {
-                  if (prev && prev.startsWith("blob:")) {
-                    URL.revokeObjectURL(prev);
-                  }
-                  return blobUrl;
-                });
-                setQuoteLogoPreview((prev) => {
-                  if (prev && prev.startsWith("blob:")) {
-                    URL.revokeObjectURL(prev);
-                  }
-                  return blobUrl;
-                });
-              } else if (response.status === 404) {
-                // Logo n'existe plus (fichier perdu, ex: sur Railway après redémarrage)
-                // Nettoyer silencieusement sans logger pour éviter le bruit dans la console
-                setLogoPreview((prev) => {
-                  if (prev && prev.startsWith("blob:")) {
-                    URL.revokeObjectURL(prev);
-                  }
-                  return null;
-                });
-                setQuoteLogoPreview((prev) => {
-                  if (prev && prev.startsWith("blob:")) {
-                    URL.revokeObjectURL(prev);
-                  }
-                  return null;
-                });
-              } else {
-                // Autres erreurs : logger en debug seulement
-                logger.debug(`Erreur lors du chargement du logo: ${response.status} ${response.statusText}, logo_path: ${logoPathToUse}`);
-              }
-            } catch (err) {
-              // Erreur réseau : logger en debug seulement, ne pas afficher d'erreur à l'utilisateur
-              logger.debug("Erreur lors du chargement du logo:", err, "logo_path:", logoPathToUse);
+              setQuoteLogoPreview((prev) => {
+                if (prev && prev.startsWith("blob:")) {
+                  URL.revokeObjectURL(prev);
+                }
+                return blobUrl;
+              });
+            } else if (response.status === 404) {
+              // Logo n'existe plus (fichier perdu) - gérer silencieusement
+              setLogoPreview((prev) => {
+                if (prev && prev.startsWith("blob:")) {
+                  URL.revokeObjectURL(prev);
+                }
+                return null;
+              });
+              setQuoteLogoPreview((prev) => {
+                if (prev && prev.startsWith("blob:")) {
+                  URL.revokeObjectURL(prev);
+                }
+                return null;
+              });
             }
-          } else {
-            // Si pas de logo_path, réinitialiser les aperçus silencieusement
-            setLogoPreview((prev) => {
-              if (prev && prev.startsWith("blob:")) {
-                URL.revokeObjectURL(prev);
-              }
-              return null;
-            });
-            setQuoteLogoPreview((prev) => {
-              if (prev && prev.startsWith("blob:")) {
-                URL.revokeObjectURL(prev);
-              }
-              return null;
-            });
+            // Ignorer les autres erreurs silencieusement
+          } catch (err) {
+            // Erreur réseau - ignorer silencieusement
           }
         };
         
         loadLogoForBothSections();
+      } else {
+        // Pas de logo_path, réinitialiser les aperçus
+        setLogoPreview((prev) => {
+          if (prev && prev.startsWith("blob:")) {
+            URL.revokeObjectURL(prev);
+          }
+          return null;
+        });
+        setQuoteLogoPreview((prev) => {
+          if (prev && prev.startsWith("blob:")) {
+            URL.revokeObjectURL(prev);
+          }
+          return null;
+        });
       }
     } else if (user?.email && !companyEmail) {
       // Si pas encore de settings chargés mais qu'on a l'email de l'utilisateur, l'utiliser temporairement
