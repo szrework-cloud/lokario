@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'add_city_postal_code_country_siret'
-down_revision: Union[str, None] = '8647e85819cb'  # Après add_account_deletion_grace_period pour éviter les conflits
+down_revision: Union[str, None] = '69f2b8b467ed'  # Après remove_due_time_from_tasks
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
