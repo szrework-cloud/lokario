@@ -518,11 +518,6 @@ export default function SettingsPage() {
         // Log pour debug
         logger.debug("Sauvegarde settings - logo_path:", logoPathToUse, "uploaded:", uploadedLogoPath, "existing:", existingCompanyInfo.logo_path);
         
-        // Synchroniser le logo_path dans quote_design aussi si présent dans company_info
-        const existingBilling = ((refreshedSettings as any).billing || {});
-        const existingQuoteDesign = existingBilling.quote_design || {};
-        const logoPathToSync = logoPathToUse;
-        
         const updatedSettings = {
           ...refreshedSettings,
           company_info: {
@@ -541,14 +536,6 @@ export default function SettingsPage() {
             logo_crop_position: cropPosition, // Sauvegarder les paramètres de recadrage
             // Utiliser le logo_path de l'upload si disponible, sinon préserver l'existant
             ...(logoPathToUse ? { logo_path: logoPathToUse } : {}),
-          },
-          billing: {
-            ...existingBilling,
-            quote_design: {
-              ...existingQuoteDesign,
-              // Synchroniser le logo_path dans quote_design si présent
-              ...(logoPathToSync ? { logo_path: logoPathToSync } : {}),
-            },
           },
         };
         
@@ -2530,12 +2517,13 @@ export default function SettingsPage() {
                           signaturePath = quoteDesign.signature_path;
                         }
 
-                        // Mettre à jour à la fois company_info.logo_path et quote_design.logo_path pour synchronisation
+                        // Mettre à jour company_info.logo_path (source unique de vérité)
+                        // Le backend utilisera toujours company_info.logo_path pour les devis/factures
                         const updatedSettings = {
                           ...settings.settings,
                           company_info: {
                             ...((settings.settings as any).company_info || {}),
-                            // Synchroniser le logo_path dans company_info aussi (source de vérité)
+                            // Mettre à jour le logo_path dans company_info (source unique)
                             ...(logoPath ? { logo_path: logoPath } : {}),
                           },
                           billing: {
@@ -2543,8 +2531,7 @@ export default function SettingsPage() {
                             quote_design: {
                               primary_color: quotePrimaryColor,
                               secondary_color: quoteSecondaryColor,
-                              // Synchroniser le logo_path dans quote_design aussi
-                              logo_path: logoPath,
+                              // Ne plus stocker logo_path dans quote_design, utiliser company_info.logo_path
                               signature_path: signaturePath,
                               footer_text: quoteFooterText,
                               terms_text: quoteTermsText,

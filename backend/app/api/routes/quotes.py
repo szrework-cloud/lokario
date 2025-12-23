@@ -350,8 +350,8 @@ def preview_quote_design(
         billing_design = company_settings_obj.settings.get("billing", {}).get("quote_design", {})
         company_info = company_settings_obj.settings.get("company_info", {})
         
-        # Utiliser quote_design.logo_path en priorité, sinon company_info.logo_path
-        logo_path = billing_design.get("logo_path") or company_info.get("logo_path")
+        # Toujours utiliser company_info.logo_path comme source unique de vérité
+        logo_path = company_info.get("logo_path")
         
         design_config = {
             "primary_color": billing_design.get("primary_color", "#F97316"),
@@ -908,8 +908,8 @@ def get_quote_pdf(
             quote_design = billing_settings.get("quote_design", {})
             company_info = company_settings.settings.get("company_info", {})
             
-            # Utiliser quote_design.logo_path en priorité, sinon company_info.logo_path
-            logo_path = quote_design.get("logo_path") or company_info.get("logo_path")
+            # Toujours utiliser company_info.logo_path comme source unique de vérité
+            logo_path = company_info.get("logo_path")
             
             design_config = {
                 "primary_color": quote_design.get("primary_color", "#F97316"),
@@ -1347,8 +1347,8 @@ def _send_quote_via_inbox(
         billing_design = company_settings_obj.settings.get("billing", {}).get("quote_design", {})
         company_info = company_settings_obj.settings.get("company_info", {})
         
-        # Utiliser quote_design.logo_path en priorité, sinon company_info.logo_path
-        logo_path = billing_design.get("logo_path") or company_info.get("logo_path")
+        # Toujours utiliser company_info.logo_path comme source unique de vérité
+        logo_path = company_info.get("logo_path")
         
         design_config = {
             "primary_color": billing_design.get("primary_color", "#F97316"),
