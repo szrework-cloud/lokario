@@ -327,38 +327,56 @@ export async function apiUploadFile<T>(
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(buildApiUrl(path), {
-    method: "POST",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: formData,
-  });
+  // Timeout plus long pour les gros fichiers (5 minutes)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes
 
-  if (!res.ok) {
-    let message = "Erreur serveur";
-    try {
-      const errorBody = await res.json();
-      if (errorBody.detail) {
-        message = Array.isArray(errorBody.detail)
-          ? errorBody.detail[0].msg ?? message
-          : errorBody.detail;
+  try {
+    const res = await fetch(buildApiUrl(path), {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      let message = "Erreur serveur";
+      try {
+        const errorBody = await res.json();
+        if (errorBody.detail) {
+          message = Array.isArray(errorBody.detail)
+            ? errorBody.detail[0].msg ?? message
+            : errorBody.detail;
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
+      
+      // Si erreur 401 (Unauthorized), créer une erreur spéciale
+      if (res.status === 401) {
+        const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+        (authError as any).status = 401;
+        (authError as any).isAuthError = true;
+        throw authError;
+      }
+      
+      throw new Error(message);
     }
-    
-    // Si erreur 401 (Unauthorized), créer une erreur spéciale
-    if (res.status === 401) {
-      const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
-      (authError as any).status = 401;
-      (authError as any).isAuthError = true;
-      throw authError;
-    }
-    
-    throw new Error(message);
-  }
 
-  return res.json();
+    const result = await res.json();
+    return result;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    
+    if (error.name === 'AbortError') {
+      throw new Error("L'import prend trop de temps. Le fichier est peut-être trop volumineux.");
+    }
+    
+    throw error;
+  }
 }
 

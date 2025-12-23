@@ -119,8 +119,14 @@ export function ImportExportSection() {
       return;
     }
 
+    // Afficher un message de début
+    const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+    showToast(`Import en cours... (${fileSizeMB} MB)`, "info");
+
     setIsImporting(true);
     try {
+      console.log(`[Import CSV] Début import: ${file.name} (${fileSizeMB} MB)`);
+      
       const result = await apiUploadFile<{
         message: string;
         created: number;
@@ -129,11 +135,16 @@ export function ImportExportSection() {
         error_details: string[];
       }>("/clients/import", file, token);
 
+      console.log(`[Import CSV] Résultat:`, result);
+
       let message = `Import terminé : ${result.created} créé(s), ${result.updated} mis à jour`;
       if (result.errors > 0) {
         message += `, ${result.errors} erreur(s)`;
         if (result.error_details.length > 0) {
           console.warn("Erreurs d'import:", result.error_details);
+          // Afficher les premières erreurs dans la console pour debug
+          const firstErrors = result.error_details.slice(0, 5);
+          console.warn("Premières erreurs:", firstErrors);
         }
       }
 
@@ -145,7 +156,13 @@ export function ImportExportSection() {
       }
     } catch (error: any) {
       console.error("Erreur lors de l'import des clients:", error);
-      showToast(error.message || "Erreur lors de l'import des clients", "error");
+      const errorMessage = error.message || "Erreur lors de l'import des clients";
+      showToast(errorMessage, "error");
+      console.error("Détails de l'erreur:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
     } finally {
       setIsImporting(false);
     }
