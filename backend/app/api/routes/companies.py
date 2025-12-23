@@ -424,7 +424,19 @@ async def upload_company_logo(
                 file_ext = '.png'
             else:
                 # PNG sans transparence, convertir en JPEG pour réduire la taille
-                if image.mode != 'RGB':
+                # Créer un fond blanc avant conversion pour éviter le fond noir
+                if image.mode in ('RGBA', 'LA', 'P'):
+                    # Créer un fond blanc
+                    rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+                    if image.mode == 'P':
+                        image = image.convert('RGBA')
+                    # Coller l'image sur le fond blanc
+                    if image.mode == 'RGBA':
+                        rgb_image.paste(image, mask=image.split()[-1])  # Utiliser le canal alpha comme masque
+                    else:
+                        rgb_image.paste(image)
+                    image = rgb_image
+                elif image.mode != 'RGB':
                     image = image.convert('RGB')
                 # Essayer différentes qualités JPEG
                 quality = 85
@@ -467,7 +479,17 @@ async def upload_company_logo(
             if file_ext == '.png' and has_transparency:
                 image.save(output, format='PNG', optimize=True)
             else:
-                if image.mode != 'RGB':
+                # Créer un fond blanc avant conversion pour éviter le fond noir
+                if image.mode in ('RGBA', 'LA', 'P'):
+                    rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+                    if image.mode == 'P':
+                        image = image.convert('RGBA')
+                    if image.mode == 'RGBA':
+                        rgb_image.paste(image, mask=image.split()[-1])
+                    else:
+                        rgb_image.paste(image)
+                    image = rgb_image
+                elif image.mode != 'RGB':
                     image = image.convert('RGB')
                 image.save(output, format='JPEG', quality=75, optimize=True)
                 file_ext = '.jpg'
