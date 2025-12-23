@@ -45,52 +45,13 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     canvas_obj.setFont("Helvetica-Bold", 48)
     canvas_obj.drawString(20*mm, A4[1] - 50*mm, "DEVIS")
     
-    # Logo si disponible (en haut à droite, sur fond blanc)
+    # Logo si disponible (en haut à droite)
     logo_loaded = False
     if logo_path and Path(logo_path).exists():
         try:
-            from PIL import Image as PILImage
-            import io
-            
-            # Ouvrir l'image avec PIL
-            pil_image = PILImage.open(logo_path)
-            
-            # Convertir les images transparentes en RGB avec fond blanc pour les PDFs
-            # (ReportLab ne gère pas bien la transparence PNG)
-            if pil_image.mode in ('RGBA', 'LA', 'P'):
-                # Convertir en RGBA si nécessaire
-                if pil_image.mode == 'P':
-                    pil_image = pil_image.convert('RGBA')
-                elif pil_image.mode == 'LA':
-                    # Convertir LA en RGBA
-                    rgba_img = PILImage.new('RGBA', pil_image.size)
-                    rgb_part = pil_image.convert('RGB')
-                    alpha = pil_image.split()[-1] if len(pil_image.split()) > 1 else None
-                    rgba_img.paste(rgb_part, (0, 0))
-                    if alpha:
-                        rgba_img.putalpha(alpha)
-                    pil_image = rgba_img
-                
-                # Créer un fond blanc
-                rgb_image = PILImage.new('RGB', pil_image.size, (255, 255, 255))
-                
-                # Extraire les canaux RGB et alpha
-                r, g, b, a = pil_image.split()
-                
-                # Créer une image RGB temporaire
-                rgb_temp = PILImage.merge('RGB', (r, g, b))
-                
-                # Coller sur le fond blanc en utilisant le canal alpha comme masque
-                rgb_image.paste(rgb_temp, (0, 0), mask=a)
-                pil_image = rgb_image
-            
-            # Sauvegarder en JPEG pour les PDFs (pas de transparence)
-            img_buffer = io.BytesIO()
-            if pil_image.mode != 'RGB':
-                pil_image = pil_image.convert('RGB')
-            pil_image.save(img_buffer, format='JPEG', quality=95)
-            img_buffer.seek(0)
-            logo = Image(img_buffer, width=35*mm, height=35*mm, kind='proportional')
+            # Utiliser directement le fichier image sans conversion
+            # ReportLab peut gérer les PNG avec transparence directement
+            logo = Image(logo_path, width=35*mm, height=35*mm, kind='proportional')
             
             # Positionner le logo en haut à droite
             logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)

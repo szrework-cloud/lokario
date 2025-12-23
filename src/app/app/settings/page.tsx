@@ -3019,6 +3019,17 @@ export default function SettingsPage() {
                   sourceY = Math.max(0, Math.min(sourceY, img.height - scaledSize));
                   sourceSize = Math.min(scaledSize, img.width - sourceX, img.height - sourceY);
                   
+                  // Détecter si l'image originale est un PNG pour préserver la transparence
+                  const originalFile = logoFile || quoteLogoFile;
+                  const isPng = originalFile?.type === 'image/png' || originalFile?.name.toLowerCase().endsWith('.png');
+                  
+                  // Remplir le canvas avec un fond blanc seulement si on convertit en JPEG
+                  // (pour éviter le fond noir, mais préserver la transparence pour PNG)
+                  if (!isPng) {
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, size, size);
+                  }
+                  
                   // Dessiner l'image recadrée sur le canvas
                   ctx.drawImage(
                     img,
@@ -3027,9 +3038,17 @@ export default function SettingsPage() {
                   );
                   
                       // Convertir le canvas en blob puis en File
-                      canvas.toBlob(async (blob) => {
+                      // Utiliser PNG pour préserver la transparence si l'image originale était transparente
+                      const fileExtension = isPng ? 'png' : 'jpg';
+                      const mimeType = isPng ? 'image/png' : 'image/jpeg';
+                      
+                      // Spécifier le format dans toBlob pour préserver la transparence PNG ou utiliser JPEG avec qualité
+                      // toBlob(callback, type, quality) - par défaut PNG, spécifier 'image/jpeg' pour JPEG
+                      // Pour PNG, on ne spécifie pas le type (par défaut PNG préserve la transparence)
+                      // Pour JPEG, on spécifie 'image/jpeg' avec une qualité de 0.95
+                      const blobCallback = async (blob: Blob | null) => {
                         if (blob) {
-                          const file = new File([blob], 'logo.jpg', { type: 'image/jpeg' });
+                          const file = new File([blob], `logo.${fileExtension}`, { type: mimeType });
                           
                           // Libérer l'ancienne URL blob si elle existe
                           if (logoPreview && logoPreview.startsWith("blob:")) {
@@ -3059,7 +3078,16 @@ export default function SettingsPage() {
                           
                           setShowCropModal(false);
                         }
-                      }, 'image/jpeg', 0.9);
+                      };
+                      
+                      // Appeler toBlob avec le format approprié
+                      if (isPng) {
+                        // Pour PNG, on ne spécifie pas le type (par défaut PNG préserve la transparence)
+                        canvas.toBlob(blobCallback);
+                      } else {
+                        // Pour JPEG, on spécifie 'image/jpeg' avec une qualité de 0.95
+                        canvas.toBlob(blobCallback, 'image/jpeg', 0.95);
+                      }
                 }}
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#F97316] to-[#EA580C] text-white text-sm font-medium hover:brightness-110"
               >
