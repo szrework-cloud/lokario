@@ -333,10 +333,21 @@ async def import_clients_csv(
         )
     
     # Vérifier que c'est un fichier CSV
-    if not file.filename.endswith('.csv'):
+    if not file.filename or not file.filename.endswith('.csv'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Le fichier doit être au format CSV"
+            detail=(
+                "❌ Format de fichier incorrect\n\n"
+                "Le fichier doit avoir l'extension .csv\n\n"
+                "🔍 Causes probables :\n"
+                "• Vous avez sélectionné un fichier Excel (.xlsx, .xls)\n"
+                "• Vous avez sélectionné un fichier Numbers\n"
+                "• Le fichier n'a pas d'extension\n\n"
+                "✅ Solutions :\n"
+                "1. Exportez votre fichier depuis Excel/Numbers en format CSV\n"
+                "2. Le fichier doit se terminer par .csv\n"
+                "3. Utilisez la fonction d'export de Lokario pour obtenir un fichier CSV valide"
+            )
         )
     
     company_id = current_user.company_id
@@ -371,9 +382,19 @@ async def import_clients_csv(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    "Le fichier semble être un fichier Excel ou Numbers, pas un fichier CSV texte. "
-                    "Veuillez exporter votre fichier en format CSV depuis Excel/Numbers : "
-                    "Fichier > Exporter > CSV (ou Format CSV)."
+                    "❌ Format de fichier incorrect\n\n"
+                    "Le fichier que vous avez envoyé semble être un fichier Excel (.xlsx, .xls) ou Numbers, "
+                    "et non un fichier CSV texte.\n\n"
+                    "🔍 Causes probables :\n"
+                    "• Vous avez renommé un fichier Excel en .csv sans l'exporter\n"
+                    "• Le fichier a été sauvegardé dans un format binaire\n"
+                    "• Le fichier provient d'une application qui génère des fichiers Excel\n\n"
+                    "✅ Solution :\n"
+                    "1. Ouvrez votre fichier dans Excel ou Numbers\n"
+                    "2. Allez dans Fichier > Exporter > CSV (ou Format CSV)\n"
+                    "3. Choisissez l'encodage UTF-8 si proposé\n"
+                    "4. Réessayez l'import avec le fichier exporté\n\n"
+                    "💡 Astuce : Utilisez la fonction d'export de Lokario pour obtenir un fichier CSV valide."
                 )
             )
         
@@ -393,7 +414,20 @@ async def import_clients_csv(
                 logger.error(f"[CSV Import] Impossible de décoder le fichier (ni UTF-8, ni Latin-1)")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Impossible de décoder le fichier. Utilisez UTF-8 ou Latin-1."
+                    detail=(
+                        "❌ Erreur d'encodage du fichier\n\n"
+                        "Le fichier ne peut pas être lu car son encodage n'est pas reconnu.\n\n"
+                        "🔍 Causes probables :\n"
+                        "• Le fichier utilise un encodage non standard (ex: Windows-1252, ISO-8859-15)\n"
+                        "• Le fichier contient des caractères spéciaux mal encodés\n"
+                        "• Le fichier a été créé avec un éditeur qui utilise un encodage différent\n\n"
+                        "✅ Solutions :\n"
+                        "1. Réexportez votre fichier depuis Excel/Numbers en choisissant UTF-8\n"
+                        "2. Ouvrez le fichier dans un éditeur de texte (TextEdit, Notepad++)\n"
+                        "3. Sauvegardez-le en UTF-8 (Fichier > Enregistrer sous > Encodage: UTF-8)\n"
+                        "4. Réessayez l'import\n\n"
+                        "💡 Astuce : Utilisez la fonction d'export de Lokario pour obtenir un fichier avec le bon encodage."
+                    )
                 )
         
         # Log les premiers caractères du texte décodé
@@ -432,17 +466,37 @@ async def import_clients_csv(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=(
-                        "Erreur de format CSV : des champs contiennent des retours à la ligne "
-                        "sans être entre guillemets. Le fichier a été automatiquement corrigé mais "
-                        "l'erreur persiste. Veuillez vérifier que tous les champs contenant des "
-                        "retours à la ligne sont entre guillemets, ou exporter à nouveau le fichier "
-                        "depuis Lokario pour obtenir un format valide."
+                        "❌ Format CSV invalide : retours à la ligne dans les champs\n\n"
+                        "Le fichier CSV contient des retours à la ligne dans des champs qui ne sont pas entre guillemets.\n\n"
+                        "🔍 Causes probables :\n"
+                        "• Un champ (adresse, notes, etc.) contient un retour à la ligne\n"
+                        "• Le fichier a été modifié manuellement et les guillemets ont été supprimés\n"
+                        "• Le fichier a été exporté avec des paramètres incorrects\n\n"
+                        "✅ Solutions :\n"
+                        "1. Ouvrez votre fichier dans Excel/Numbers\n"
+                        "2. Vérifiez que les champs avec retours à la ligne sont bien entre guillemets\n"
+                        "3. Réexportez en CSV en choisissant 'Tous les champs entre guillemets'\n"
+                        "4. Ou utilisez la fonction d'export de Lokario pour obtenir un format valide\n\n"
+                        "💡 Exemple correct :\n"
+                        'Nom,Email,Adresse\n'
+                        '"Dupont","dupont@example.com","123 Rue de la Paix\n'
+                        'Appartement 4B"\n'
                     )
                 )
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Erreur de format CSV : {error_msg}"
+                    detail=(
+                        f"❌ Erreur de format CSV\n\n"
+                        f"Le fichier ne peut pas être lu correctement.\n\n"
+                        f"🔍 Détails techniques : {error_msg}\n\n"
+                        f"✅ Solutions :\n"
+                        f"1. Vérifiez que le fichier est bien un CSV texte (pas Excel)\n"
+                        f"2. Vérifiez que les colonnes sont séparées par des virgules\n"
+                        f"3. Vérifiez que les champs contenant des virgules sont entre guillemets\n"
+                        f"4. Réexportez depuis Excel/Numbers en format CSV\n"
+                        f"5. Utilisez la fonction d'export de Lokario comme modèle"
+                    )
                 )
         
         # Vérifier que les colonnes attendues sont présentes
@@ -469,9 +523,20 @@ async def import_clients_csv(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=(
-                        "Le fichier CSV semble corrompu ou n'est pas un fichier CSV texte valide. "
-                        "Si vous avez exporté depuis Excel ou Numbers, assurez-vous d'utiliser "
-                        "'Fichier > Exporter > CSV' et non simplement renommer le fichier."
+                        "❌ Fichier CSV corrompu ou format invalide\n\n"
+                        "Les colonnes du fichier contiennent des caractères invalides ou corrompus.\n\n"
+                        "🔍 Causes probables :\n"
+                        "• Le fichier a été renommé de .xlsx à .csv sans être exporté\n"
+                        "• Le fichier est un fichier Excel binaire, pas un CSV texte\n"
+                        "• Le fichier a été corrompu lors du transfert\n"
+                        "• Le fichier utilise un encodage incompatible\n\n"
+                        "✅ Solutions :\n"
+                        "1. Ouvrez votre fichier dans Excel ou Numbers\n"
+                        "2. Allez dans Fichier > Exporter > CSV (ou Format CSV)\n"
+                        "3. Choisissez l'encodage UTF-8 si proposé\n"
+                        "4. Ne renommez PAS simplement le fichier, EXPORTEZ-le\n"
+                        "5. Réessayez l'import avec le fichier exporté\n\n"
+                        "💡 Astuce : Utilisez la fonction d'export de Lokario pour obtenir un fichier CSV valide."
                     )
                 )
         
@@ -498,12 +563,28 @@ async def import_clients_csv(
         
         if not column_mapping:
             logger.warning(f"[CSV Import] Aucune colonne n'a pu être mappée. Colonnes du fichier: {reader_columns}")
+            found_cols = ', '.join(reader_columns[:10]) if reader_columns else 'Aucune'
+            if len(reader_columns) > 10:
+                found_cols += f" (et {len(reader_columns) - 10} autres)"
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    f"Aucune colonne attendue n'a été trouvée dans le fichier. "
-                    f"Colonnes trouvées: {', '.join(reader_columns[:10]) if reader_columns else 'Aucune'}. "
-                    f"Colonnes attendues: {', '.join(expected_columns)}"
+                    "❌ Colonnes manquantes ou incorrectes\n\n"
+                    "Le fichier CSV ne contient pas les colonnes attendues.\n\n"
+                    f"📋 Colonnes trouvées dans votre fichier : {found_cols}\n"
+                    f"📋 Colonnes attendues : {', '.join(expected_columns)}\n\n"
+                    "🔍 Causes probables :\n"
+                    "• Les noms de colonnes sont différents (ex: 'nom' au lieu de 'Nom')\n"
+                    "• L'ordre des colonnes est différent (ce n'est pas un problème normalement)\n"
+                    "• Le fichier n'a pas d'en-tête de colonnes\n"
+                    "• Le fichier utilise un séparateur différent (point-virgule au lieu de virgule)\n\n"
+                    "✅ Solutions :\n"
+                    "1. Vérifiez que la première ligne contient les noms de colonnes\n"
+                    "2. Les colonnes sont insensibles à la casse (Nom, nom, NOM fonctionnent)\n"
+                    "3. Utilisez la fonction d'export de Lokario comme modèle\n"
+                    "4. Si vous utilisez un séparateur différent, convertissez-le en virgules\n\n"
+                    "💡 Astuce : Vous pouvez réorganiser les colonnes dans n'importe quel ordre, "
+                    "mais les noms doivent correspondre (insensible à la casse)."
                 )
             )
         
@@ -535,22 +616,66 @@ async def import_clients_csv(
                 # Log quelques lignes pour comprendre pourquoi elles sont filtrées
                 for i, row in enumerate(all_rows[:5]):
                     logger.info(f"[CSV Import] Ligne {i+2} (exemple filtré): {dict(list(row.items())[:3])}")
+                
+                # Lever une exception explicative si aucune ligne n'est trouvée
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "❌ Aucune donnée trouvée dans le fichier\n\n"
+                        "Le fichier CSV ne contient aucune ligne de données valide.\n\n"
+                        "🔍 Causes probables :\n"
+                        "• Le fichier ne contient que l'en-tête (noms de colonnes) sans données\n"
+                        "• Toutes les lignes sont vides ou ne contiennent que des espaces\n"
+                        "• Le fichier a été mal exporté et les données n'ont pas été incluses\n"
+                        "• Le séparateur utilisé n'est pas une virgule (ex: point-virgule, tabulation)\n\n"
+                        "✅ Solutions :\n"
+                        "1. Vérifiez que votre fichier contient au moins une ligne de données après l'en-tête\n"
+                        "2. Vérifiez que les données ne sont pas toutes vides\n"
+                        "3. Vérifiez que le séparateur est une virgule (pas un point-virgule)\n"
+                        "4. Réexportez depuis Excel/Numbers en format CSV\n"
+                        "5. Utilisez la fonction d'export de Lokario comme modèle\n\n"
+                        "💡 Format attendu :\n"
+                        "Nom,Email,Téléphone,Adresse,Ville,Code postal,Pays,SIRET\n"
+                        "Dupont,dupont@example.com,0123456789,123 Rue de la Paix,Paris,75001,France,12345678901234"
+                    )
+                )
         except csv.Error as e:
             error_msg = str(e)
             if "new-line character seen in unquoted field" in error_msg.lower():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=(
-                        "Erreur de format CSV : des champs contiennent des retours à la ligne "
-                        "sans être entre guillemets. Veuillez mettre des guillemets autour des "
-                        "champs contenant des retours à la ligne, ou exporter à nouveau le fichier "
-                        "depuis Lokario pour obtenir un format valide."
+                        "❌ Format CSV invalide : retours à la ligne dans les champs\n\n"
+                        "Le fichier CSV contient des retours à la ligne dans des champs qui ne sont pas entre guillemets.\n\n"
+                        "🔍 Causes probables :\n"
+                        "• Un champ (adresse, notes, etc.) contient un retour à la ligne\n"
+                        "• Le fichier a été modifié manuellement et les guillemets ont été supprimés\n"
+                        "• Le fichier a été exporté avec des paramètres incorrects\n\n"
+                        "✅ Solutions :\n"
+                        "1. Ouvrez votre fichier dans Excel/Numbers\n"
+                        "2. Vérifiez que les champs avec retours à la ligne sont bien entre guillemets\n"
+                        "3. Réexportez en CSV en choisissant 'Tous les champs entre guillemets'\n"
+                        "4. Ou utilisez la fonction d'export de Lokario pour obtenir un format valide\n\n"
+                        "💡 Exemple correct :\n"
+                        'Nom,Email,Adresse\n'
+                        '"Dupont","dupont@example.com","123 Rue de la Paix\n'
+                        'Appartement 4B"'
                     )
                 )
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Erreur de format CSV lors de la lecture : {error_msg}"
+                    detail=(
+                        f"❌ Erreur de format CSV lors de la lecture\n\n"
+                        f"Le fichier ne peut pas être lu correctement.\n\n"
+                        f"🔍 Détails techniques : {error_msg}\n\n"
+                        f"✅ Solutions :\n"
+                        f"1. Vérifiez que le fichier est bien un CSV texte (pas Excel)\n"
+                        f"2. Vérifiez que les colonnes sont séparées par des virgules\n"
+                        f"3. Vérifiez que les champs contenant des virgules sont entre guillemets\n"
+                        f"4. Réexportez depuis Excel/Numbers en format CSV\n"
+                        f"5. Utilisez la fonction d'export de Lokario comme modèle"
+                    )
                 )
         
         # Faire un flush périodique pour éviter les problèmes de mémoire avec les gros fichiers
