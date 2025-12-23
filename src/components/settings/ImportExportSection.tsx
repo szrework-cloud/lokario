@@ -44,24 +44,35 @@ export function ImportExportSection() {
   const handleExportClients = async () => {
     setIsExporting(true);
     try {
-      // Appel API pour exporter les clients
-      const { getClients } = await import("@/services/clientsService");
-      const clients = await getClients(token);
+      // Appel API direct pour récupérer les données brutes (sans mapping)
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${API_URL}/clients?limit=10000`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la récupération des clients");
+      }
+
+      const clients = await response.json();
       
-      // Convertir en CSV
+      // Convertir en CSV avec tous les champs disponibles
       const headers = ["Nom", "Email", "Téléphone", "Adresse", "Ville", "Code postal", "Pays", "SIRET", "TVA"];
       const csvRows = [
         headers.join(","),
-        ...clients.map(client => [
+        ...clients.map((client: any) => [
           `"${client.name || ""}"`,
-          `"${(client as any).email || ""}"`,
-          `"${(client as any).phone || ""}"`,
-          `"${(client as any).address || ""}"`,
-          `"${(client as any).city || ""}"`,
-          `"${(client as any).postal_code || ""}"`,
-          `"${(client as any).country || ""}"`,
-          `"${(client as any).siret || ""}"`,
-          `"${(client as any).vat_number || ""}"`
+          `"${client.email || ""}"`,
+          `"${client.phone || ""}"`,
+          `"${client.address || ""}"`,
+          `"${client.city || ""}"`,
+          `"${client.postal_code || ""}"`,
+          `"${client.country || ""}"`,
+          `"${client.siret || ""}"`,
+          `"${client.vat_number || ""}"`
         ].join(","))
       ];
       
