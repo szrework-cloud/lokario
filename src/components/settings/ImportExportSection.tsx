@@ -229,7 +229,11 @@ export function ImportExportSection() {
             <li className="flex items-start gap-2">
               <FileSpreadsheet className="w-4 h-4 mt-0.5 text-[#F97316]" />
               <div>
-                <strong>CSV :</strong> Import/Export des clients uniquement. Format : Nom, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET. Les clients existants (par email ou nom) seront mis à jour.
+                <strong>CSV :</strong> Import/Export des clients uniquement. 
+                <br />
+                <strong>Format attendu :</strong> Nom, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET
+                <br />
+                <strong>Note :</strong> L'export génère un fichier CSV que vous pouvez réimporter directement. Les colonnes sont insensibles à la casse. Les clients existants (par email ou nom) seront mis à jour automatiquement.
               </div>
             </li>
           </ul>
