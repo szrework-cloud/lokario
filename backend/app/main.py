@@ -432,16 +432,9 @@ async def startup_event():
             from app.core.supabase_storage_service import is_supabase_storage_configured, get_supabase_client
             
             if is_supabase_storage_configured():
-                # Tenter d'initialiser le client pour voir les logs
-                client = get_supabase_client()
-                if client:
-                    logger.info("✅ Supabase Storage configuré et prêt")
-                else:
-                    logger.warning("⚠️  Supabase Storage configuré mais client non initialisé")
-            else:
-                logger.info("ℹ️  Supabase Storage non configuré - Utilisation du stockage local")
-        except Exception as e:
-            logger.warning(f"⚠️  Erreur lors de l'initialisation Supabase Storage: {e}")
+                get_supabase_client()
+        except Exception:
+            pass
     
     # Lancer l'initialisation Supabase Storage en arrière-plan (non-bloquant)
     asyncio.create_task(init_supabase_storage())

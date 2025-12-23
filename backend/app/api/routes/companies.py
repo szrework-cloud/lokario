@@ -445,9 +445,6 @@ async def upload_company_logo(
         )
         
         if not storage_path:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning("⚠️  Échec de l'upload vers Supabase Storage, fallback vers stockage local")
             use_supabase = False
     
     # Fallback vers stockage local si Supabase n'est pas configuré ou a échoué
@@ -661,9 +658,6 @@ async def upload_company_signature(
         )
         
         if not storage_path:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning("⚠️  Échec de l'upload vers Supabase Storage, fallback vers stockage local")
             use_supabase = False
     
     # Fallback vers stockage local si Supabase n'est pas configuré ou a échoué
@@ -784,8 +778,7 @@ async def get_company_signature(
                     media_type="image/jpeg",
                     headers={"Content-Disposition": f'inline; filename="signature.jpg"'}
                 )
-        except Exception as e:
-            logger.warning(f"Erreur lors du téléchargement depuis Supabase Storage: {e}, fallback vers stockage local")
+        except Exception:
             use_supabase = False
     
     # Fallback vers stockage local
@@ -839,16 +832,12 @@ async def get_company_logo(
     is_supabase_configured = is_supabase_storage_configured()
     is_supabase_format = logo_path.startswith(f"{current_user.company_id}/") or "/" in logo_path
     
-    logger.info(f"Logo retrieval - Supabase configured: {is_supabase_configured}, Format Supabase: {is_supabase_format}, logo_path: {logo_path}")
-    
     use_supabase = is_supabase_configured and is_supabase_format
     
     if use_supabase:
         try:
-            logger.info(f"Attempting to download logo from Supabase Storage: {logo_path}")
             file_content = download_from_supabase(logo_path)
             if file_content:
-                logger.info(f"✅ Logo successfully downloaded from Supabase Storage: {logo_path}")
                 # Déterminer le type MIME selon l'extension
                 if logo_path.lower().endswith(".png"):
                     media_type = "image/png"
@@ -862,13 +851,9 @@ async def get_company_logo(
                     headers={"Content-Disposition": f'inline; filename="{Path(logo_path).name}"'}
                 )
             else:
-                logger.warning(f"⚠️  Logo not found in Supabase Storage: {logo_path}, fallback vers stockage local")
                 use_supabase = False
-        except Exception as e:
-            logger.warning(f"Erreur lors du téléchargement depuis Supabase Storage: {e}, fallback vers stockage local")
+        except Exception:
             use_supabase = False
-    else:
-        logger.info(f"Using local storage fallback - Supabase configured: {is_supabase_configured}, Format: {is_supabase_format}")
     
     # Fallback vers stockage local
     if not use_supabase:
@@ -990,15 +975,10 @@ async def delete_company_logo(
     
     if use_supabase:
         try:
-            logger.info(f"🗑️  Suppression du logo depuis Supabase Storage: {logo_path}")
-            deleted = delete_from_supabase(logo_path)
-            if deleted:
-                logger.info(f"✅ Logo supprimé de Supabase Storage: {logo_path}")
-            else:
-                logger.warning(f"⚠️  Logo non trouvé dans Supabase Storage: {logo_path}")
-        except Exception as e:
-            logger.error(f"❌ Erreur lors de la suppression depuis Supabase Storage ({logo_path}): {e}")
+            delete_from_supabase(logo_path)
+        except Exception:
             # Continuer pour supprimer aussi du stockage local si présent
+            pass
     
     # Supprimer aussi du stockage local si présent
     try:

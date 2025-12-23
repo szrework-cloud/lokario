@@ -22,15 +22,7 @@ def get_supabase_client():
     if _supabase_client is not None:
         return _supabase_client
     
-    # Log détaillé pour debug
-    has_url = bool(settings.SUPABASE_URL)
-    has_key = bool(settings.SUPABASE_SERVICE_ROLE_KEY)
-    bucket = settings.SUPABASE_STORAGE_BUCKET
-    
-    logger.info(f"🔍 Vérification Supabase Storage - URL: {has_url}, Key: {has_key}, Bucket: {bucket}")
-    
     if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
-        logger.warning(f"⚠️  Supabase Storage non configuré - SUPABASE_URL: {has_url}, SUPABASE_SERVICE_ROLE_KEY: {has_key}")
         return None
     
     try:
@@ -40,15 +32,10 @@ def get_supabase_client():
             settings.SUPABASE_URL,
             settings.SUPABASE_SERVICE_ROLE_KEY
         )
-        logger.info(f"✅ Client Supabase Storage initialisé (URL: {settings.SUPABASE_URL[:30]}..., bucket: {settings.SUPABASE_STORAGE_BUCKET})")
         return _supabase_client
     except ImportError:
-        logger.error("❌ Module 'supabase' non installé. Installez-le avec: pip install supabase")
         return None
-    except Exception as e:
-        logger.error(f"❌ Erreur lors de l'initialisation du client Supabase: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+    except Exception:
         return None
 
 
@@ -70,16 +57,12 @@ def ensure_bucket_exists(bucket_name: Optional[str] = None) -> bool:
     
     try:
         # Vérifier si le bucket existe
-        logger.info(f"🔍 Vérification du bucket '{bucket}' dans Supabase Storage")
         buckets = client.storage.list_buckets()
-        bucket_names = [b.name for b in buckets]
-        logger.info(f"📦 Buckets existants: {bucket_names}")
         bucket_exists = any(b.name == bucket for b in buckets)
         
         if not bucket_exists:
             # Créer le bucket
-            logger.info(f"🔄 Création du bucket '{bucket}' dans Supabase Storage")
-            result = client.storage.create_bucket(
+            client.storage.create_bucket(
                 bucket,
                 options={
                     "public": False,  # Bucket privé (nécessite authentification)
@@ -87,15 +70,9 @@ def ensure_bucket_exists(bucket_name: Optional[str] = None) -> bool:
                     "allowed_mime_types": settings.ALLOWED_MIME_TYPES
                 }
             )
-            logger.info(f"✅ Bucket '{bucket}' créé dans Supabase Storage: {result}")
-        else:
-            logger.info(f"✅ Bucket '{bucket}' existe déjà")
         
         return True
-    except Exception as e:
-        logger.error(f"❌ Erreur lors de la vérification/création du bucket '{bucket}': {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+    except Exception:
         return False
 
 
@@ -120,12 +97,10 @@ def upload_file(
     client = get_supabase_client()
     
     if not client:
-        logger.error("❌ Client Supabase non disponible pour l'upload")
         return None
     
     # S'assurer que le bucket existe
     if not ensure_bucket_exists():
-        logger.error("❌ Impossible de créer/vérifier le bucket")
         return None
     
     try:
@@ -138,16 +113,12 @@ def upload_file(
         else:
             storage_path = file_path
         
-        # Upload du fichier - Supabase accepte directement les bytes
-        logger.info(f"🔄 Tentative d'upload vers Supabase Storage: bucket={settings.SUPABASE_STORAGE_BUCKET}, path={storage_path}, size={len(file_content)} bytes")
-        
         # Supprimer le fichier existant s'il existe (pour remplacer)
         try:
             client.storage.from_(settings.SUPABASE_STORAGE_BUCKET).remove([storage_path])
-            logger.debug(f"🗑️  Fichier existant supprimé (s'il existait): {storage_path}")
-        except Exception as e:
+        except Exception:
             # Ignorer si le fichier n'existe pas
-            logger.debug(f"Fichier n'existe pas encore (normal): {storage_path}")
+            pass
         
         # Le SDK Supabase accepte directement les bytes (pas besoin de BytesIO)
         # Note: Le SDK Python ne supporte pas upsert, on supprime puis upload
@@ -159,8 +130,6 @@ def upload_file(
             }
         )
         
-        logger.info(f"📥 Réponse Supabase upload: {response}")
-        
         # La réponse peut être un dict avec 'path' ou directement le path
         if response:
             # Extraire le path de la réponse
@@ -169,16 +138,11 @@ def upload_file(
             else:
                 uploaded_path = storage_path
             
-            logger.info(f"✅ Fichier uploadé vers Supabase Storage: {uploaded_path}")
             return uploaded_path
         else:
-            logger.error(f"❌ Échec de l'upload vers Supabase Storage: {storage_path} - Réponse vide")
             return None
             
-    except Exception as e:
-        logger.error(f"❌ Erreur lors de l'upload vers Supabase Storage ({file_path}): {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+    except Exception:
         return None
 
 
@@ -195,21 +159,12 @@ def download_file(file_path: str) -> Optional[bytes]:
     client = get_supabase_client()
     
     if not client:
-        logger.error("❌ Client Supabase non disponible pour le téléchargement")
         return None
     
     try:
         response = client.storage.from_(settings.SUPABASE_STORAGE_BUCKET).download(file_path)
-        
-        if response:
-            logger.debug(f"✅ Fichier téléchargé depuis Supabase Storage: {file_path}")
-            return response
-        else:
-            logger.warning(f"⚠️  Fichier non trouvé dans Supabase Storage: {file_path}")
-            return None
-            
-    except Exception as e:
-        logger.error(f"❌ Erreur lors du téléchargement depuis Supabase Storage ({file_path}): {e}")
+        return response if response else None
+    except Exception:
         return None
 
 
@@ -226,21 +181,12 @@ def delete_file(file_path: str) -> bool:
     client = get_supabase_client()
     
     if not client:
-        logger.error("❌ Client Supabase non disponible pour la suppression")
         return False
     
     try:
         response = client.storage.from_(settings.SUPABASE_STORAGE_BUCKET).remove([file_path])
-        
-        if response:
-            logger.info(f"✅ Fichier supprimé de Supabase Storage: {file_path}")
-            return True
-        else:
-            logger.warning(f"⚠️  Fichier non trouvé pour suppression: {file_path}")
-            return False
-            
-    except Exception as e:
-        logger.error(f"❌ Erreur lors de la suppression depuis Supabase Storage ({file_path}): {e}")
+        return bool(response)
+    except Exception:
         return False
 
 
@@ -270,8 +216,7 @@ def get_public_url(file_path: str, expires_in: int = 3600) -> Optional[str]:
             return response.get("signedURL") if isinstance(response, dict) else str(response)
         return None
         
-    except Exception as e:
-        logger.error(f"❌ Erreur lors de la génération de l'URL publique ({file_path}): {e}")
+    except Exception:
         return None
 
 
