@@ -434,9 +434,13 @@ async def import_clients_csv(
                     detail=f"Erreur de format CSV lors de la lecture : {error_msg}"
                 )
         
+        # Faire un flush périodique pour éviter les problèmes de mémoire avec les gros fichiers
+        flush_interval = 100  # Flush tous les 100 clients
+        
         for row_num, row in enumerate(rows, start=2):  # start=2 car ligne 1 = headers
             try:
                 # Extraire les données (gérer les colonnes avec ou sans mapping)
+                # Les cases vides sont ignorées (retourne None)
                 def get_value(key: str) -> Optional[str]:
                     mapped_key = column_mapping.get(key, key)
                     value = row.get(mapped_key, row.get(key, ""))
@@ -444,8 +448,9 @@ async def import_clients_csv(
                         # Nettoyer les caractères de contrôle problématiques
                         value = clean_control_characters(str(value))
                         value = value.strip()
+                        # Retourner None si la valeur est vide après nettoyage
                         return value if value else None
-                    return None
+                    return None  # Case vide = None (ignoré)
                 
                 name = get_value("Nom")
                 email = get_value("Email")
@@ -470,54 +475,87 @@ async def import_clients_csv(
                     errors.append(f"Ligne {row_num}: Nom ou Email requis")
                     continue
                 
-                # Chercher un client existant (par email ou nom)
-                existing_client = None
-                if email:
-                    existing_client = db.query(Client).filter(
-                        Client.company_id == company_id,
-                        Client.email == email
-                    ).first()
+                # Normaliser l'email (lowercase, trim) pour éviter les doublons
+                normalized_email = email.lower().strip() if email else None
+                normalized_name = name.strip() if name else None
                 
-                if not existing_client and name:
+                # Chercher un client existant
+                # Règle : Si on a un email, chercher uniquement par email (le plus fiable)
+                # Si on n'a pas d'email mais un nom, chercher par nom
+                existing_client = None
+                if normalized_email:
+                    # Priorité 1: Chercher par email (le plus fiable, évite les doublons)
                     existing_client = db.query(Client).filter(
                         Client.company_id == company_id,
-                        Client.name == name
+                        Client.email.ilike(normalized_email)  # Case-insensitive
                     ).first()
+                elif normalized_name:
+                    # Priorité 2: Chercher par nom seulement si on n'a pas d'email
+                    # (moins fiable car plusieurs clients peuvent avoir le même nom)
+                    existing_client = db.query(Client).filter(
+                        Client.company_id == company_id,
+                        Client.name.ilike(normalized_name),  # Case-insensitive
+                        Client.email.is_(None)  # Seulement si le client n'a pas d'email
+                    ).first()
+                    
+                    # Si pas trouvé avec email=None, chercher par nom seul (même avec email)
+                    if not existing_client:
+                        existing_client = db.query(Client).filter(
+                            Client.company_id == company_id,
+                            Client.name.ilike(normalized_name)  # Case-insensitive
+                        ).first()
                 
                 if existing_client:
-                    # Mettre à jour le client existant
-                    if name:
-                        existing_client.name = name
-                    if email:
-                        existing_client.email = email
-                    if phone:
+                    # Mettre à jour le client existant (ne pas recréer)
+                    # Mettre à jour seulement les champs qui ont des valeurs (cases vides = ignorées)
+                    if normalized_name:
+                        existing_client.name = normalized_name
+                    if normalized_email:
+                        existing_client.email = normalized_email
+                    if phone:  # Si case vide, phone est None, donc on ne met pas à jour
                         existing_client.phone = phone
-                    if address:
+                    if address:  # Si case vide, address est None, donc on ne met pas à jour
                         existing_client.address = address
-                    if city:
+                    if city:  # Si case vide, city est None, donc on ne met pas à jour
                         existing_client.city = city
-                    if postal_code:
+                    if postal_code:  # Si case vide, postal_code est None, donc on ne met pas à jour
                         existing_client.postal_code = postal_code
-                    if country:
+                    if country:  # Si case vide, country est None, donc on ne met pas à jour
                         existing_client.country = country
-                    if siret:
+                    if siret:  # Si case vide, siret est None, donc on ne met pas à jour
                         existing_client.siret = siret
+                    # S'assurer que le type est défini si ce n'est pas déjà le cas
+                    if not existing_client.type:
+                        existing_client.type = "Client"
                     updated_count += 1
                 else:
+                    # Créer un nouveau client seulement si on n'a pas trouvé de client existant
+                    if not normalized_name and not normalized_email:
+                        # Ne devrait pas arriver car on a déjà vérifié plus haut
+                        error_count += 1
+                        errors.append(f"Ligne {row_num}: Impossible de créer un client sans nom ni email")
+                        continue
+                    
                     # Créer un nouveau client
+                    # Les cases vides (None) sont passées directement, elles seront NULL en base de données
                     new_client = Client(
                         company_id=company_id,
-                        name=name or "Client sans nom",
-                        email=email,
-                        phone=phone,
-                        address=address,
-                        city=city,
-                        postal_code=postal_code,
-                        country=country,
-                        siret=siret,
+                        name=normalized_name or "Client sans nom",
+                        email=normalized_email,  # Peut être None si case vide
+                        phone=phone,  # Peut être None si case vide (ignoré)
+                        address=address,  # Peut être None si case vide (ignoré)
+                        city=city,  # Peut être None si case vide (ignoré)
+                        postal_code=postal_code,  # Peut être None si case vide (ignoré)
+                        country=country,  # Peut être None si case vide (ignoré)
+                        siret=siret,  # Peut être None si case vide (ignoré)
+                        type="Client",  # Définir le type par défaut
                     )
                     db.add(new_client)
                     created_count += 1
+                
+                # Flush périodique pour éviter les problèmes de mémoire
+                if (created_count + updated_count) % flush_interval == 0:
+                    db.flush()
                 
             except Exception as e:
                 error_count += 1
