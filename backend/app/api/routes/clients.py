@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import csv
 import io
+import re
 from app.db.session import get_db
 from app.db.models.client import Client
 from app.api.schemas.client import ClientCreate, ClientUpdate, ClientRead, ClientWithStats
@@ -10,6 +11,95 @@ from app.api.deps import get_current_active_user
 from app.db.models.user import User
 
 router = APIRouter(prefix="/clients", tags=["clients"])
+
+
+def sanitize_csv_text(text: str) -> str:
+    """
+    Nettoie le texte CSV en corrigeant les problèmes de format, notamment les retours à la ligne
+    dans les champs non quotés. Cette fonction est une solution de contournement pour les CSV malformés.
+    """
+    if not text:
+        return text
+    
+    lines = text.split('\n')
+    if len(lines) < 2:
+        return text
+    
+    # Lire l'en-tête
+    header = lines[0]
+    sanitized_lines = [header]
+    
+    # Compter le nombre de colonnes attendues
+    try:
+        header_reader = csv.reader([header])
+        expected_cols = len(next(header_reader))
+    except:
+        # Fallback : compter les virgules (approximation)
+        expected_cols = header.count(',') + 1
+    
+    # Traiter les lignes de données
+    i = 1
+    while i < len(lines):
+        line = lines[i].rstrip('\r')
+        
+        if not line.strip():
+            i += 1
+            continue
+        
+        # Essayer de parser la ligne pour voir si elle est valide
+        is_valid = False
+        try:
+            test_reader = csv.reader([line])
+            row = next(test_reader)
+            if len(row) == expected_cols:
+                is_valid = True
+        except (csv.Error, StopIteration):
+            pass
+        
+        if is_valid:
+            # La ligne est valide
+            sanitized_lines.append(line)
+            i += 1
+        else:
+            # La ligne n'est pas valide, probablement à cause d'un retour à la ligne dans un champ
+            # Concaténer avec les lignes suivantes jusqu'à avoir une ligne valide
+            combined = line
+            j = i + 1
+            max_attempts = 20  # Limiter les tentatives
+            attempts = 0
+            
+            while j < len(lines) and attempts < max_attempts:
+                next_line = lines[j].rstrip('\r')
+                if not next_line.strip():
+                    j += 1
+                    continue
+                
+                # Ajouter un espace au lieu d'un retour à la ligne
+                combined += " " + next_line
+                
+                # Tester si la ligne combinée est maintenant valide
+                try:
+                    test_reader = csv.reader([combined])
+                    row = next(test_reader)
+                    if len(row) == expected_cols:
+                        is_valid = True
+                        break
+                except (csv.Error, StopIteration):
+                    pass
+                
+                j += 1
+                attempts += 1
+            
+            if is_valid:
+                sanitized_lines.append(combined)
+            else:
+                # Si on n'a pas réussi à créer une ligne valide, utiliser la ligne originale
+                # et remplacer les retours à la ligne par des espaces
+                sanitized_lines.append(combined.replace('\n', ' ').replace('\r', ' '))
+            
+            i = j
+    
+    return '\n'.join(sanitized_lines)
 
 
 @router.get("", response_model=List[ClientRead])
@@ -237,10 +327,15 @@ async def import_clients_csv(
         # Normaliser les retours à la ligne (unifier en \n)
         text_normalized = text.replace('\r\n', '\n').replace('\r', '\n')
         
+        # Nettoyer le CSV pour corriger les problèmes de format (retours à la ligne dans les champs non quotés)
+        try:
+            text_sanitized = sanitize_csv_text(text_normalized)
+        except Exception as e:
+            # Si le nettoyage échoue, utiliser le texte original
+            text_sanitized = text_normalized
+        
         # Parser le CSV avec une configuration robuste
-        # Le problème "new-line character seen in unquoted field" survient quand
-        # un champ contient un retour à la ligne sans être entre guillemets
-        csv_file = io.StringIO(text_normalized)
+        csv_file = io.StringIO(text_sanitized)
         
         try:
             csv_reader = csv.DictReader(
@@ -257,8 +352,9 @@ async def import_clients_csv(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=(
                         "Erreur de format CSV : des champs contiennent des retours à la ligne "
-                        "sans être entre guillemets. Veuillez mettre des guillemets autour des "
-                        "champs contenant des retours à la ligne, ou exporter à nouveau le fichier "
+                        "sans être entre guillemets. Le fichier a été automatiquement corrigé mais "
+                        "l'erreur persiste. Veuillez vérifier que tous les champs contenant des "
+                        "retours à la ligne sont entre guillemets, ou exporter à nouveau le fichier "
                         "depuis Lokario pour obtenir un format valide."
                     )
                 )

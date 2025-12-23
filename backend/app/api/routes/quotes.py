@@ -348,10 +348,15 @@ def preview_quote_design(
     design_config = {}
     if company_settings_obj and company_settings_obj.settings:
         billing_design = company_settings_obj.settings.get("billing", {}).get("quote_design", {})
+        company_info = company_settings_obj.settings.get("company_info", {})
+        
+        # Utiliser quote_design.logo_path en priorité, sinon company_info.logo_path
+        logo_path = billing_design.get("logo_path") or company_info.get("logo_path")
+        
         design_config = {
             "primary_color": billing_design.get("primary_color", "#F97316"),
             "secondary_color": billing_design.get("secondary_color", "#F0F0F0"),
-            "logo_path": billing_design.get("logo_path"),
+            "logo_path": logo_path,
             "signature_path": billing_design.get("signature_path"),
             "footer_text": billing_design.get("footer_text"),
             "terms_text": billing_design.get("terms_text")
@@ -900,7 +905,20 @@ def get_quote_pdf(
         
         if company_settings and company_settings.settings:
             billing_settings = company_settings.settings.get("billing", {})
-            design_config = billing_settings.get("quote_design", {})
+            quote_design = billing_settings.get("quote_design", {})
+            company_info = company_settings.settings.get("company_info", {})
+            
+            # Utiliser quote_design.logo_path en priorité, sinon company_info.logo_path
+            logo_path = quote_design.get("logo_path") or company_info.get("logo_path")
+            
+            design_config = {
+                "primary_color": quote_design.get("primary_color", "#F97316"),
+                "secondary_color": quote_design.get("secondary_color", "#F0F0F0"),
+                "logo_path": logo_path,
+                "signature_path": quote_design.get("signature_path"),
+                "footer_text": quote_design.get("footer_text"),
+                "terms_text": quote_design.get("terms_text")
+            }
         
         # Générer le PDF avec la signature du client si elle existe
         client_signature_path = quote.client_signature_path if hasattr(quote, 'client_signature_path') else None
@@ -1327,10 +1345,15 @@ def _send_quote_via_inbox(
     design_config = {}
     if company_settings_obj and company_settings_obj.settings:
         billing_design = company_settings_obj.settings.get("billing", {}).get("quote_design", {})
+        company_info = company_settings_obj.settings.get("company_info", {})
+        
+        # Utiliser quote_design.logo_path en priorité, sinon company_info.logo_path
+        logo_path = billing_design.get("logo_path") or company_info.get("logo_path")
+        
         design_config = {
             "primary_color": billing_design.get("primary_color", "#F97316"),
             "secondary_color": billing_design.get("secondary_color", "#F0F0F0"),
-            "logo_path": billing_design.get("logo_path"),
+            "logo_path": logo_path,
             "signature_path": billing_design.get("signature_path"),
             "footer_text": billing_design.get("footer_text"),
             "terms_text": billing_design.get("terms_text")

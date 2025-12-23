@@ -513,6 +513,11 @@ export default function SettingsPage() {
         // Log pour debug
         logger.debug("Sauvegarde settings - logo_path existant:", existingCompanyInfo.logo_path);
         
+        // Synchroniser le logo_path dans quote_design aussi si présent dans company_info
+        const existingBilling = ((refreshedSettings as any).billing || {});
+        const existingQuoteDesign = existingBilling.quote_design || {};
+        const logoPathToSync = existingCompanyInfo.logo_path;
+        
         const updatedSettings = {
           ...refreshedSettings,
           company_info: {
@@ -531,12 +536,24 @@ export default function SettingsPage() {
             logo_crop_position: cropPosition, // Sauvegarder les paramètres de recadrage
             // logo_path est préservé depuis existingCompanyInfo
           },
+          billing: {
+            ...existingBilling,
+            quote_design: {
+              ...existingQuoteDesign,
+              // Synchroniser le logo_path dans quote_design si présent dans company_info
+              ...(logoPathToSync ? { logo_path: logoPathToSync } : {}),
+            },
+          },
         };
         
         // Vérifier que logo_path est bien préservé
         if (existingCompanyInfo.logo_path && !updatedSettings.company_info.logo_path) {
           console.error("ERREUR: logo_path perdu lors de la sauvegarde!");
           updatedSettings.company_info.logo_path = existingCompanyInfo.logo_path;
+          // Synchroniser aussi dans quote_design
+          if (!updatedSettings.billing.quote_design.logo_path) {
+            updatedSettings.billing.quote_design.logo_path = existingCompanyInfo.logo_path;
+          }
         }
         
         await saveSettings(updatedSettings);
@@ -2517,12 +2534,12 @@ export default function SettingsPage() {
                           signaturePath = quoteDesign.signature_path;
                         }
 
-                        // Mettre à jour à la fois company_info.logo_path et quote_design.logo_path
+                        // Mettre à jour à la fois company_info.logo_path et quote_design.logo_path pour synchronisation
                         const updatedSettings = {
                           ...settings.settings,
                           company_info: {
                             ...((settings.settings as any).company_info || {}),
-                            // Synchroniser le logo_path dans company_info aussi
+                            // Synchroniser le logo_path dans company_info aussi (source de vérité)
                             ...(logoPath ? { logo_path: logoPath } : {}),
                           },
                           billing: {
@@ -2530,6 +2547,7 @@ export default function SettingsPage() {
                             quote_design: {
                               primary_color: quotePrimaryColor,
                               secondary_color: quoteSecondaryColor,
+                              // Synchroniser le logo_path dans quote_design aussi
                               logo_path: logoPath,
                               signature_path: signaturePath,
                               footer_text: quoteFooterText,
