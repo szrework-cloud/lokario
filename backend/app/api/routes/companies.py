@@ -521,60 +521,100 @@ async def upload_company_logo(
     
     # Générer un nom de fichier unique
     unique_filename = f"logo_{uuid.uuid4()}{file_ext}"
-    company_upload_dir = UPLOAD_DIR / str(current_user.company_id)
-    company_upload_dir.mkdir(parents=True, exist_ok=True)
-    file_path = company_upload_dir / unique_filename
     
-    # Supprimer l'ancien logo s'il existe
+    # Récupérer les settings de l'entreprise
     from app.db.models.company_settings import CompanySettings
     company_settings = db.query(CompanySettings).filter(
         CompanySettings.company_id == current_user.company_id
     ).first()
     
-    if company_settings:
-        company_info = company_settings.settings.get("company_info", {})
-        old_logo_path = company_info.get("logo_path")
-        if old_logo_path:
-            old_file_path = UPLOAD_DIR / old_logo_path
-            if old_file_path.exists():
+    # Essayer d'abord Supabase Storage (recommandé pour production)
+    from app.core.supabase_storage_service import (
+        upload_file as upload_to_supabase,
+        delete_file as delete_from_supabase,
+        is_supabase_storage_configured
+    )
+    
+    storage_path = None
+    use_supabase = is_supabase_storage_configured()
+    
+    if use_supabase:
+        # Supprimer l'ancien logo depuis Supabase si existe
+        if company_settings:
+            company_info = company_settings.settings.get("company_info", {})
+            old_logo_path = company_info.get("logo_path")
+            if old_logo_path and old_logo_path.startswith(f"{current_user.company_id}/"):
                 try:
-                    old_file_path.unlink()
+                    delete_from_supabase(old_logo_path)
                 except Exception:
                     pass  # Ignorer les erreurs de suppression
-    
-    # Sauvegarder le nouveau fichier
-    try:
-        with open(file_path, "wb") as f:
-            f.write(file_content)
         
-        # Vérifier que le fichier a bien été écrit
-        if not file_path.exists():
+        # Upload vers Supabase Storage
+        storage_path = upload_to_supabase(
+            file_path=unique_filename,
+            file_content=file_content,
+            content_type="image/png" if file_ext == ".png" else "image/jpeg",
+            company_id=current_user.company_id
+        )
+        
+        if not storage_path:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Logo file was not created: {file_path}")
+            logger.warning("⚠️  Échec de l'upload vers Supabase Storage, fallback vers stockage local")
+            use_supabase = False
+    
+    # Fallback vers stockage local si Supabase n'est pas configuré ou a échoué
+    if not use_supabase:
+        company_upload_dir = UPLOAD_DIR / str(current_user.company_id)
+        company_upload_dir.mkdir(parents=True, exist_ok=True)
+        file_path = company_upload_dir / unique_filename
+        
+        # Supprimer l'ancien logo s'il existe
+        if company_settings:
+            company_info = company_settings.settings.get("company_info", {})
+            old_logo_path = company_info.get("logo_path")
+            if old_logo_path:
+                old_file_path = UPLOAD_DIR / old_logo_path
+                if old_file_path.exists():
+                    try:
+                        old_file_path.unlink()
+                    except Exception:
+                        pass  # Ignorer les erreurs de suppression
+        
+        # Sauvegarder le nouveau fichier
+        try:
+            with open(file_path, "wb") as f:
+                f.write(file_content)
+            
+            # Vérifier que le fichier a bien été écrit
+            if not file_path.exists():
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Logo file was not created: {file_path}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="File was not saved correctly to disk"
+                )
+            
+            actual_size = file_path.stat().st_size
+            if actual_size != file_size:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Logo file size mismatch: expected {file_size}, got {actual_size}")
+            
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Logo saved successfully: {file_path} (size: {actual_size} bytes)")
+            
+            storage_path = str(file_path.relative_to(UPLOAD_DIR))
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error saving logo {file_path}: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="File was not saved correctly to disk"
+                detail=f"Error saving file: {str(e)}"
             )
-        
-        actual_size = file_path.stat().st_size
-        if actual_size != file_size:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Logo file size mismatch: expected {file_size}, got {actual_size}")
-            # Ne pas échouer si la taille est différente, juste logger
-        
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Logo saved successfully: {file_path} (size: {actual_size} bytes)")
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error saving logo {file_path}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error saving file: {str(e)}"
-        )
     
     # Mettre à jour company_info avec le chemin du logo
     if not company_settings:
@@ -590,12 +630,12 @@ async def upload_company_logo(
     if "company_info" not in company_settings.settings:
         company_settings.settings["company_info"] = {}
     
-    company_settings.settings["company_info"]["logo_path"] = str(file_path.relative_to(UPLOAD_DIR))
+    company_settings.settings["company_info"]["logo_path"] = storage_path
     flag_modified(company_settings, "settings")
     db.commit()
     
     return {
-        "logo_path": str(file_path.relative_to(UPLOAD_DIR)),
+        "logo_path": storage_path,
         "message": "Logo uploaded successfully"
     }
 
@@ -696,46 +736,88 @@ async def upload_company_signature(
     
     # Générer un nom de fichier unique
     unique_filename = f"signature_{uuid.uuid4()}{file_ext}"
-    company_upload_dir = UPLOAD_DIR / str(current_user.company_id)
-    company_upload_dir.mkdir(parents=True, exist_ok=True)
-    file_path = company_upload_dir / unique_filename
     
-    # Supprimer l'ancienne signature s'il existe
+    # Récupérer les settings de l'entreprise
     from app.db.models.company_settings import CompanySettings
     company_settings = db.query(CompanySettings).filter(
         CompanySettings.company_id == current_user.company_id
     ).first()
     
-    if company_settings:
-        billing_settings = company_settings.settings.get("billing", {})
-        quote_design = billing_settings.get("quote_design", {})
-        old_signature_path = quote_design.get("signature_path")
-        if old_signature_path:
-            old_file_path = UPLOAD_DIR / old_signature_path
-            if old_file_path.exists():
-                try:
-                    old_file_path.unlink()
-                except Exception:
-                    pass
+    # Essayer d'abord Supabase Storage (recommandé pour production)
+    from app.core.supabase_storage_service import (
+        upload_file as upload_to_supabase,
+        delete_file as delete_from_supabase,
+        is_supabase_storage_configured
+    )
     
-    # Sauvegarder le nouveau fichier
-    try:
-        with open(file_path, "wb") as f:
-            f.write(file_content)
+    storage_path = None
+    use_supabase = is_supabase_storage_configured()
+    
+    if use_supabase:
+        # Supprimer l'ancienne signature depuis Supabase si existe
+        if company_settings:
+            billing_settings = company_settings.settings.get("billing", {})
+            quote_design = billing_settings.get("quote_design", {})
+            old_signature_path = quote_design.get("signature_path")
+            if old_signature_path and old_signature_path.startswith(f"{current_user.company_id}/"):
+                try:
+                    delete_from_supabase(old_signature_path)
+                except Exception:
+                    pass  # Ignorer les erreurs de suppression
         
-        if not file_path.exists():
+        # Upload vers Supabase Storage
+        storage_path = upload_to_supabase(
+            file_path=unique_filename,
+            file_content=file_content,
+            content_type="image/jpeg",
+            company_id=current_user.company_id
+        )
+        
+        if not storage_path:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("⚠️  Échec de l'upload vers Supabase Storage, fallback vers stockage local")
+            use_supabase = False
+    
+    # Fallback vers stockage local si Supabase n'est pas configuré ou a échoué
+    if not use_supabase:
+        company_upload_dir = UPLOAD_DIR / str(current_user.company_id)
+        company_upload_dir.mkdir(parents=True, exist_ok=True)
+        file_path = company_upload_dir / unique_filename
+        
+        # Supprimer l'ancienne signature s'il existe
+        if company_settings:
+            billing_settings = company_settings.settings.get("billing", {})
+            quote_design = billing_settings.get("quote_design", {})
+            old_signature_path = quote_design.get("signature_path")
+            if old_signature_path:
+                old_file_path = UPLOAD_DIR / old_signature_path
+                if old_file_path.exists():
+                    try:
+                        old_file_path.unlink()
+                    except Exception:
+                        pass
+        
+        # Sauvegarder le nouveau fichier
+        try:
+            with open(file_path, "wb") as f:
+                f.write(file_content)
+            
+            if not file_path.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="File was not saved correctly to disk"
+                )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error saving signature {file_path}: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="File was not saved correctly to disk"
+                detail=f"Error saving file: {str(e)}"
             )
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error saving signature {file_path}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error saving file: {str(e)}"
-        )
+        
+        storage_path = str(file_path.relative_to(UPLOAD_DIR))
     
     # Mettre à jour quote_design avec le chemin de la signature
     if not company_settings:
@@ -753,15 +835,14 @@ async def upload_company_signature(
     if "quote_design" not in settings_dict["billing"]:
         settings_dict["billing"]["quote_design"] = {}
     
-    relative_path = str(file_path.relative_to(UPLOAD_DIR))
-    settings_dict["billing"]["quote_design"]["signature_path"] = relative_path
+    settings_dict["billing"]["quote_design"]["signature_path"] = storage_path
     
     from sqlalchemy.orm.attributes import flag_modified
     flag_modified(company_settings, "settings")
     db.commit()
     
     return {
-        "signature_path": relative_path,
+        "signature_path": storage_path,
         "message": "Signature uploaded successfully"
     }
 
@@ -772,10 +853,17 @@ async def get_company_signature(
     current_user: User = Depends(get_current_active_user_from_token_or_query)
 ):
     """
-    Récupère la signature de l'entreprise.
+    Récupère la signature de l'entreprise depuis Supabase Storage ou stockage local.
     """
-    from fastapi.responses import FileResponse
     from app.db.models.company_settings import CompanySettings
+    from fastapi.responses import Response
+    from app.core.supabase_storage_service import (
+        download_file as download_from_supabase,
+        is_supabase_storage_configured
+    )
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     if not current_user.company_id:
         raise HTTPException(status_code=404, detail="User has no company")
@@ -794,16 +882,39 @@ async def get_company_signature(
     if not signature_path:
         raise HTTPException(status_code=404, detail="Signature not found")
     
-    file_path = UPLOAD_DIR / signature_path
-    
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Signature file not found")
-    
-    return FileResponse(
-        path=str(file_path),
-        media_type="image/jpeg",
-        filename="signature.jpg"
+    # Essayer d'abord Supabase Storage si configuré et si le chemin ressemble à un chemin Supabase
+    use_supabase = is_supabase_storage_configured() and (
+        signature_path.startswith(f"{current_user.company_id}/") or 
+        "/" in signature_path  # Format Supabase: "company_id/filename"
     )
+    
+    if use_supabase:
+        try:
+            file_content = download_from_supabase(signature_path)
+            if file_content:
+                return Response(
+                    content=file_content,
+                    media_type="image/jpeg",
+                    headers={"Content-Disposition": f'inline; filename="signature.jpg"'}
+                )
+        except Exception as e:
+            logger.warning(f"Erreur lors du téléchargement depuis Supabase Storage: {e}, fallback vers stockage local")
+            use_supabase = False
+    
+    # Fallback vers stockage local
+    if not use_supabase:
+        from fastapi.responses import FileResponse
+        
+        file_path = UPLOAD_DIR / signature_path
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Signature file not found")
+        
+        return FileResponse(
+            path=str(file_path),
+            media_type="image/jpeg",
+            filename="signature.jpg"
+        )
 
 
 @router.get("/me/logo")
@@ -812,10 +923,17 @@ async def get_company_logo(
     current_user: User = Depends(get_current_active_user_from_token_or_query)
 ):
     """
-    Récupère le logo de l'entreprise.
+    Récupère le logo de l'entreprise depuis Supabase Storage ou stockage local.
     """
     from app.db.models.company_settings import CompanySettings
-    from fastapi.responses import FileResponse
+    from fastapi.responses import Response
+    from app.core.supabase_storage_service import (
+        download_file as download_from_supabase,
+        is_supabase_storage_configured
+    )
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     company_settings = db.query(CompanySettings).filter(
         CompanySettings.company_id == current_user.company_id
@@ -830,39 +948,82 @@ async def get_company_logo(
     if not logo_path:
         raise HTTPException(status_code=404, detail="Logo not found")
     
-    # Normaliser le chemin (enlever les slashes en début si présents)
-    logo_path_normalized = logo_path.lstrip('/')
-    file_path = UPLOAD_DIR / logo_path_normalized
+    # Essayer d'abord Supabase Storage si configuré et si le chemin ressemble à un chemin Supabase
+    is_supabase_configured = is_supabase_storage_configured()
+    is_supabase_format = logo_path.startswith(f"{current_user.company_id}/") or "/" in logo_path
     
-    # Log pour debug
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"Looking for logo: UPLOAD_DIR={UPLOAD_DIR}, logo_path={logo_path}, normalized={logo_path_normalized}, full_path={file_path}, absolute={file_path.resolve()}")
+    logger.info(f"Logo retrieval - Supabase configured: {is_supabase_configured}, Format Supabase: {is_supabase_format}, logo_path: {logo_path}")
     
-    if not file_path.exists():
-        # Essayer aussi avec le chemin original (au cas où)
-        file_path_alt = UPLOAD_DIR / logo_path
-        if file_path_alt.exists():
-            file_path = file_path_alt
-            logger.info(f"Found logo with alternative path: {file_path_alt}")
-        else:
-            # Si le fichier n'existe pas, chercher le dernier logo uploadé dans le répertoire de la company
-            company_upload_dir = UPLOAD_DIR / str(current_user.company_id)
-            if company_upload_dir.exists():
-                # Chercher le dernier fichier logo
-                logo_files = sorted(company_upload_dir.glob("logo_*"), key=lambda p: p.stat().st_mtime, reverse=True)
-                if logo_files:
-                    # Utiliser le dernier logo uploadé
-                    file_path = logo_files[0]
-                    logger.warning(f"Original logo file not found ({logo_path}), using latest logo: {file_path.name}")
-                    # Mettre à jour le logo_path dans la base de données
-                    company_settings.settings["company_info"]["logo_path"] = str(file_path.relative_to(UPLOAD_DIR))
-                    flag_modified(company_settings, "settings")
-                    db.commit()
+    use_supabase = is_supabase_configured and is_supabase_format
+    
+    if use_supabase:
+        try:
+            logger.info(f"Attempting to download logo from Supabase Storage: {logo_path}")
+            file_content = download_from_supabase(logo_path)
+            if file_content:
+                logger.info(f"✅ Logo successfully downloaded from Supabase Storage: {logo_path}")
+                # Déterminer le type MIME
+                media_type = "image/png" if logo_path.endswith(".png") else "image/jpeg"
+                return Response(
+                    content=file_content,
+                    media_type=media_type,
+                    headers={"Content-Disposition": f'inline; filename="{Path(logo_path).name}"'}
+                )
+            else:
+                logger.warning(f"⚠️  Logo not found in Supabase Storage: {logo_path}, fallback vers stockage local")
+                use_supabase = False
+        except Exception as e:
+            logger.warning(f"Erreur lors du téléchargement depuis Supabase Storage: {e}, fallback vers stockage local")
+            use_supabase = False
+    else:
+        logger.info(f"Using local storage fallback - Supabase configured: {is_supabase_configured}, Format: {is_supabase_format}")
+    
+    # Fallback vers stockage local
+    if not use_supabase:
+        from fastapi.responses import FileResponse
+        
+        # Normaliser le chemin (enlever les slashes en début si présents)
+        logo_path_normalized = logo_path.lstrip('/')
+        file_path = UPLOAD_DIR / logo_path_normalized
+        
+        logger.info(f"Looking for logo locally: UPLOAD_DIR={UPLOAD_DIR}, logo_path={logo_path}, normalized={logo_path_normalized}, full_path={file_path}")
+        
+        if not file_path.exists():
+            # Essayer aussi avec le chemin original (au cas où)
+            file_path_alt = UPLOAD_DIR / logo_path
+            if file_path_alt.exists():
+                file_path = file_path_alt
+                logger.info(f"Found logo with alternative path: {file_path_alt}")
+            else:
+                # Si le fichier n'existe pas, chercher le dernier logo uploadé dans le répertoire de la company
+                company_upload_dir = UPLOAD_DIR / str(current_user.company_id)
+                if company_upload_dir.exists():
+                    # Chercher le dernier fichier logo
+                    logo_files = sorted(company_upload_dir.glob("logo_*"), key=lambda p: p.stat().st_mtime, reverse=True)
+                    if logo_files:
+                        # Utiliser le dernier logo uploadé
+                        file_path = logo_files[0]
+                        logger.warning(f"Original logo file not found ({logo_path}), using latest logo: {file_path.name}")
+                        # Mettre à jour le logo_path dans la base de données
+                        company_settings.settings["company_info"]["logo_path"] = str(file_path.relative_to(UPLOAD_DIR))
+                        flag_modified(company_settings, "settings")
+                        db.commit()
+                    else:
+                        # Le fichier n'existe pas et aucun logo alternatif trouvé
+                        # Nettoyer le logo_path dans la base de données pour éviter des erreurs répétées
+                        logger.warning(f"Logo file not found: {file_path}. Cleaning logo_path from database.")
+                        if "company_info" in company_settings.settings:
+                            company_settings.settings["company_info"].pop("logo_path", None)
+                            flag_modified(company_settings, "settings")
+                            try:
+                                db.commit()
+                            except Exception as e:
+                                logger.error(f"Error cleaning logo_path from database: {e}")
+                                db.rollback()
+                        raise HTTPException(status_code=404, detail="Logo file not found")
                 else:
-                    # Le fichier n'existe pas et aucun logo alternatif trouvé
-                    # Nettoyer le logo_path dans la base de données pour éviter des erreurs répétées
-                    logger.warning(f"Logo file not found: {file_path}. Cleaning logo_path from database.")
+                    # Le répertoire n'existe même pas, nettoyer le logo_path
+                    logger.warning(f"Company upload directory does not exist: {company_upload_dir}. Cleaning logo_path from database.")
                     if "company_info" in company_settings.settings:
                         company_settings.settings["company_info"].pop("logo_path", None)
                         flag_modified(company_settings, "settings")
@@ -872,23 +1033,11 @@ async def get_company_logo(
                             logger.error(f"Error cleaning logo_path from database: {e}")
                             db.rollback()
                     raise HTTPException(status_code=404, detail="Logo file not found")
-            else:
-                # Le répertoire n'existe même pas, nettoyer le logo_path
-                logger.warning(f"Company upload directory does not exist: {company_upload_dir}. Cleaning logo_path from database.")
-                if "company_info" in company_settings.settings:
-                    company_settings.settings["company_info"].pop("logo_path", None)
-                    flag_modified(company_settings, "settings")
-                    try:
-                        db.commit()
-                    except Exception as e:
-                        logger.error(f"Error cleaning logo_path from database: {e}")
-                        db.rollback()
-                raise HTTPException(status_code=404, detail="Logo file not found")
-    
-    return FileResponse(
-        path=str(file_path),
-        media_type="image/jpeg" if logo_path.endswith((".jpg", ".jpeg")) else "image/png"
-    )
+        
+        return FileResponse(
+            path=str(file_path),
+            media_type="image/jpeg" if logo_path.endswith((".jpg", ".jpeg")) else "image/png"
+        )
 
 
 @router.get("/{company_id}/usage")

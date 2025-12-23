@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     STRIPE_PRICE_PROFESSIONAL: Optional[str] = None  # Price ID Stripe pour le plan Professional
     STRIPE_PRICE_ENTERPRISE: Optional[str] = None  # Price ID Stripe pour le plan Enterprise
     
+    # Configuration Supabase Storage
+    SUPABASE_URL: Optional[str] = None  # URL de votre projet Supabase (ex: https://xxx.supabase.co)
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None  # Service Role Key (pour accès admin au Storage)
+    SUPABASE_STORAGE_BUCKET: str = "company-assets"  # Nom du bucket pour les fichiers d'entreprise
+    
     class Config:
         env_file = ".env"
 
