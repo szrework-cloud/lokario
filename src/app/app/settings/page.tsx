@@ -2937,13 +2937,13 @@ function SubscriptionTab() {
             <div className="space-y-4">
               {/* Informations de l'abonnement */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+                <div className="border border-[#E5E7EB] rounded-lg p-4">
                   <p className="text-sm font-medium text-[#64748B] mb-1">Plan</p>
                   <p className="text-lg font-semibold text-[#0F172A] capitalize">
                     {subscription.plan === "starter" ? "Offre de démarrage" : subscription.plan}
                   </p>
                 </div>
-                <div>
+                <div className="border border-[#E5E7EB] rounded-lg p-4">
                   <p className="text-sm font-medium text-[#64748B] mb-1">Statut</p>
                   <div className="flex items-center gap-2">
                     <span
@@ -2965,7 +2965,7 @@ function SubscriptionTab() {
                     </span>
                   </div>
                 </div>
-                <div>
+                <div className="border border-[#E5E7EB] rounded-lg p-4">
                   <p className="text-sm font-medium text-[#64748B] mb-1">Montant</p>
                   <p className="text-lg font-semibold text-[#0F172A]">
                     {subscription.amount.toFixed(2)} {subscription.currency.toUpperCase()}
@@ -2973,7 +2973,7 @@ function SubscriptionTab() {
                   </p>
                 </div>
                 {subscription.current_period_end && (
-                  <div>
+                  <div className="border border-[#E5E7EB] rounded-lg p-4">
                     <p className="text-sm font-medium text-[#64748B] mb-1">
                       {subscription.status === "trialing" ? "Fin de la période d'essai" : "Prochain renouvellement"}
                     </p>
