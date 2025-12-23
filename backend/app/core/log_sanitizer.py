@@ -96,7 +96,7 @@ def setup_sanitized_logging():
         root_logger.addFilter(SensitiveDataFilter())
     
     # Configurer les loggers spécifiques au niveau INFO
-    for logger_name in ['app', 'uvicorn', 'fastapi', 'app.api.routes.checklists', 'app.api.routes.tasks']:
+    for logger_name in ['app', 'uvicorn', 'fastapi', 'app.api.routes.checklists', 'app.api.routes.tasks', 'app.api.routes.quotes']:
         logger = logging.getLogger(logger_name)
         logger.setLevel(logging.INFO)
         if not any(isinstance(f, SensitiveDataFilter) for f in logger.filters):
