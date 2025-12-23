@@ -134,48 +134,77 @@ export default function SettingsPage() {
         });
       }
       
-      // Charger le logo existant si disponible
-      if (companyInfo.logo_path && token) {
-        const loadLogo = async () => {
-          try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-            const response = await fetch(`${API_URL}/companies/me/logo`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            });
-            if (response.ok) {
-              const blob = await response.blob();
-              const blobUrl = URL.createObjectURL(blob);
-              // Libérer l'ancienne URL blob si elle existe
-              if (logoPreview && logoPreview.startsWith("blob:")) {
-                URL.revokeObjectURL(logoPreview);
+      // Charger le logo existant si disponible (synchroniser avec la section Facturation)
+      if (token) {
+        const loadLogoForBothSections = async () => {
+          // Priorité : company_info.logo_path > quote_design.logo_path
+          const billingSettings = (settings.settings as any).billing || {};
+          const quoteDesign = billingSettings.quote_design || {};
+          const logoPathToUse = companyInfo.logo_path || quoteDesign.logo_path;
+          
+          if (logoPathToUse) {
+            try {
+              const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+              const response = await fetch(`${API_URL}/companies/me/logo`, {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+              if (response.ok) {
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                // Synchroniser les deux previews
+                setLogoPreview((prev) => {
+                  if (prev && prev.startsWith("blob:")) {
+                    URL.revokeObjectURL(prev);
+                  }
+                  return blobUrl;
+                });
+                setQuoteLogoPreview((prev) => {
+                  if (prev && prev.startsWith("blob:")) {
+                    URL.revokeObjectURL(prev);
+                  }
+                  return blobUrl;
+                });
+              } else if (response.status === 404) {
+                // Logo n'existe plus (fichier perdu, ex: sur Railway après redémarrage)
+                logger.debug(`Logo file not found (404), logo_path was: ${logoPathToUse}`);
+                setLogoPreview((prev) => {
+                  if (prev && prev.startsWith("blob:")) {
+                    URL.revokeObjectURL(prev);
+                  }
+                  return null;
+                });
+                setQuoteLogoPreview((prev) => {
+                  if (prev && prev.startsWith("blob:")) {
+                    URL.revokeObjectURL(prev);
+                  }
+                  return null;
+                });
+              } else {
+                logger.warn(`Erreur lors du chargement du logo: ${response.status} ${response.statusText}, logo_path: ${logoPathToUse}`);
               }
-              setLogoPreview(blobUrl);
-            } else if (response.status === 404) {
-              // Logo n'existe plus (fichier perdu, ex: sur Railway après redémarrage)
-              // Nettoyer le preview et ne pas afficher d'erreur
-              logger.debug(`Logo file not found (404), logo_path was: ${companyInfo.logo_path}`);
-              if (logoPreview && logoPreview.startsWith("blob:")) {
-                URL.revokeObjectURL(logoPreview);
-              }
-              setLogoPreview(null);
-            } else {
-              logger.warn(`Erreur lors du chargement du logo: ${response.status} ${response.statusText}, logo_path: ${companyInfo.logo_path}`);
-              // Ne pas supprimer logoPreview si on a déjà une image chargée
+            } catch (err) {
+              logger.debug("Erreur lors du chargement du logo:", err, "logo_path:", logoPathToUse);
             }
-          } catch (err) {
-            logger.debug("Erreur lors du chargement du logo:", err, "logo_path:", companyInfo.logo_path);
-            // Ne pas supprimer logoPreview si on a déjà une image chargée en cas d'erreur réseau
+          } else {
+            // Si pas de logo_path, réinitialiser les aperçus
+            setLogoPreview((prev) => {
+              if (prev && prev.startsWith("blob:")) {
+                URL.revokeObjectURL(prev);
+              }
+              return null;
+            });
+            setQuoteLogoPreview((prev) => {
+              if (prev && prev.startsWith("blob:")) {
+                URL.revokeObjectURL(prev);
+              }
+              return null;
+            });
           }
         };
-        loadLogo();
-      } else if (!companyInfo.logo_path) {
-        // Si pas de logo_path, réinitialiser l'aperçu seulement si on n'a pas déjà un logoPreview
-        // (pour éviter de supprimer un logo qui vient d'être uploadé)
-        if (!logoPreview) {
-          setLogoPreview(null);
-        }
+        
+        loadLogoForBothSections();
       }
     } else if (user?.email && !companyEmail) {
       // Si pas encore de settings chargés mais qu'on a l'email de l'utilisateur, l'utiliser temporairement
@@ -321,17 +350,8 @@ export default function SettingsPage() {
         // Ajouter le token dans l'URL pour l'authentification
         setQuoteSignaturePreview(`${backendUrl}/companies/me/signature?token=${token}`);
       }
-      if (quoteDesign.logo_path) {
-        // Construire l'URL du logo depuis le chemin relatif
-        // Le logo est stocké dans uploads/{company_id}/logo_xxx.jpg
-        // Pour l'instant, on utilise le logo de l'entreprise (même endpoint)
-        // TODO: Créer un endpoint spécifique pour servir les logos de devis
-        const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        // On utilise l'endpoint de logo de l'entreprise (qui cherche dans company_info)
-        // Pour les devis, on pourrait utiliser le même logo ou créer un endpoint dédié
-        // Ajouter le token dans l'URL pour l'authentification
-        setQuoteLogoPreview(`${backendUrl}/companies/me/logo?token=${token}`);
-      }
+      // Le logo est maintenant synchronisé avec company_info.logo_path dans le useEffect précédent
+      // On ne charge plus séparément ici pour éviter les doublons
       // Charger le template d'email pour les devis
       if (billingSettings?.quote_email_template) {
         setQuoteEmailTemplate(billingSettings.quote_email_template);
@@ -423,18 +443,23 @@ export default function SettingsPage() {
     if (activeTab === "company") {
       setIsSaving(true);
       try {
-        // Uploader le logo si un nouveau fichier a été sélectionné
+        // Uploader le logo si un nouveau fichier a été sélectionné (synchroniser avec Facturation)
         if (logoFile && token) {
           const { apiUploadFile } = await import("@/lib/api");
           await apiUploadFile("/companies/me/logo", logoFile, token);
           
-          // Libérer l'ancienne URL blob immédiatement pour forcer le rechargement
+          // Libérer les anciennes URLs blob immédiatement pour forcer le rechargement
           if (logoPreview) {
             if (logoPreview.startsWith("blob:")) {
               URL.revokeObjectURL(logoPreview);
             }
-            // Réinitialiser l'aperçu pour forcer le rechargement
             setLogoPreview(null);
+          }
+          if (quoteLogoPreview) {
+            if (quoteLogoPreview.startsWith("blob:")) {
+              URL.revokeObjectURL(quoteLogoPreview);
+            }
+            setQuoteLogoPreview(null);
           }
           
           // Réinitialiser logoFile après upload réussi
@@ -444,6 +469,7 @@ export default function SettingsPage() {
           await new Promise(resolve => setTimeout(resolve, 200));
           
           // Recharger le logo depuis le serveur avec cache-busting pour forcer le rechargement
+          // Synchroniser les deux previews
           try {
             const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
             const timestamp = Date.now(); // Cache-busting
@@ -456,7 +482,9 @@ export default function SettingsPage() {
             if (response.ok) {
               const blob = await response.blob();
               const blobUrl = URL.createObjectURL(blob);
+              // Synchroniser les deux previews
               setLogoPreview(blobUrl);
+              setQuoteLogoPreview(blobUrl);
             } else {
               console.error("Erreur lors du chargement du logo après upload:", response.status, response.statusText);
             }
@@ -2409,15 +2437,25 @@ export default function SettingsPage() {
                         let logoPath = null;
                         let signaturePath = null;
                         
-                        // Uploader le logo si un fichier a été sélectionné
+                        // Uploader le logo si un fichier a été sélectionné (synchroniser avec Infos entreprise)
                         if (quoteLogoFile) {
                           try {
                             const { apiUploadFile } = await import("@/lib/api");
-                            // Utiliser l'endpoint de logo de l'entreprise
+                            // Utiliser l'endpoint de logo de l'entreprise (même que pour Infos entreprise)
                             const response = await apiUploadFile<{ logo_path: string }>("/companies/me/logo", quoteLogoFile, token);
                             // Le logo_path retourné est relatif (ex: "6/logo_xxx.jpg")
-                            // Pour les devis, on stocke le chemin relatif dans quote_design
+                            // On stocke le chemin dans company_info.logo_path (source de vérité)
+                            // et aussi dans quote_design.logo_path pour compatibilité
                             logoPath = response.logo_path;
+                            
+                            // Synchroniser le preview avec la section Infos entreprise
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              const blobUrl = reader.result as string;
+                              setLogoPreview(blobUrl);
+                              setQuoteLogoPreview(blobUrl);
+                            };
+                            reader.readAsDataURL(quoteLogoFile);
                           } catch (err: any) {
                             console.error("Error uploading logo:", err);
                             showToast("Erreur lors de l'upload du logo", "error");
@@ -2426,9 +2464,11 @@ export default function SettingsPage() {
                           }
                         } else {
                           // Garder le logo existant si pas de nouveau fichier
+                          // Priorité : company_info.logo_path > quote_design.logo_path
+                          const companyInfo = ((settings.settings as any).company_info || {});
                           const billingSettings = (settings.settings as any).billing;
                           const quoteDesign = billingSettings?.quote_design || {};
-                          logoPath = quoteDesign.logo_path;
+                          logoPath = companyInfo.logo_path || quoteDesign.logo_path;
                         }
 
                         // Uploader la signature si un fichier a été sélectionné
@@ -2450,8 +2490,14 @@ export default function SettingsPage() {
                           signaturePath = quoteDesign.signature_path;
                         }
 
+                        // Mettre à jour à la fois company_info.logo_path et quote_design.logo_path
                         const updatedSettings = {
                           ...settings.settings,
+                          company_info: {
+                            ...((settings.settings as any).company_info || {}),
+                            // Synchroniser le logo_path dans company_info aussi
+                            ...(logoPath ? { logo_path: logoPath } : {}),
+                          },
                           billing: {
                             ...((settings.settings as any).billing || {}),
                             quote_design: {
@@ -2465,6 +2511,8 @@ export default function SettingsPage() {
                           },
                         };
                         await saveSettings(updatedSettings);
+                        // Recharger les settings pour synchroniser les previews
+                        await reloadSettings();
                         showToast("Personnalisation sauvegardée avec succès", "success");
                       } catch (error: any) {
                         console.error("Error saving quote design:", error);
