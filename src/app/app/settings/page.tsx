@@ -273,6 +273,8 @@ export default function SettingsPage() {
   const [billingLineTemplates, setBillingLineTemplates] = useState<BillingLineTemplate[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<BillingLineTemplate | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
   
   // État pour la personnalisation du design des devis
   const [quotePrimaryColor, setQuotePrimaryColor] = useState("#F97316");
@@ -1805,8 +1807,48 @@ export default function SettingsPage() {
                         Aucune ligne sauvegardée. Créez-en une depuis un devis ou une facture.
                       </p>
                     ) : (
-                      <div className="space-y-3">
-                        {billingLineTemplates.map((template) => (
+                      <>
+                        {/* Pagination et sélecteur de page */}
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-[#64748B]">
+                              Page {currentPage} sur {Math.ceil(billingLineTemplates.length / itemsPerPage)} ({billingLineTemplates.length} ligne{billingLineTemplates.length > 1 ? 's' : ''})
+                            </span>
+                            <select
+                              value={currentPage}
+                              onChange={(e) => setCurrentPage(Number(e.target.value))}
+                              className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1 bg-white"
+                            >
+                              {Array.from({ length: Math.ceil(billingLineTemplates.length / itemsPerPage) }, (_, i) => i + 1).map((page) => (
+                                <option key={page} value={page}>
+                                  Page {page}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                              disabled={currentPage === 1}
+                              className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB] disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Précédent
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCurrentPage((prev) => Math.min(Math.ceil(billingLineTemplates.length / itemsPerPage), prev + 1))}
+                              disabled={currentPage >= Math.ceil(billingLineTemplates.length / itemsPerPage)}
+                              className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB] disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Suivant
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          {billingLineTemplates
+                            .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                            .map((template) => (
                           <div
                             key={template.id}
                             className="p-4 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]"
@@ -1884,6 +1926,11 @@ export default function SettingsPage() {
                                         });
                                         const templates = await getBillingLineTemplates(token);
                                         setBillingLineTemplates(templates);
+                                        // Ajuster la page si nécessaire
+                                        const maxPage = Math.ceil(templates.length / itemsPerPage);
+                                        if (currentPage > maxPage && maxPage > 0) {
+                                          setCurrentPage(maxPage);
+                                        }
                                         setEditingTemplate(null);
                                         setEditForm({ description: "", unit_price_ht: "", tax_rate: "" });
                                         showToast("Ligne mise à jour avec succès", "success");
@@ -1936,6 +1983,13 @@ export default function SettingsPage() {
                                           await deleteBillingLineTemplate(token, template.id);
                                           const templates = await getBillingLineTemplates(token);
                                           setBillingLineTemplates(templates);
+                                          // Ajuster la page si nécessaire
+                                          const maxPage = Math.ceil(templates.length / itemsPerPage);
+                                          if (currentPage > maxPage && maxPage > 0) {
+                                            setCurrentPage(maxPage);
+                                          } else if (templates.length === 0) {
+                                            setCurrentPage(1);
+                                          }
                                           showToast("Ligne supprimée avec succès", "success");
                                         } catch (err: any) {
                                           showToast(err.message || "Erreur lors de la suppression", "error");
@@ -1950,8 +2004,9 @@ export default function SettingsPage() {
                               </div>
                             )}
                           </div>
-                        ))}
-                      </div>
+                            ))}
+                        </div>
+                      </>
                     )}
                   </>
                 )}
