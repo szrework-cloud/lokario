@@ -142,7 +142,8 @@ export default function SettingsPage() {
           const quoteDesign = billingSettings.quote_design || {};
           const logoPathToUse = companyInfo.logo_path || quoteDesign.logo_path;
           
-          if (logoPathToUse) {
+          // Ne charger que si on a un logo_path valide
+          if (logoPathToUse && logoPathToUse.trim()) {
             try {
               const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
               const response = await fetch(`${API_URL}/companies/me/logo`, {
@@ -168,7 +169,7 @@ export default function SettingsPage() {
                 });
               } else if (response.status === 404) {
                 // Logo n'existe plus (fichier perdu, ex: sur Railway après redémarrage)
-                logger.debug(`Logo file not found (404), logo_path was: ${logoPathToUse}`);
+                // Nettoyer silencieusement sans logger pour éviter le bruit dans la console
                 setLogoPreview((prev) => {
                   if (prev && prev.startsWith("blob:")) {
                     URL.revokeObjectURL(prev);
@@ -182,13 +183,15 @@ export default function SettingsPage() {
                   return null;
                 });
               } else {
-                logger.warn(`Erreur lors du chargement du logo: ${response.status} ${response.statusText}, logo_path: ${logoPathToUse}`);
+                // Autres erreurs : logger en debug seulement
+                logger.debug(`Erreur lors du chargement du logo: ${response.status} ${response.statusText}, logo_path: ${logoPathToUse}`);
               }
             } catch (err) {
+              // Erreur réseau : logger en debug seulement, ne pas afficher d'erreur à l'utilisateur
               logger.debug("Erreur lors du chargement du logo:", err, "logo_path:", logoPathToUse);
             }
           } else {
-            // Si pas de logo_path, réinitialiser les aperçus
+            // Si pas de logo_path, réinitialiser les aperçus silencieusement
             setLogoPreview((prev) => {
               if (prev && prev.startsWith("blob:")) {
                 URL.revokeObjectURL(prev);
