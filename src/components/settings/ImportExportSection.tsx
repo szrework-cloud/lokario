@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { useAuth } from "@/hooks/useAuth";
-import { apiGet } from "@/lib/api";
-import { Download, FileSpreadsheet, FileJson } from "lucide-react";
+import { apiGet, apiUploadFile } from "@/lib/api";
+import { Download, FileSpreadsheet, FileJson, Upload } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 
 export function ImportExportSection() {
   const { token } = useAuth();
   const { showToast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExportAll = async () => {
     setIsExporting(true);
@@ -83,18 +85,92 @@ export function ImportExportSection() {
     }
   };
 
+  const handleImportClients = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Vérifier que c'est un fichier CSV
+    if (!file.name.endsWith('.csv')) {
+      showToast("Le fichier doit être au format CSV", "error");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const result = await apiUploadFile<{
+        message: string;
+        created: number;
+        updated: number;
+        errors: number;
+        error_details: string[];
+      }>("/clients/import", file, token);
+
+      let message = `Import terminé : ${result.created} créé(s), ${result.updated} mis à jour`;
+      if (result.errors > 0) {
+        message += `, ${result.errors} erreur(s)`;
+        if (result.error_details.length > 0) {
+          console.warn("Erreurs d'import:", result.error_details);
+        }
+      }
+
+      showToast(message, result.errors > 0 ? "warning" : "success");
+      
+      // Réinitialiser l'input pour permettre de réimporter le même fichier
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error: any) {
+      console.error("Erreur lors de l'import des clients:", error);
+      showToast(error.message || "Erreur lors de l'import des clients", "error");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
 
   return (
     <Card>
       <CardHeader>
         <h3 className="text-lg font-semibold text-[#0F172A]">
-          Exporter mes données
+          Importer / Exporter mes données
         </h3>
         <p className="text-sm text-[#64748B] mt-1">
-          Exportez vos données pour faciliter la sauvegarde ou la migration
+          Importez ou exportez vos données pour faciliter la sauvegarde ou la migration
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Import */}
+        <div className="border border-[#E5E7EB] rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Upload className="w-5 h-5 text-[#F97316]" />
+            <h4 className="text-sm font-semibold text-[#0F172A]">
+              Importer des clients
+            </h4>
+          </div>
+          <p className="text-sm text-[#64748B] mb-4">
+            Importez vos clients depuis un fichier CSV. Format attendu : Nom, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET, TVA
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleImportClients}
+              className="hidden"
+              id="csv-import-input"
+            />
+            <AnimatedButton
+              variant="primary"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+              loading={isImporting}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {isImporting ? "Import en cours..." : "Importer des clients (CSV)"}
+            </AnimatedButton>
+          </div>
+        </div>
+
         {/* Export */}
         <div className="border border-[#E5E7EB] rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
@@ -143,7 +219,7 @@ export function ImportExportSection() {
             <li className="flex items-start gap-2">
               <FileSpreadsheet className="w-4 h-4 mt-0.5 text-[#F97316]" />
               <div>
-                <strong>CSV :</strong> Export des clients uniquement. Format : Nom, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET, TVA
+                <strong>CSV :</strong> Import/Export des clients uniquement. Format : Nom, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET, TVA. Les clients existants (par email ou nom) seront mis à jour.
               </div>
             </li>
           </ul>
