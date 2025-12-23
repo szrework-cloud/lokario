@@ -366,6 +366,10 @@ async def upload_company_logo(
     Upload le logo de l'entreprise.
     Autorisé uniquement pour owner et super_admin.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"📤 Upload de logo demandé - User: {current_user.id}, Company: {current_user.company_id}, File: {file.filename}")
+    
     # Vérification du rôle
     if current_user.role not in ("owner", "super_admin"):
         raise HTTPException(
