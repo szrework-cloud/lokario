@@ -3272,3 +3272,74 @@ L'équipe {company.name}
         # Ne pas lever d'exception, juste logger l'erreur
     
     return quote
+
+
+@router.get("/migration-status")
+def check_migration_status(db: Session = Depends(get_db)):
+    """
+    Vérifie l'état de la migration de la contrainte unique sur quotes.number.
+    Accessible sans authentification pour faciliter la vérification.
+    """
+    try:
+        from sqlalchemy import text
+        
+        # Vérifier si l'index global existe (ne devrait pas exister)
+        result = db.execute(text("""
+            SELECT indexname 
+            FROM pg_indexes 
+            WHERE tablename = 'quotes' 
+            AND indexname = 'ix_quotes_number'
+        """))
+        global_index = result.fetchone()
+        
+        # Vérifier si la contrainte composite existe (devrait exister)
+        result = db.execute(text("""
+            SELECT constraint_name 
+            FROM information_schema.table_constraints 
+            WHERE table_name = 'quotes' 
+            AND constraint_name = 'uq_quotes_company_number'
+        """))
+        composite_constraint = result.fetchone()
+        
+        global_exists = global_index is not None
+        composite_exists = composite_constraint is not None
+        
+        # Déterminer le statut
+        if global_exists and not composite_exists:
+            status = "error"
+            message = "La migration n'a PAS été appliquée. La contrainte globale existe encore."
+            action = "Exécutez: alembic upgrade head"
+        elif global_exists and composite_exists:
+            status = "warning"
+            message = "Les deux contraintes existent. La contrainte globale doit être supprimée."
+            action = "Supprimez la contrainte globale manuellement"
+        elif not global_exists and composite_exists:
+            status = "ok"
+            message = "La migration est appliquée correctement."
+            action = None
+        else:
+            status = "unknown"
+            message = "Aucune contrainte trouvée. État inconnu."
+            action = "Vérifiez la structure de la table quotes"
+        
+        return {
+            "status": status,
+            "message": message,
+            "action": action,
+            "constraints": {
+                "global_index_exists": global_exists,
+                "composite_constraint_exists": composite_exists
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification de la migration: {e}")
+        return {
+            "status": "error",
+            "message": f"Erreur lors de la vérification: {str(e)}",
+            "action": None,
+            "constraints": {
+                "global_index_exists": None,
+                "composite_constraint_exists": None
+            }
+        }
