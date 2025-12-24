@@ -1855,12 +1855,18 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => {
                         const rate = parseFloat(newTaxRate);
-                        if (!isNaN(rate) && rate >= 0 && rate <= 100 && !taxRates.includes(rate)) {
-                          setTaxRates([...taxRates, rate].sort((a, b) => a - b));
-                          setNewTaxRate("");
+                        if (!isNaN(rate) && rate >= 0 && rate <= 100) {
+                          // Vérifier si le taux existe déjà avec une tolérance pour les nombres à virgule flottante
+                          const exists = taxRates.some(existingRate => Math.abs(existingRate - rate) < 0.001);
+                          if (!exists) {
+                            setTaxRates([...taxRates, rate].sort((a, b) => a - b));
+                            setNewTaxRate("");
+                          } else {
+                            showToast("Ce taux de TVA existe déjà", "error");
+                          }
                         }
                       }}
-                      disabled={!newTaxRate || isNaN(parseFloat(newTaxRate)) || parseFloat(newTaxRate) < 0 || parseFloat(newTaxRate) > 100 || taxRates.includes(parseFloat(newTaxRate))}
+                      disabled={!newTaxRate || isNaN(parseFloat(newTaxRate)) || parseFloat(newTaxRate) < 0 || parseFloat(newTaxRate) > 100 || taxRates.some(rate => Math.abs(rate - parseFloat(newTaxRate)) < 0.001)}
                       className="px-4 py-2 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Ajouter
