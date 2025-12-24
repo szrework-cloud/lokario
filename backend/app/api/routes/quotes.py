@@ -1248,17 +1248,15 @@ def get_quote_pdf(
                     }
                 )
             else:
-                # PDF archivé manquant - cas critique
+                # PDF archivé manquant - servir le PDF généré à la place
+                # C'est un cas de fallback si le PDF archivé a été perdu
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.error(
-                    f"CRITICAL: Archived PDF missing for signed quote {quote_id}: "
-                    f"{existing_signature.signed_pdf_path}"
+                logger.warning(
+                    f"WARNING: Archived PDF missing for signed quote {quote_id}: "
+                    f"{existing_signature.signed_pdf_path}. Serving regenerated PDF instead."
                 )
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Le PDF signé archivé est introuvable. Contactez le support."
-                )
+                # Continuer pour servir le PDF généré ci-dessous
         
         # Lire le PDF généré
         try:
