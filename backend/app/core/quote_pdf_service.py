@@ -542,8 +542,48 @@ def generate_quote_pdf(
     # Utiliser Paragraph pour toutes les lignes pour permettre le mélange de texte et HTML
     totals_data = [
         [Paragraph('Sous-total HT', normal_style), Paragraph(f"{quote.subtotal_ht:.2f} €" if quote.subtotal_ht else "0.00 €", normal_style)],
-        [Paragraph('TVA', normal_style), Paragraph(f"{quote.total_tax:.2f} €" if quote.total_tax else "0.00 €", normal_style)],
     ]
+    
+    # Calculer le détail de la TVA par taux
+    # Grouper les lignes par taux de TVA et calculer le total HT et TVA pour chaque taux
+    tax_details = {}  # {tax_rate: {'subtotal_ht': Decimal, 'tax_amount': Decimal}}
+    for line in sorted_lines:
+        tax_rate = Decimal(str(line.tax_rate)) if line.tax_rate else Decimal('0')
+        if tax_rate not in tax_details:
+            tax_details[tax_rate] = {'subtotal_ht': Decimal('0'), 'tax_amount': Decimal('0')}
+        tax_details[tax_rate]['subtotal_ht'] += Decimal(str(line.subtotal_ht))
+        tax_details[tax_rate]['tax_amount'] += Decimal(str(line.tax_amount))
+    
+    # Afficher le détail de la TVA par taux (trié par taux décroissant)
+    if tax_details:
+        # Si un seul taux de TVA, afficher simplement "TVA"
+        if len(tax_details) == 1:
+            tax_rate = list(tax_details.keys())[0]
+            if tax_rate > 0:
+                totals_data.append([
+                    Paragraph('TVA', normal_style),
+                    Paragraph(f"{quote.total_tax:.2f} €" if quote.total_tax else "0.00 €", normal_style)
+                ])
+        else:
+            # Plusieurs taux de TVA : afficher le détail
+            for tax_rate in sorted(tax_details.keys(), reverse=True):
+                if tax_rate > 0:
+                    tax_info = tax_details[tax_rate]
+                    tax_label = f"TVA {tax_rate:.2f}%"
+                    # Enlever les zéros inutiles (ex: 20.00% -> 20%)
+                    if tax_rate == int(tax_rate):
+                        tax_label = f"TVA {int(tax_rate)}%"
+                    totals_data.append([
+                        Paragraph(tax_label, normal_style),
+                        Paragraph(f"{tax_info['tax_amount']:.2f} €", normal_style)
+                    ])
+    else:
+        # Aucune TVA (toutes les lignes à 0%)
+        if quote.total_tax and quote.total_tax > 0:
+            totals_data.append([
+                Paragraph('TVA', normal_style),
+                Paragraph(f"{quote.total_tax:.2f} €", normal_style)
+            ])
     
     # Ajouter la réduction si présente
     if quote.discount_type and quote.discount_value:
