@@ -102,6 +102,27 @@ export default function EditQuotePage() {
     });
   };
 
+  const handleLineUpdate = (lineId: number, updates: Partial<BillingLine>) => {
+    if (!quote) return;
+    
+    const updatedLines = quote.lines.map((line) =>
+      line.id === lineId ? { ...line, ...updates } : line
+    );
+
+    // Recalculer les totaux
+    const subtotal = calculateSubtotal(updatedLines);
+    const tax = calculateTax(updatedLines);
+    const total = calculateTotal(updatedLines);
+
+    setQuote({
+      ...quote,
+      lines: updatedLines,
+      subtotal,
+      tax,
+      total,
+    });
+  };
+
   const handleAddLine = () => {
     if (!quote) return;
     
@@ -343,13 +364,13 @@ export default function EditQuotePage() {
                             handleLineChange(line.id, "description", value)
                           }
                           onSelectLine={(savedLine) => {
-                            // Pré-remplir tous les champs si une ligne est sélectionnée
-                            handleLineChange(line.id, "description", savedLine.description);
-                            handleLineChange(line.id, "unitPrice", savedLine.unitPrice);
-                            handleLineChange(line.id, "taxRate", savedLine.taxRate);
-                            if (savedLine.unit) {
-                              handleLineChange(line.id, "unit", savedLine.unit);
-                            }
+                            // Pré-remplir tous les champs en une seule fois si une ligne est sélectionnée
+                            handleLineUpdate(line.id, {
+                              description: savedLine.description,
+                              unitPrice: savedLine.unitPrice,
+                              taxRate: savedLine.taxRate,
+                              unit: savedLine.unit || line.unit || "",
+                            });
                           }}
                           onSaveNewLine={(description, unit, unitPrice, taxRate) => {
                             // Sauvegarder la nouvelle ligne et mettre à jour la ligne actuelle
