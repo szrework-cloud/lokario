@@ -58,7 +58,11 @@ export default function PricingPage() {
 
   const plans = plansData?.plans || [];
   const subscription = subscriptionData?.subscription;
-  const currentPlan = subscription?.plan || null;
+  // Ne considérer comme "plan actuel" que si l'abonnement est actif ET payant (pas en trial gratuit)
+  const isPaidActive = subscription && 
+    subscription.status === "active" && 
+    subscription.amount > 0;
+  const currentPlan = isPaidActive ? (subscription?.plan || null) : null;
   const hasSubscription = subscriptionData?.has_subscription || false;
   const isSubscriptionActive = subscription && (subscription.status === "active" || subscription.status === "trialing");
   
@@ -168,7 +172,8 @@ export default function PricingPage() {
         <div className={`grid gap-6 ${filteredPlans.length === 1 ? 'max-w-md mx-auto' : 'md:grid-cols-2 max-w-4xl mx-auto'}`}>
           {filteredPlans.map((plan) => {
             const planName = plan.id.split("_")[0]; // "starter" ou "professional"
-            const isCurrentPlan = isSubscriptionActive && currentPlan === planName;
+            // Ne considérer comme plan actuel que si c'est un abonnement payant actif
+            const isCurrentPlan = isPaidActive && currentPlan === planName;
             
             return (
               <PricingCard
