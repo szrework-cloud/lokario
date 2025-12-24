@@ -548,6 +548,7 @@ def get_quote(
     
     # Charger le devis avec ses lignes pour calculer les totaux
     from sqlalchemy.orm import joinedload
+    from app.db.models.billing import QuoteLine
     quote = db.query(Quote).options(joinedload(Quote.lines)).filter(
         Quote.id == quote_id,
         Quote.company_id == current_user.company_id
@@ -558,6 +559,14 @@ def get_quote(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Quote not found"
         )
+    
+    # S'assurer que les lignes sont chargées et triées par ordre
+    if not quote.lines:
+        # Si les lignes ne sont pas chargées, les charger explicitement
+        quote.lines = db.query(QuoteLine).filter(QuoteLine.quote_id == quote.id).order_by(QuoteLine.order).all()
+    else:
+        # Trier les lignes par ordre
+        quote.lines = sorted(quote.lines, key=lambda x: x.order)
     
     # S'assurer que les totaux sont à jour (recalculer si nécessaire, sans modifier la DB)
     # On recalcule juste pour la réponse, sans commit
