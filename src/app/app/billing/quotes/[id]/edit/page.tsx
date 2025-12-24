@@ -205,8 +205,39 @@ export default function EditQuotePage() {
       // Appeler l'API pour mettre à jour le devis
       await updateQuote(token, quote.id, updateData);
 
-      // Rediriger vers la page de détail
-      router.push(`/app/billing/quotes/${quote.id}`);
+      // Si on sauvegarde en brouillon, rester sur la page d'édition
+      // Sinon, rediriger vers la page de détail
+      if (status === "brouillon") {
+        // Recharger les données pour s'assurer qu'elles sont à jour
+        const data = await getQuote(token, quote.id);
+        const adaptedQuote: Quote = {
+          ...data,
+          client_name: data.client_name || "",
+          lines: (data.lines || []).map((line) => ({
+            id: line.id || 0,
+            description: line.description || "",
+            quantity: line.quantity || 1,
+            unit: line.unit || "",
+            unitPrice: line.unit_price_ht || 0,
+            taxRate: line.tax_rate || 0,
+            total: line.total_ttc || 0,
+          })),
+          subtotal: data.subtotal_ht || 0,
+          tax: data.total_tax || 0,
+          total: data.total_ttc || data.amount || 0,
+          discount_type: data.discount_type,
+          discount_value: data.discount_value,
+          discount_label: data.discount_label,
+          timeline: [],
+          history: [],
+        };
+        setQuote(adaptedQuote);
+        // Afficher un message de succès
+        // (on pourrait utiliser un toast ici si disponible)
+      } else {
+        // Rediriger vers la page de détail pour les autres statuts
+        router.push(`/app/billing/quotes/${quote.id}`);
+      }
     } catch (err: any) {
       console.error("Error saving quote:", err);
       setError(err.message || "Erreur lors de la sauvegarde du devis");
