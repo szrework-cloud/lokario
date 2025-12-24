@@ -326,6 +326,14 @@ def create_appointment_type(
     """Crée un nouveau type de rendez-vous"""
     _check_company_access(current_user)
     
+    # Vérifier si le module appointments est disponible pour ce plan
+    from app.core.subscription_limits import is_feature_enabled
+    if not is_feature_enabled(db, current_user.company_id, "appointments"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Le module rendez-vous n'est pas disponible pour le plan Essentiel. Passez au plan Pro pour accéder à cette fonctionnalité."
+        )
+    
     # Vérifier que l'utilisateur est owner
     if current_user.role not in ["owner", "super_admin"]:
         raise HTTPException(
@@ -889,6 +897,14 @@ def update_appointment(
 ):
     """Met à jour un rendez-vous"""
     _check_company_access(current_user)
+    
+    # Vérifier si le module appointments est disponible pour ce plan
+    from app.core.subscription_limits import is_feature_enabled
+    if not is_feature_enabled(db, current_user.company_id, "appointments"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Le module rendez-vous n'est pas disponible pour le plan Essentiel. Passez au plan Pro pour accéder à cette fonctionnalité."
+        )
     
     # Vérifier que l'utilisateur est owner
     if current_user.role not in ["owner", "super_admin"]:
