@@ -228,7 +228,7 @@ export default function FonctionnalitesPage() {
                       <div className="flex-1 lg:w-1/2">
                         <div className={`
                           flex items-center gap-4 mb-6
-                          ${isVisible ? 'animate-fade-up' : 'opacity-0'}
+                          ${isVisible ? 'animate-fade-up' : 'opacity-0 translate-y-24'}
                         `}
                         style={{ animationDelay: '0.1s' }}
                         >
@@ -245,7 +245,7 @@ export default function FonctionnalitesPage() {
                         
                         <p className={`
                           text-white/70 leading-relaxed mb-8 text-lg
-                          ${isVisible ? 'animate-fade-up' : 'opacity-0'}
+                          ${isVisible ? 'animate-fade-up' : 'opacity-0 translate-y-24'}
                         `}
                         style={{ animationDelay: '0.2s' }}
                         >
@@ -259,7 +259,7 @@ export default function FonctionnalitesPage() {
                               className={`
                                 flex items-center gap-3 p-3 rounded-xl bg-black/50 border border-[#334155]/30
                                 transition-all duration-500 hover:border-[#F97316]/30 hover:bg-black/80
-                                ${isVisible ? 'animate-fade-up' : 'opacity-0'}
+                                ${isVisible ? 'animate-fade-up' : 'opacity-0 translate-y-24'}
                               `}
                               style={{ transitionDelay: `${0.3 + featureIndex * 0.1}s` }}
                             >
@@ -273,7 +273,7 @@ export default function FonctionnalitesPage() {
                       {/* Screenshot Preview */}
                       <div className={`
                         flex-1 lg:w-1/2
-                        ${isVisible ? 'animate-fade-up' : 'opacity-0'}
+                        ${isVisible ? 'animate-fade-up' : 'opacity-0 translate-y-24'}
                       `}
                       style={{ animationDelay: '0.3s' }}
                       >

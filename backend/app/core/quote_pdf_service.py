@@ -145,11 +145,19 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     # Dessiner le logo maintenant (après la bande et le texte, pour être au-dessus)
     if logo_loaded and logo_image:
         try:
-            logger.info(f"[LOGO] Drawing logo at position ({A4[0] - 50*mm}, {A4[1] - 40*mm})")
-            logo_image.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
-            logger.info(f"[LOGO] Logo drawn successfully on canvas")
+            # Position du logo : en haut à droite
+            logo_x = A4[0] - 50*mm  # 50mm depuis le bord droit
+            logo_y = A4[1] - 40*mm  # 40mm depuis le haut
+            logger.info(f"[LOGO] Drawing logo at position ({logo_x}, {logo_y}), size: {35*mm}x{35*mm}")
+            
+            # S'assurer que le logo est bien dessiné avant restoreState
+            # Le logo doit être dessiné dans le même état que le reste
+            logo_image.drawOn(canvas_obj, logo_x, logo_y)
+            logger.info(f"[LOGO] Logo drawn successfully on canvas at ({logo_x}, {logo_y})")
         except Exception as draw_error:
             logger.error(f"[LOGO] Error drawing logo on canvas: {draw_error}", exc_info=True)
+            import traceback
+            logger.error(f"[LOGO] Traceback: {traceback.format_exc()}")
     
     # Nom de l'entreprise en haut à droite (uniquement si pas de logo)
     if company_name and not logo_loaded:
