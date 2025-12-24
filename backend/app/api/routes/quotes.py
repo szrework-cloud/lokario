@@ -1236,9 +1236,9 @@ def get_quote_pdf(
                 )
         
             logger.info(f"[QUOTE PDF] Reading PDF file: {pdf_path} (size: {pdf_path.stat().st_size} bytes)")
-        with open(pdf_path, "rb") as f:
-            pdf_bytes = f.read()
-        
+            with open(pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+            
             if not pdf_bytes:
                 logger.error(f"[QUOTE PDF] PDF file is empty: {pdf_path}")
                 raise HTTPException(
