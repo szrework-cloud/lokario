@@ -113,10 +113,14 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
                         logger.info(f"[LOGO] Downloaded {len(file_content)} bytes from Supabase")
                         # Utiliser BytesIO pour créer une image depuis les bytes
                         logo_bytes = io.BytesIO(file_content)
+                        logo_bytes.seek(0)  # S'assurer que le pointeur est au début
                         try:
                             logo = Image(logo_bytes, width=35*mm, height=35*mm, kind='proportional')
                             logger.info(f"[LOGO] Image object created successfully, drawing at position ({A4[0] - 50*mm}, {A4[1] - 40*mm})")
+                            # S'assurer que le canvas est dans le bon état avant de dessiner
+                            canvas_obj.saveState()
                             logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
+                            canvas_obj.restoreState()
                             logo_loaded = True
                             logger.info(f"[LOGO] Logo drawn successfully on canvas from Supabase Storage: {normalized_path}")
                         except Exception as img_error:
