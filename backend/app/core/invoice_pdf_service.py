@@ -34,12 +34,15 @@ def format_date(date: Optional[datetime]) -> str:
     return date.strftime("%d/%m/%Y")
 
 
-def generate_invoice_pdf(invoice: Invoice, client=None) -> bytes:
+def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[dict] = None, quote=None) -> bytes:
     """
     Génère un PDF de facture conforme avec toutes les mentions légales.
     
     Args:
         invoice: Facture à convertir en PDF
+        client: Client de la facture (optionnel)
+        company_info: Dict avec les infos de l'entreprise (address, phone, email) (optionnel)
+        quote: Devis d'origine si la facture provient d'un devis (optionnel)
         
     Returns:
         Bytes du PDF généré
@@ -100,12 +103,27 @@ def generate_invoice_pdf(invoice: Invoice, client=None) -> bytes:
         c.drawString(margin, y, invoice.seller_name)
         y -= 4 * mm
     
-    if invoice.seller_address:
+    # Adresse de l'entreprise (priorité: seller_address, puis company_info.address)
+    seller_address = invoice.seller_address
+    if not seller_address and company_info:
+        seller_address = company_info.get("address")
+    
+    if seller_address:
         # Gérer les retours à la ligne pour l'adresse
-        address_lines = invoice.seller_address.split('\n')
+        address_lines = seller_address.split('\n')
         for line in address_lines[:3]:  # Limiter à 3 lignes
             c.drawString(margin, y, line)
             y -= 4 * mm
+    
+    # Téléphone de l'entreprise (depuis company_info)
+    if company_info and company_info.get("phone"):
+        c.drawString(margin, y, f"Tél: {company_info.get('phone')}")
+        y -= 4 * mm
+    
+    # Email de l'entreprise (depuis company_info)
+    if company_info and company_info.get("email"):
+        c.drawString(margin, y, company_info.get("email"))
+        y -= 4 * mm
     
     if invoice.seller_siren:
         c.drawString(margin, y, f"SIREN: {invoice.seller_siren}")
@@ -222,9 +240,18 @@ def generate_invoice_pdf(invoice: Invoice, client=None) -> bytes:
             client_y -= 3 * mm
     
     # ========================================================================
-    # DATES
+    # MENTION DEVIS D'ORIGINE (si la facture provient d'un devis)
     # ========================================================================
     y = min(y, client_y) - 10 * mm
+    if quote and quote.number:
+        c.setFont("Helvetica", 9)
+        c.setFillColor(light_gray)
+        c.drawString(margin, y, f"Facture émise suite au devis n° {quote.number}")
+        y -= 6 * mm
+    
+    # ========================================================================
+    # DATES
+    # ========================================================================
     c.setFont("Helvetica", 9)
     c.setFillColor(light_gray)
     

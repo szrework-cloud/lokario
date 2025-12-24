@@ -422,6 +422,18 @@ def create_invoice(
     populate_seller_info(invoice, company, db)
     populate_client_info(invoice, client)
     
+    # Calculer automatiquement la date d'échéance si elle n'est pas fournie
+    if not invoice.due_date and invoice.issue_date:
+        # Récupérer la durée d'échéance depuis les settings (en jours)
+        due_date_days = 30  # Valeur par défaut: 30 jours
+        if company_settings:
+            billing_settings = company_settings.get("billing", {})
+            due_date_days = billing_settings.get("invoice_due_date_days", 30)
+        
+        # Calculer la date d'échéance
+        from datetime import timedelta
+        invoice.due_date = invoice.issue_date + timedelta(days=due_date_days)
+    
     # Vérifier si l'ENTREPRISE est auto-entrepreneur ou exonérée de TVA
     # Si oui, appliquer automatiquement les règles TVA
     if company.is_auto_entrepreneur or company.vat_exempt:
@@ -1656,8 +1668,29 @@ def get_invoice_pdf(
         Client.company_id == current_user.company_id
     ).first()
     
+    # Récupérer les infos de l'entreprise depuis les settings
+    from app.db.models.company_settings import CompanySettings
+    company_settings = db.query(CompanySettings).filter(
+        CompanySettings.company_id == current_user.company_id
+    ).first()
+    
+    company_info = {}
+    if company_settings and company_settings.settings:
+        company_info_data = company_settings.settings.get("company_info", {})
+        company_info = {
+            "address": company_info_data.get("address"),
+            "phone": company_info_data.get("phone"),
+            "email": company_info_data.get("email")
+        }
+    
+    # Récupérer le devis d'origine si la facture provient d'un devis
+    quote = None
+    if invoice.quote_id:
+        from app.db.models.billing import Quote
+        quote = db.query(Quote).filter(Quote.id == invoice.quote_id).first()
+    
     try:
-        pdf_bytes = generate_invoice_pdf(invoice, client=client)
+        pdf_bytes = generate_invoice_pdf(invoice, client=client, company_info=company_info, quote=quote)
         # Adapter le nom du fichier selon le type (facture ou avoir)
         if invoice.invoice_type == InvoiceType.AVOIR:
             filename = f"avoir_{invoice.number}.pdf"
