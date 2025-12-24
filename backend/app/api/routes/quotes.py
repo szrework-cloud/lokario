@@ -1027,6 +1027,13 @@ def update_quote(
     db.commit()
     db.refresh(quote)
     
+    # Recharger les lignes pour s'assurer qu'elles sont incluses dans la réponse
+    from sqlalchemy.orm import joinedload
+    from app.db.models.billing import QuoteLine
+    quote = db.query(Quote).options(joinedload(Quote.lines)).filter(Quote.id == quote.id).first()
+    if quote and quote.lines:
+        quote.lines = sorted(quote.lines, key=lambda x: x.order)
+    
     # Si le statut est passé à "envoyé", envoyer l'email
     if should_send_email:
         try:
