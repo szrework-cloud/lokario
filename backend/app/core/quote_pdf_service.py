@@ -755,8 +755,6 @@ def generate_quote_pdf(
         
         if not signature_loaded:
             logger.warning(f"[QUOTE PDF] Signature file not found: {signature_image_path}")
-        except Exception:
-            pass
     
     # Label signature entreprise
     left_signature_style = ParagraphStyle(
