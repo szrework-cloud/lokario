@@ -22,47 +22,23 @@ from app.core.config import settings
 from app.core.pdf_image_loader import load_image_for_pdf, cleanup_temp_images
 
 
-def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path=None, company_name=None, company_id=None):
-    """Dessine l'en-tête moderne avec les couleurs personnalisées."""
+def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_image=None, company_name=None):
+    """Dessine l'en-tête moderne avec les couleurs personnalisées.
+    
+    Args:
+        canvas_obj: Canvas ReportLab
+        doc: Document ReportLab
+        primary_color: Couleur primaire (hex)
+        secondary_color: Couleur secondaire (hex)
+        logo_image: Objet Image ReportLab préchargé (optionnel)
+        company_name: Nom de l'entreprise (affiché si pas de logo)
+    """
     import logging
     logger = logging.getLogger(__name__)
     canvas_obj.saveState()
     
-    # Logo si disponible (en haut à droite)
-    logo_image = None
-    logo_loaded = False
-    if logo_path:
-        # Utiliser company_id si fourni, sinon essayer de l'extraire du chemin
-        if not company_id:
-            try:
-                if "/" in logo_path:
-                    company_id_str = logo_path.split("/")[0]
-                    company_id = int(company_id_str)
-                    logger.debug(f"[LOGO] Extracted company_id from logo_path: {company_id}")
-            except (ValueError, IndexError):
-                logger.warning(f"[LOGO] Could not extract company_id from logo_path: {logo_path}")
-                company_id = None
-        
-        logger.info(f"[LOGO] Loading logo with path: {logo_path}, company_id: {company_id}")
-        
-        # Utiliser la fonction utilitaire centralisée pour charger le logo
-        upload_dir = Path(settings.UPLOAD_DIR).resolve()
-        logo_result = load_image_for_pdf(
-            image_path=logo_path,
-            width=35,
-            height=35,
-            upload_dir=upload_dir,
-            company_id=company_id,
-            temp_subdir="temp_logos",
-            kind='proportional'
-        )
-        
-        if logo_result.loaded and logo_result.image:
-            logo_image = logo_result.image
-            logo_loaded = True
-            logger.info(f"[LOGO] ✅ Logo loaded successfully from: {logo_path}")
-        else:
-            logger.warning(f"[LOGO] ⚠️ Logo could not be loaded from: {logo_path} (company_id: {company_id})")
+    # Logo si disponible (en haut à droite) - maintenant préchargé
+    logo_loaded = logo_image is not None
     
     # Bande diagonale principale (coin supérieur gauche, traverse la page)
     canvas_obj.setFillColor(colors.HexColor(primary_color))
@@ -212,6 +188,68 @@ def generate_quote_pdf(
     import logging
     logger = logging.getLogger(__name__)
     logger.info(f"[QUOTE PDF] Design config - logo_path: {logo_path}, signature_path: {signature_path}, company_id: {company.id if company else None}")
+    
+    # PRÉCHARGER TOUTES LES IMAGES au début pour éviter les conflits de timing
+    # Cela garantit que tous les fichiers temporaires sont créés avant que ReportLab ne commence à les utiliser
+    upload_dir = Path(settings.UPLOAD_DIR).resolve()
+    company_id = company.id if company else None
+    
+    # Précharger le logo (si disponible)
+    logo_image = None
+    if logo_path:
+        logger.info(f"[QUOTE PDF] Preloading logo: {logo_path}")
+        logo_result = load_image_for_pdf(
+            image_path=logo_path,
+            width=35,
+            height=35,
+            upload_dir=upload_dir,
+            company_id=company_id,
+            temp_subdir="temp_logos",
+            kind='proportional'
+        )
+        if logo_result.loaded and logo_result.image:
+            logo_image = logo_result.image
+            logger.info(f"[QUOTE PDF] ✅ Logo preloaded successfully")
+        else:
+            logger.warning(f"[QUOTE PDF] ⚠️ Logo could not be preloaded from: {logo_path}")
+    
+    # Précharger la signature entreprise (si disponible)
+    company_signature_image = None
+    if signature_path:
+        logger.info(f"[QUOTE PDF] Preloading company signature: {signature_path}")
+        signature_result = load_image_for_pdf(
+            image_path=signature_path,
+            width=70,
+            height=25,
+            upload_dir=upload_dir,
+            company_id=company_id,
+            temp_subdir="temp_signatures",
+            kind='proportional'
+        )
+        if signature_result.loaded and signature_result.image:
+            company_signature_image = signature_result.image
+            logger.info(f"[QUOTE PDF] ✅ Company signature preloaded successfully")
+        else:
+            logger.warning(f"[QUOTE PDF] ⚠️ Company signature could not be preloaded from: {signature_path}")
+    
+    # Précharger la signature client (si disponible)
+    client_signature_image = None
+    if client_signature_path:
+        logger.info(f"[QUOTE PDF] Preloading client signature: {client_signature_path}")
+        client_sig_result = load_image_for_pdf(
+            image_path=client_signature_path,
+            width=70,
+            height=25,
+            upload_dir=upload_dir,
+            company_id=company_id,
+            temp_subdir="temp_signatures",
+            kind='proportional'
+        )
+        if client_sig_result.loaded and client_sig_result.image:
+            client_signature_image = client_sig_result.image
+            logger.info(f"[QUOTE PDF] ✅ Client signature preloaded successfully")
+        else:
+            logger.warning(f"[QUOTE PDF] ⚠️ Client signature could not be preloaded from: {client_signature_path}")
     
     # Créer le document PDF avec SimpleDocTemplate
     doc = SimpleDocTemplate(
@@ -724,35 +762,12 @@ def generate_quote_pdf(
     # Section signatures (entreprise et client)
     story.append(Spacer(1, 10*mm))
     
-    # Colonne gauche : Signature entreprise
+    # Colonne gauche : Signature entreprise (utiliser l'image préchargée)
     left_signature_elements = []
-    if signature_path:
-        # Extraire company_id du signature_path si possible, sinon utiliser company.id
-        company_id = company.id if company and company.id else None
-        if not company_id and "/" in signature_path:
-            try:
-                company_id = int(signature_path.split("/")[0])
-            except (ValueError, IndexError):
-                company_id = None
-        
-        # Utiliser la fonction utilitaire centralisée pour charger la signature entreprise
-        upload_dir = Path(settings.UPLOAD_DIR).resolve()
-        signature_result = load_image_for_pdf(
-            image_path=signature_path,
-            width=70,
-            height=25,
-            upload_dir=upload_dir,
-            company_id=company_id,
-            temp_subdir="temp_signatures",
-            kind='proportional'
-        )
-        
-        if signature_result.loaded and signature_result.image:
-            left_signature_elements.append(signature_result.image)
-            left_signature_elements.append(Spacer(1, 3*mm))
-            logger.info(f"[QUOTE PDF] ✅ Company signature loaded successfully")
-        else:
-            logger.warning(f"[QUOTE PDF] ⚠️ Company signature could not be loaded from: {signature_path}")
+    if company_signature_image:
+        left_signature_elements.append(company_signature_image)
+        left_signature_elements.append(Spacer(1, 3*mm))
+        logger.info(f"[QUOTE PDF] ✅ Company signature added to PDF")
     
     # Label signature entreprise
     left_signature_style = ParagraphStyle(
@@ -780,37 +795,12 @@ def generate_quote_pdf(
         )
         right_signature_elements.append(Paragraph("Bon pour accord", approval_zone_style))
     
-    # Utiliser la signature du client si fournie, sinon espace vide
-    if client_signature_path:
-        # Extraire company_id du client_signature_path si possible, sinon utiliser company.id
-        company_id = company.id if company and company.id else None
-        if not company_id and "/" in client_signature_path:
-            try:
-                company_id = int(client_signature_path.split("/")[0])
-            except (ValueError, IndexError):
-                company_id = None
-        
-        # Utiliser la fonction utilitaire centralisée pour charger la signature client
-        upload_dir = Path(settings.UPLOAD_DIR).resolve()
-        client_sig_result = load_image_for_pdf(
-            image_path=client_signature_path,
-            width=70,
-            height=25,
-            upload_dir=upload_dir,
-            company_id=company_id,
-            temp_subdir="temp_signatures",
-            kind='proportional'
-        )
-        
-        if client_sig_result.loaded and client_sig_result.image:
-            right_signature_elements.append(client_sig_result.image)
-            logger.info(f"[QUOTE PDF] ✅ Client signature loaded successfully")
-        else:
-            logger.warning(f"[QUOTE PDF] ⚠️ Client signature could not be loaded from: {client_signature_path}")
-            # Espace vide si signature non trouvée
-            right_signature_elements.append(Spacer(1, 20*mm))
+    # Utiliser la signature du client si fournie (utiliser l'image préchargée), sinon espace vide
+    if client_signature_image:
+        right_signature_elements.append(client_signature_image)
+        logger.info(f"[QUOTE PDF] ✅ Client signature added to PDF")
     else:
-        # Espace vide pour signature manuelle
+        # Espace vide si pas de signature client
         right_signature_elements.append(Spacer(1, 20*mm))
     
     right_signature_style = ParagraphStyle(
@@ -840,13 +830,13 @@ def generate_quote_pdf(
     
     story.append(signature_table)
     
-    # Fonctions pour dessiner l'en-tête et le pied de page
+    # Fonctions pour dessiner l'en-tête et le pied de page (utiliser l'image préchargée)
     def on_first_page(canvas_obj, doc):
-        draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path, company.name if company else None, company.id if company else None)
+        draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_image, company.name if company else None)
         draw_footer_on_canvas(canvas_obj, doc, primary_color, footer_text)
     
     def on_later_pages(canvas_obj, doc):
-        draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path, company.name if company else None, company.id if company else None)
+        draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_image, company.name if company else None)
         draw_footer_on_canvas(canvas_obj, doc, primary_color, footer_text)
     
     # Générer le PDF avec les callbacks pour l'en-tête et le pied de page
