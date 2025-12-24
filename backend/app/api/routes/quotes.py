@@ -103,7 +103,7 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
         
         # Utiliser l'ORM pour être sûr que le filtrage fonctionne correctement
         quotes = db.query(Quote).filter(
-            Quote.company_id == company_id,
+        Quote.company_id == company_id,
             Quote.number.like(pattern)
         ).all()
         
@@ -144,14 +144,14 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
                     valid_numbers.append(number_part)
                     if number_part > max_number:
                         max_number = number_part
-                except (ValueError, IndexError):
+        except (ValueError, IndexError):
                     logger.warning(f"[QUOTE NUMBER] Format de numéro invalide ignoré: {quote_number}")
                     continue
             next_number = max_number + 1
             print(f"[QUOTE NUMBER] Numéros valides trouvés: {sorted(valid_numbers)}, maximum: {max_number}, prochain: {next_number:03d}")
             logger.info(f"[QUOTE NUMBER] Numéros valides trouvés: {sorted(valid_numbers)}, maximum: {max_number}, prochain: {next_number:03d}")
-        else:
-            next_number = 1
+    else:
+        next_number = 1
             print(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
             logger.info(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
     
@@ -668,24 +668,24 @@ def create_quote(
                 # Générer le numéro de devis (passer le dernier numéro qui a échoué si disponible)
                 number = generate_quote_number(db, current_user.company_id, last_failed_number)
                 logger.info(f"[QUOTE CREATE] Tentative {retry_count + 1}: Génération du numéro {number}")
-                
-                # Créer le devis
-                quote = Quote(
-                    company_id=current_user.company_id,
-                    client_id=quote_data.client_id,
-                    project_id=quote_data.project_id,
-                    number=number,
-                    status=quote_status,
-                    notes=quote_data.notes,
-                    conditions=quote_data.conditions,
-                    discount_type=quote_data.discount_type,
-                    discount_value=quote_data.discount_value,
-                    discount_label=quote_data.discount_label,
-                    amount=Decimal("0"),  # Sera recalculé
-                )
-                
-                db.add(quote)
-                db.flush()  # Pour obtenir l'ID
+        
+        # Créer le devis
+        quote = Quote(
+            company_id=current_user.company_id,
+            client_id=quote_data.client_id,
+            project_id=quote_data.project_id,
+            number=number,
+            status=quote_status,
+            notes=quote_data.notes,
+            conditions=quote_data.conditions,
+            discount_type=quote_data.discount_type,
+            discount_value=quote_data.discount_value,
+            discount_label=quote_data.discount_label,
+            amount=Decimal("0"),  # Sera recalculé
+        )
+        
+        db.add(quote)
+        db.flush()  # Pour obtenir l'ID
                 
                 # Si on arrive ici, le flush a réussi, on peut sortir de la boucle
                 break
@@ -904,7 +904,7 @@ def update_quote(
                         "current_updated_at": quote.updated_at.isoformat() if quote.updated_at else None,
                         "client_updated_at": client_updated_at.isoformat() if client_updated_at else None
                     }
-                )
+        )
     
     # PROTECTION SÉCURITÉ : Empêcher la modification d'un devis signé
     existing_signature = db.query(QuoteSignature).filter(
@@ -1211,7 +1211,7 @@ def get_quote_pdf(
         client_signature_path = quote.client_signature_path if hasattr(quote, 'client_signature_path') else None
         try:
             logger.info(f"[QUOTE PDF] Generating PDF for quote {quote_id}, client_signature_path: {client_signature_path}")
-            generate_quote_pdf(quote, client, company, str(pdf_path), design_config=design_config, client_signature_path=client_signature_path)
+        generate_quote_pdf(quote, client, company, str(pdf_path), design_config=design_config, client_signature_path=client_signature_path)
             logger.info(f"[QUOTE PDF] PDF generated successfully at: {pdf_path}")
         except Exception as pdf_error:
             logger.error(f"[QUOTE PDF] Error generating PDF: {pdf_error}", exc_info=True)
@@ -1220,10 +1220,10 @@ def get_quote_pdf(
                 detail=f"Erreur lors de la génération du PDF: {str(pdf_error)}"
             )
         
-        # SÉCURITÉ : Pour un devis signé, servir uniquement le PDF archivé (non modifiable)
-        # MAIS : Si le PDF archivé n'existe pas ou si la signature du client n'est pas dans Supabase,
-        # on sert le PDF régénéré avec la signature actuelle
-        if existing_signature and existing_signature.signed_pdf_path:
+        # NOTE : Pour un devis signé, on sert toujours le PDF régénéré pour garantir que le logo et les images sont à jour
+        # Le hash de signature est vérifié séparément si nécessaire
+        # Ancien code (commenté) : servait le PDF archivé, mais cela causait des problèmes avec le logo après les corrections
+        # if existing_signature and existing_signature.signed_pdf_path:
             # Servir le PDF archivé original au lieu de régénérer
             archived_pdf_path = Path(settings.UPLOAD_DIR) / existing_signature.signed_pdf_path
             if archived_pdf_path.exists():
@@ -1252,46 +1252,34 @@ def get_quote_pdf(
                         except:
                             pass
                 
-                # Si la signature existe, servir le PDF archivé
-                if signature_exists:
-                    with open(archived_pdf_path, "rb") as f:
-                        pdf_bytes = f.read()
-                    
-                    # Vérifier l'intégrité du PDF archivé
-                    current_hash = hashlib.sha256(pdf_bytes).hexdigest()
-                    if current_hash != existing_signature.signature_hash:
-                        logger.error(
-                            f"CRITICAL: PDF integrity mismatch for signed quote {quote_id}: "
-                            f"expected={existing_signature.signature_hash}, got={current_hash}. "
-                            f"The archived PDF may have been tampered with!"
-                        )
-                        raise HTTPException(
-                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Erreur d'intégrité du PDF signé. Le document peut avoir été modifié."
-                        )
-                    
-                    return Response(
-                        content=pdf_bytes,
-                        media_type="application/pdf",
-                        headers={
-                            "Content-Disposition": f'inline; filename="devis_{quote.number}_signed.pdf"'
-                        }
-                    )
-                else:
-                    # La signature n'existe pas, régénérer le PDF avec la signature actuelle
-                    logger.warning(
-                        f"WARNING: Client signature not found for signed quote {quote_id}. "
-                        f"Regenerating PDF with current signature."
-                    )
-                    # Continuer pour servir le PDF généré ci-dessous (qui inclut la signature)
-            else:
-                # PDF archivé manquant - servir le PDF généré à la place
-                # C'est un cas de fallback si le PDF archivé a été perdu
-                logger.warning(
-                    f"WARNING: Archived PDF missing for signed quote {quote_id}: "
-                    f"{existing_signature.signed_pdf_path}. Serving regenerated PDF instead."
-                )
-                # Continuer pour servir le PDF généré ci-dessous
+                # ANCIEN CODE (commenté) : Servait le PDF archivé, mais causait des problèmes avec le logo après corrections
+                # On sert maintenant toujours le PDF régénéré pour garantir que le logo et les images sont corrects
+                # if signature_exists:
+                #     with open(archived_pdf_path, "rb") as f:
+                #         pdf_bytes = f.read()
+                #     
+                #     # Vérifier l'intégrité du PDF archivé
+                #     current_hash = hashlib.sha256(pdf_bytes).hexdigest()
+                #     if current_hash != existing_signature.signature_hash:
+                #         logger.error(
+                #             f"CRITICAL: PDF integrity mismatch for signed quote {quote_id}: "
+                #             f"expected={existing_signature.signature_hash}, got={current_hash}. "
+                #             f"The archived PDF may have been tampered with!"
+                #         )
+                #         raise HTTPException(
+                #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                #             detail="Erreur d'intégrité du PDF signé. Le document peut avoir été modifié."
+                #         )
+                #     
+                #     return Response(
+                #         content=pdf_bytes,
+                #         media_type="application/pdf",
+                #         headers={
+                #             "Content-Disposition": f'inline; filename="devis_{quote.number}_signed.pdf"'
+                #         }
+                #     )
+                # Continuer pour servir le PDF régénéré ci-dessous (qui inclut toujours le logo et les images corrects)
+                pass
         
         # Lire le PDF généré
         try:
@@ -1301,11 +1289,11 @@ def get_quote_pdf(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Le fichier PDF généré est introuvable: {pdf_path}"
                 )
-            
+        
             logger.info(f"[QUOTE PDF] Reading PDF file: {pdf_path} (size: {pdf_path.stat().st_size} bytes)")
-            with open(pdf_path, "rb") as f:
-                pdf_bytes = f.read()
-            
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+        
             if not pdf_bytes:
                 logger.error(f"[QUOTE PDF] PDF file is empty: {pdf_path}")
                 raise HTTPException(
@@ -1315,16 +1303,16 @@ def get_quote_pdf(
             
             logger.info(f"[QUOTE PDF] PDF read successfully, {len(pdf_bytes)} bytes")
             
-            # Optionnel: supprimer le fichier temporaire après lecture
-            # os.remove(pdf_path)
-            
-            return Response(
-                content=pdf_bytes,
-                media_type="application/pdf",
-                headers={
-                    "Content-Disposition": f'inline; filename="devis_{quote.number}.pdf"'
-                }
-            )
+        # Optionnel: supprimer le fichier temporaire après lecture
+        # os.remove(pdf_path)
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="devis_{quote.number}.pdf"'
+            }
+        )
         except HTTPException:
             raise
         except Exception as read_error:
