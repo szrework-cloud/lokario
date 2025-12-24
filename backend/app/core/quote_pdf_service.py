@@ -63,16 +63,16 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     # Dessiner le logo maintenant (après la bande et le texte, pour être au-dessus)
     if logo_loaded and logo_image:
         try:
-            # Position du logo : en haut à droite de la page, dans la zone visible (sous la marge supérieure)
+            # Position du logo : en haut à droite de la page
             # IMPORTANT: En ReportLab canvas, les coordonnées sont depuis le BAS (y=0 en bas)
             # Position X : aligné à droite avec une marge de 20mm (marge droite du document)
             logo_x = A4[0] - 20*mm - 35*mm  # 20mm marge droite + 35mm largeur logo
-            # Position Y : sous la marge supérieure (90mm) + un petit espacement (5mm) = 95mm depuis le haut
-            # A4[1] est la hauteur totale, donc A4[1] - 95mm = position depuis le bas
-            logo_y = A4[1] - 95*mm  # 95mm depuis le haut = zone visible sous la marge
+            # Position Y : en haut de la page, à 45mm depuis le haut (position originale)
+            # A4[1] est la hauteur totale, donc A4[1] - 45mm = position depuis le bas
+            logo_y = A4[1] - 45*mm  # 45mm depuis le haut
             logger.info(f"[LOGO] Drawing logo at position ({logo_x}, {logo_y}), size: {35*mm}x{35*mm}")
             logger.info(f"[LOGO] A4 dimensions: width={A4[0]}, height={A4[1]}")
-            logger.info(f"[LOGO] Logo will be drawn at: x={logo_x} (from left), y={logo_y} (from bottom, {95*mm} from top)")
+            logger.info(f"[LOGO] Logo will be drawn at: x={logo_x} (from left), y={logo_y} (from bottom, {45*mm} from top)")
             
             # S'assurer que le logo est dessiné après tous les autres éléments
             # En ReportLab, l'ordre de dessin détermine ce qui est au-dessus
