@@ -310,6 +310,7 @@ export default function SettingsPage() {
   const [quoteSignaturePreview, setQuoteSignaturePreview] = useState<string | null>(null);
   const [quoteEmailTemplate, setQuoteEmailTemplate] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("");
+  const [invoiceDueDateDays, setInvoiceDueDateDays] = useState<number>(30);
   const [editForm, setEditForm] = useState<{ description: string; unit_price_ht: string; tax_rate: string }>({
     description: "",
     unit_price_ht: "",
@@ -354,6 +355,12 @@ export default function SettingsPage() {
       // Charger les modalités de paiement
       if (billingSettings?.payment_terms) {
         setPaymentTerms(billingSettings.payment_terms);
+      }
+      // Charger la durée d'échéance des factures
+      if (billingSettings?.invoice_due_date_days !== undefined) {
+        setInvoiceDueDateDays(billingSettings.invoice_due_date_days);
+      } else {
+        setInvoiceDueDateDays(30); // Valeur par défaut
       }
     }
   }, [settings]);
@@ -2145,6 +2152,26 @@ export default function SettingsPage() {
                     Ces informations apparaîtront dans la section "Informations de paiement" de vos devis et factures.
                   </p>
                 </div>
+                
+                {/* Durée d'échéance des factures */}
+                <div className="pt-4 border-t border-[#E5E7EB]">
+                  <label className="block text-sm font-medium text-[#0F172A] mb-2">
+                    Durée d'échéance des factures (en jours)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={invoiceDueDateDays}
+                    onChange={(e) => setInvoiceDueDateDays(parseInt(e.target.value) || 30)}
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    placeholder="30"
+                  />
+                  <p className="text-xs text-[#64748B] mt-2">
+                    Nombre de jours après la date d'émission pour calculer automatiquement la date d'échéance. Par défaut: 30 jours.
+                  </p>
+                </div>
+                
                 <div className="pt-4 border-t border-[#E5E7EB]">
                   <button
                     type="button"
@@ -2157,12 +2184,13 @@ export default function SettingsPage() {
                           billing: {
                             ...((settings.settings as any).billing || {}),
                             payment_terms: paymentTerms,
+                            invoice_due_date_days: invoiceDueDateDays,
                           },
                         };
                         await saveSettings(updatedSettings);
-                        showToast("Modalités de paiement sauvegardées avec succès", "success");
+                        showToast("Paramètres sauvegardés avec succès", "success");
                       } catch (error: any) {
-                        console.error("Error saving payment terms:", error);
+                        console.error("Error saving settings:", error);
                         showToast(error.message || "Erreur lors de la sauvegarde", "error");
                       } finally {
                         setIsSaving(false);
@@ -2171,7 +2199,7 @@ export default function SettingsPage() {
                     disabled={isSaving}
                     className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isSaving ? "Sauvegarde..." : "Sauvegarder les modalités"}
+                    {isSaving ? "Sauvegarde..." : "Sauvegarder les paramètres"}
                   </button>
                 </div>
               </CardContent>
