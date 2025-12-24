@@ -220,6 +220,15 @@ def create_client(
             detail="User is not attached to a company"
         )
     
+    # Vérifier les limites d'utilisation selon le plan
+    from app.core.subscription_limits import check_clients_limit
+    is_allowed, error_message = check_clients_limit(db, current_user.company_id)
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_message
+        )
+    
     # Créer le client
     client = Client(
         company_id=current_user.company_id,

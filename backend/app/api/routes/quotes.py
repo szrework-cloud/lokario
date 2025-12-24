@@ -587,6 +587,15 @@ def create_quote(
                 detail="User is not attached to a company"
             )
         
+        # Vérifier les limites d'utilisation selon le plan
+        from app.core.subscription_limits import check_quotes_limit
+        is_allowed, error_message = check_quotes_limit(db, current_user.company_id)
+        if not is_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error_message
+            )
+        
         # Vérifier que le client existe et appartient à l'entreprise
         client = get_client_info(db, quote_data.client_id, current_user.company_id)
         if not client:

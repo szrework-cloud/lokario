@@ -331,6 +331,22 @@ async def get_subscription(
     }
 
 
+@router.get("/subscription/usage")
+async def get_subscription_usage(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Récupère les statistiques d'utilisation de l'entreprise pour son plan actuel"""
+    from app.core.subscription_limits import get_usage_stats
+    
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Entreprise non trouvée")
+    
+    stats = get_usage_stats(db, current_user.company_id)
+    return stats
+
+
 @router.get("/subscription/{company_id}")
 async def get_company_subscription(
     company_id: int,

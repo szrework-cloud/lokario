@@ -340,6 +340,15 @@ def create_invoice(
             detail="User is not attached to a company"
         )
     
+    # Vérifier les limites d'utilisation selon le plan
+    from app.core.subscription_limits import check_invoices_limit
+    is_allowed, error_message = check_invoices_limit(db, current_user.company_id)
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_message
+        )
+    
     # Vérifier que le client existe et appartient à l'entreprise
     client = get_client_info(db, invoice_data.client_id, current_user.company_id)
     if not client:
