@@ -1911,15 +1911,29 @@ export default function SettingsPage() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Bouton pour ajouter une nouvelle ligne */}
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTemplate(null);
+                      setEditForm({ description: "", unit_price_ht: "", tax_rate: taxRates[0]?.toString() || "20" });
+                    }}
+                    className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110"
+                  >
+                    + Ajouter une ligne
+                  </button>
+                </div>
+                
                 {isLoadingTemplates ? (
                   <div className="flex items-center justify-center py-8">
                     <p className="text-sm text-[#64748B]">Chargement...</p>
                   </div>
                 ) : (
                   <>
-                    {billingLineTemplates.length === 0 ? (
+                    {billingLineTemplates.length === 0 && !editingTemplate ? (
                       <p className="text-sm text-[#64748B] italic text-center py-8">
-                        Aucune ligne sauvegardée. Créez-en une depuis un devis ou une facture.
+                        Aucune ligne sauvegardée. Cliquez sur "+ Ajouter une ligne" pour en créer une.
                       </p>
                     ) : (
                       <>
@@ -1960,6 +1974,102 @@ export default function SettingsPage() {
                             </button>
                           </div>
                         </div>
+                        
+                        {/* Formulaire pour créer une nouvelle ligne (si editingTemplate est null et pas dans la liste) */}
+                        {!editingTemplate && (
+                          <div className="p-4 bg-[#F0F9FF] rounded-lg border-2 border-dashed border-[#F97316]">
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-xs font-medium text-[#64748B] mb-1">
+                                  Description
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editForm.description}
+                                  onChange={(e) =>
+                                    setEditForm({ ...editForm, description: e.target.value })
+                                  }
+                                  placeholder="Ex: Prestation de service"
+                                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-medium text-[#64748B] mb-1">
+                                    Prix unitaire HT (€)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editForm.unit_price_ht}
+                                    onChange={(e) =>
+                                      setEditForm({ ...editForm, unit_price_ht: e.target.value })
+                                    }
+                                    placeholder="0.00"
+                                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-[#64748B] mb-1">
+                                    TVA (%)
+                                  </label>
+                                  <select
+                                    value={editForm.tax_rate}
+                                    onChange={(e) =>
+                                      setEditForm({ ...editForm, tax_rate: e.target.value })
+                                    }
+                                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                                  >
+                                    {taxRates.map((rate) => (
+                                      <option key={rate} value={rate}>
+                                        {rate}%
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditForm({ description: "", unit_price_ht: "", tax_rate: taxRates[0]?.toString() || "20" });
+                                  }}
+                                  className="px-4 py-2 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB]"
+                                >
+                                  Annuler
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!token) return;
+                                    if (!editForm.description.trim()) {
+                                      showToast("Veuillez saisir une description", "error");
+                                      return;
+                                    }
+                                    try {
+                                      await createBillingLineTemplate(token, {
+                                        description: editForm.description,
+                                        unit_price_ht: parseFloat(editForm.unit_price_ht) || 0,
+                                        tax_rate: editForm.tax_rate ? parseFloat(editForm.tax_rate) : 0,
+                                      });
+                                      const templates = await getBillingLineTemplates(token);
+                                      setBillingLineTemplates(templates);
+                                      setEditForm({ description: "", unit_price_ht: "", tax_rate: taxRates[0]?.toString() || "20" });
+                                      showToast("Ligne créée avec succès", "success");
+                                    } catch (err: any) {
+                                      showToast(err.message || "Erreur lors de la création", "error");
+                                    }
+                                  }}
+                                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#F97316] to-[#EA580C] text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110"
+                                >
+                                  Enregistrer
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="space-y-3">
                           {billingLineTemplates
                             .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
@@ -2037,7 +2147,7 @@ export default function SettingsPage() {
                                         await updateBillingLineTemplate(token, template.id, {
                                           description: editForm.description,
                                           unit_price_ht: parseFloat(editForm.unit_price_ht) || 0,
-                                          tax_rate: parseFloat(editForm.tax_rate) || 0,
+                                          tax_rate: editForm.tax_rate ? parseFloat(editForm.tax_rate) : 0,
                                         });
                                         const templates = await getBillingLineTemplates(token);
                                         setBillingLineTemplates(templates);

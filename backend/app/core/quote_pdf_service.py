@@ -47,20 +47,31 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     
     # Logo si disponible (en haut à droite)
     logo_loaded = False
-    if logo_path and Path(logo_path).exists():
-        try:
-            # Utiliser directement le fichier image sans conversion
-            # ReportLab peut gérer les PNG avec transparence directement
-            logo = Image(logo_path, width=35*mm, height=35*mm, kind='proportional')
-            
-            # Positionner le logo en haut à droite
-            logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
-            logo_loaded = True
-        except Exception as e:
+    if logo_path:
+        # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
+        if not Path(logo_path).is_absolute():
+            from app.core.config import settings
+            upload_dir = Path(settings.UPLOAD_DIR)
+            logo_path = str(upload_dir / logo_path)
+        
+        if Path(logo_path).exists():
+            try:
+                # Utiliser directement le fichier image sans conversion
+                # ReportLab peut gérer les PNG avec transparence directement
+                logo = Image(logo_path, width=35*mm, height=35*mm, kind='proportional')
+                
+                # Positionner le logo en haut à droite
+                logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
+                logo_loaded = True
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Could not load logo: {e}")
+                logo_loaded = False
+        else:
             import logging
             logger = logging.getLogger(__name__)
-            logger.warning(f"Could not load logo: {e}")
-            logo_loaded = False
+            logger.warning(f"Logo file not found: {logo_path}")
     
     # Nom de l'entreprise en haut à droite (uniquement si pas de logo)
     if company_name and not logo_loaded:
