@@ -144,7 +144,7 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
                     valid_numbers.append(number_part)
                     if number_part > max_number:
                         max_number = number_part
-        except (ValueError, IndexError):
+                except (ValueError, IndexError):
                     logger.warning(f"[QUOTE NUMBER] Format de numéro invalide ignoré: {quote_number}")
                     continue
             next_number = max_number + 1
