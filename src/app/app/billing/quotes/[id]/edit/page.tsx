@@ -41,18 +41,21 @@ export default function EditQuotePage() {
         setError(null);
         const data = await getQuote(token, quoteId);
         
+        console.log("[EDIT QUOTE] Données reçues du backend:", data);
+        console.log("[EDIT QUOTE] Lignes reçues:", data.lines);
+        
         // Adapter les données du backend au format frontend
         const adaptedQuote: Quote = {
           ...data,
           client_name: data.client_name || "",
           lines: (data.lines || []).map((line) => ({
             id: line.id || 0,
-            description: line.description,
-            quantity: line.quantity,
-            unit: line.unit,
-            unitPrice: line.unit_price_ht,
-            taxRate: line.tax_rate,
-            total: line.total_ttc,
+            description: line.description || "",
+            quantity: line.quantity || 1,
+            unit: line.unit || "",
+            unitPrice: line.unit_price_ht || 0,
+            taxRate: line.tax_rate || 0,
+            total: line.total_ttc || 0,
           })),
           subtotal: data.subtotal_ht || 0,
           tax: data.total_tax || 0,
@@ -63,6 +66,9 @@ export default function EditQuotePage() {
           timeline: [],
           history: [],
         };
+        
+        console.log("[EDIT QUOTE] Quote adapté:", adaptedQuote);
+        console.log("[EDIT QUOTE] Nombre de lignes:", adaptedQuote.lines.length);
         
         setQuote(adaptedQuote);
       } catch (err: any) {
@@ -449,6 +455,7 @@ export default function EditQuotePage() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
 
             {/* Résumé */}
