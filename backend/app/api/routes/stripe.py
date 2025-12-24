@@ -251,9 +251,35 @@ async def get_subscription(
             
             # Synchroniser le plan depuis le price_id si nécessaire
             logger.info(f"[GET_SUBSCRIPTION] Vérification items Stripe - hasattr items: {hasattr(stripe_sub, 'items')}")
-            if hasattr(stripe_sub, 'items') and stripe_sub.items:
-                logger.info(f"[GET_SUBSCRIPTION] Items trouvés - hasattr data: {hasattr(stripe_sub.items, 'data')}")
-            if hasattr(stripe_sub, 'items') and stripe_sub.items and hasattr(stripe_sub.items, 'data') and stripe_sub.items.data:
+            
+            # Accéder directement à items.data (les objets Stripe ont parfois des propriétés dynamiques)
+            price_id = None
+            try:
+                if hasattr(stripe_sub, 'items') and stripe_sub.items:
+                    # Accès direct à .data (hasattr peut retourner False même si l'attribut existe)
+                    items_data = stripe_sub.items.data
+                    if items_data and len(items_data) > 0:
+                        price_item = items_data[0]
+                        if hasattr(price_item, 'price') and price_item.price:
+                            price_obj = price_item.price
+                            if hasattr(price_obj, 'id'):
+                                price_id = price_obj.id
+                                logger.info(f"[GET_SUBSCRIPTION] Price ID depuis Stripe: {price_id}")
+            except AttributeError as e:
+                logger.warning(f"[GET_SUBSCRIPTION] Erreur accès items.data (AttributeError): {e}")
+                # Essayer via to_dict() si disponible
+                try:
+                    sub_dict = stripe_sub.to_dict() if hasattr(stripe_sub, 'to_dict') else None
+                    if sub_dict and 'items' in sub_dict and 'data' in sub_dict['items']:
+                        items_data = sub_dict['items']['data']
+                        if len(items_data) > 0 and 'price' in items_data[0] and 'id' in items_data[0]['price']:
+                            price_id = items_data[0]['price']['id']
+                            logger.info(f"[GET_SUBSCRIPTION] Price ID depuis Stripe (via to_dict): {price_id}")
+                except Exception as e2:
+                    logger.warning(f"[GET_SUBSCRIPTION] Erreur méthode to_dict: {e2}")
+            
+            # Si on a un price_id, mettre à jour le plan
+            if price_id:
                 logger.info(f"[GET_SUBSCRIPTION] Items.data trouvés - nombre: {len(stripe_sub.items.data)}")
                 price_item = stripe_sub.items.data[0]
                 if hasattr(price_item, 'price') and price_item.price and hasattr(price_item.price, 'id'):
