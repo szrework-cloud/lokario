@@ -26,7 +26,7 @@ export const LandingHero = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-24 lg:pt-32 pb-16 lg:pb-24">
         <div className="max-w-3xl mx-auto text-center">
           {/* Headline */}
-          <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl xl:text-8xl leading-[0.95] tracking-wide mb-6">
+          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl xl:text-7xl leading-[0.95] tracking-wide mb-6">
             <span className="text-white/90">L'outil qui </span>
             <span className="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">organise</span>
             <span className="text-white/90"> votre entreprise</span>
