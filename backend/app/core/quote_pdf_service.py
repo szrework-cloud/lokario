@@ -145,17 +145,20 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     # Dessiner le logo maintenant (après la bande et le texte, pour être au-dessus)
     if logo_loaded and logo_image:
         try:
-            # Position du logo : en haut à droite
-            logo_x = A4[0] - 50*mm  # 50mm depuis le bord droit
-            logo_y = A4[1] - 40*mm  # 40mm depuis le haut
+            # Position du logo : en haut à droite, mais plus bas pour éviter la bande diagonale
+            # La bande diagonale va jusqu'à environ 30mm depuis le haut
+            # Le logo doit être en dessous de la bande mais toujours en haut à droite
+            logo_x = A4[0] - 50*mm  # 50mm depuis le bord droit (environ 145mm depuis la gauche)
+            logo_y = A4[1] - 60*mm  # 60mm depuis le haut pour être en dessous de la bande diagonale
             logger.info(f"[LOGO] Drawing logo at position ({logo_x}, {logo_y}), size: {35*mm}x{35*mm}")
+            logger.info(f"[LOGO] A4 dimensions: width={A4[0]}, height={A4[1]}")
+            logger.info(f"[LOGO] Logo will be drawn at: x={logo_x} (from left), y={logo_y} (from bottom)")
             
-            # S'assurer que le logo est bien dessiné avant restoreState
-            # Le logo doit être dessiné dans le même état que le reste
+            # Dessiner le logo
             logo_image.drawOn(canvas_obj, logo_x, logo_y)
-            logger.info(f"[LOGO] Logo drawn successfully on canvas at ({logo_x}, {logo_y})")
+            logger.info(f"[LOGO] ✅ Logo drawn successfully on canvas at ({logo_x}, {logo_y})")
         except Exception as draw_error:
-            logger.error(f"[LOGO] Error drawing logo on canvas: {draw_error}", exc_info=True)
+            logger.error(f"[LOGO] ❌ Error drawing logo on canvas: {draw_error}", exc_info=True)
             import traceback
             logger.error(f"[LOGO] Traceback: {traceback.format_exc()}")
     
