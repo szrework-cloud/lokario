@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.models.subscription import Subscription, SubscriptionPlan
 from app.db.models.billing import Quote, Invoice
-from app.db.models.clients import Client
+from app.db.models.client import Client
 from app.db.models.followup import FollowUpHistory
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
@@ -164,8 +164,7 @@ def check_clients_limit(db: Session, company_id: int) -> tuple[bool, Optional[st
     
     # Compter le nombre total de clients
     clients_count = db.query(func.count(Client.id)).filter(
-        Client.company_id == company_id,
-        Client.deleted_at.is_(None)  # Exclure les clients supprimés
+        Client.company_id == company_id
     ).scalar() or 0
     
     if clients_count >= limits["clients"]:
@@ -244,8 +243,7 @@ def get_usage_stats(db: Session, company_id: int) -> Dict[str, Any]:
     
     # Compter les clients
     clients_count = db.query(func.count(Client.id)).filter(
-        Client.company_id == company_id,
-        Client.deleted_at.is_(None)
+        Client.company_id == company_id
     ).scalar() or 0
     
     # Compter les relances envoyées ce mois-ci
