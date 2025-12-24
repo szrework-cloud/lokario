@@ -569,7 +569,10 @@ async def stripe_webhook(
     
     try:
         # Traiter l'événement
-        if event["type"] == "customer.subscription.created":
+        logger.info(f"Traitement de l'événement Stripe: {event['type']}")
+        if event["type"] == "checkout.session.completed":
+            await handle_checkout_session_completed(event, db)
+        elif event["type"] == "customer.subscription.created":
             await handle_subscription_created(event, db)
         elif event["type"] == "customer.subscription.updated":
             await handle_subscription_updated(event, db)
@@ -579,6 +582,8 @@ async def stripe_webhook(
             await handle_invoice_paid(event, db)
         elif event["type"] == "invoice.payment_failed":
             await handle_invoice_payment_failed(event, db)
+        else:
+            logger.info(f"Événement Stripe non traité: {event['type']}")
         
         event_record.processed = True
         db.commit()
@@ -594,6 +599,82 @@ async def stripe_webhook(
 
 
 # ==================== HANDLERS WEBHOOK ====================
+
+async def handle_checkout_session_completed(event, db: Session):
+    """Gère la complétion d'une session de checkout Stripe"""
+    logger.info("Traitement de checkout.session.completed")
+    
+    # Gérer le format Stripe webhook
+    if isinstance(event, dict) and "data" in event:
+        checkout_session_data = event["data"]["object"]
+    else:
+        checkout_session_data = event
+    
+    # Récupérer l'ID de la subscription depuis la session de checkout
+    subscription_id = checkout_session_data.get("subscription")
+    if not subscription_id:
+        logger.warning("Aucun subscription_id dans checkout.session.completed")
+        return
+    
+    # Récupérer les métadonnées
+    metadata = checkout_session_data.get("metadata", {})
+    company_id = metadata.get("company_id")
+    
+    if not company_id:
+        logger.warning("Aucun company_id dans les métadonnées du checkout")
+        return
+    
+    company_id = int(company_id)
+    
+    # Récupérer l'abonnement depuis Stripe pour avoir toutes les infos
+    try:
+        stripe_subscription = stripe.Subscription.retrieve(subscription_id)
+        logger.info(f"Abonnement Stripe récupéré: {subscription_id} pour company_id: {company_id}")
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de l'abonnement Stripe: {e}")
+        return
+    
+    # Récupérer ou créer l'abonnement en base
+    subscription = db.query(Subscription).filter(
+        Subscription.company_id == company_id
+    ).first()
+    
+    if not subscription:
+        logger.warning(f"Aucun abonnement trouvé en base pour company_id: {company_id}")
+        return
+    
+    # Mettre à jour l'abonnement avec les infos Stripe
+    subscription.stripe_subscription_id = stripe_subscription.id
+    subscription.status = SubscriptionStatus(stripe_subscription.status)
+    subscription.current_period_start = datetime.fromtimestamp(stripe_subscription.current_period_start)
+    subscription.current_period_end = datetime.fromtimestamp(stripe_subscription.current_period_end)
+    
+    if stripe_subscription.get("trial_start"):
+        subscription.trial_start = datetime.fromtimestamp(stripe_subscription["trial_start"])
+    if stripe_subscription.get("trial_end"):
+        subscription.trial_end = datetime.fromtimestamp(stripe_subscription["trial_end"])
+    
+    # Mettre à jour le customer_id si nécessaire
+    if stripe_subscription.customer:
+        subscription.stripe_customer_id = stripe_subscription.customer
+    
+    # Mettre à jour le plan et le montant depuis les items
+    if stripe_subscription.get("items") and stripe_subscription["items"].get("data"):
+        price_item = stripe_subscription["items"]["data"][0]
+        if price_item.get("price") and price_item["price"].get("id"):
+            subscription.stripe_price_id = price_item["price"]["id"]
+            # Récupérer le montant depuis le price
+            try:
+                price_obj = stripe.Price.retrieve(price_item["price"]["id"])
+                subscription.amount = price_obj.unit_amount / 100 if price_obj.unit_amount else 0
+                # Déterminer le plan depuis les métadonnées ou le price
+                if metadata.get("plan"):
+                    subscription.plan = SubscriptionPlan(metadata["plan"])
+            except Exception as e:
+                logger.error(f"Erreur lors de la récupération du prix: {e}")
+    
+    db.commit()
+    logger.info(f"Abonnement mis à jour avec succès pour company_id: {company_id}")
 
 async def handle_subscription_created(event, db: Session):
     """Gère la création d'un abonnement Stripe (après paiement)"""
