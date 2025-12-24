@@ -869,27 +869,26 @@ async def handle_checkout_session_completed(event, db: Session):
         
         # Si le plan n'a pas été mis à jour depuis les métadonnées, essayer de le déterminer depuis le price_id
         if not plan_updated and subscription.stripe_price_id:
-        try:
-            logger.info(f"[CHECKOUT] Détermination du plan depuis price_id: {subscription.stripe_price_id}")
-            logger.info(f"[CHECKOUT] Price IDs configurés - STARTER_MONTHLY: {settings.STRIPE_PRICE_STARTER_MONTHLY}, STARTER_YEARLY: {settings.STRIPE_PRICE_STARTER_YEARLY}")
-            logger.info(f"[CHECKOUT] Price IDs configurés - PROFESSIONAL_MONTHLY: {settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY}, PROFESSIONAL_YEARLY: {settings.STRIPE_PRICE_PROFESSIONAL_YEARLY}")
-            
-            # Comparer avec les price IDs configurés
-            if subscription.stripe_price_id == settings.STRIPE_PRICE_STARTER_MONTHLY or subscription.stripe_price_id == settings.STRIPE_PRICE_STARTER_YEARLY:
-                subscription.plan = SubscriptionPlan.STARTER
-                plan_updated = True
-                logger.info(f"[CHECKOUT] ✅ Plan déterminé depuis price_id: STARTER (Essentiel)")
-            elif subscription.stripe_price_id == settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY or subscription.stripe_price_id == settings.STRIPE_PRICE_PROFESSIONAL_YEARLY:
-                subscription.plan = SubscriptionPlan.PROFESSIONAL
-                plan_updated = True
-                logger.info(f"[CHECKOUT] ✅ Plan déterminé depuis price_id: PROFESSIONAL (Pro)")
-            else:
-                logger.warning(f"[CHECKOUT] ⚠️ Price ID {subscription.stripe_price_id} ne correspond à aucun plan configuré")
-        except Exception as e:
-            logger.error(f"[CHECKOUT] Erreur lors de la détermination du plan depuis price_id: {e}")
-    
-    if not plan_updated:
-        logger.warning(f"[CHECKOUT] ⚠️ Le plan n'a pas pu être déterminé pour l'abonnement {subscription.id}")
+            try:
+                logger.info(f"[CHECKOUT] Détermination du plan depuis price_id: {subscription.stripe_price_id}")
+                logger.info(f"[CHECKOUT] Price IDs configurés - STARTER_MONTHLY: {settings.STRIPE_PRICE_STARTER_MONTHLY}, STARTER_YEARLY: {settings.STRIPE_PRICE_STARTER_YEARLY}")
+                logger.info(f"[CHECKOUT] Price IDs configurés - PROFESSIONAL_MONTHLY: {settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY}, PROFESSIONAL_YEARLY: {settings.STRIPE_PRICE_PROFESSIONAL_YEARLY}")
+                
+                # Comparer avec les price IDs configurés
+                if subscription.stripe_price_id == settings.STRIPE_PRICE_STARTER_MONTHLY or subscription.stripe_price_id == settings.STRIPE_PRICE_STARTER_YEARLY:
+                    subscription.plan = SubscriptionPlan.STARTER
+                    plan_updated = True
+                    logger.info(f"[CHECKOUT] ✅ Plan déterminé depuis price_id: STARTER (Essentiel)")
+                elif subscription.stripe_price_id == settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY or subscription.stripe_price_id == settings.STRIPE_PRICE_PROFESSIONAL_YEARLY:
+                    subscription.plan = SubscriptionPlan.PROFESSIONAL
+                    plan_updated = True
+                    logger.info(f"[CHECKOUT] ✅ Plan déterminé depuis price_id: PROFESSIONAL (Pro)")
+                else:
+                    logger.warning(f"[CHECKOUT] ⚠️ Price ID {subscription.stripe_price_id} ne correspond à aucun plan configuré")
+            except Exception as e:
+                logger.error(f"[CHECKOUT] Erreur lors de la détermination du plan depuis price_id: {e}")
+        if not plan_updated:
+            logger.warning(f"[CHECKOUT] ⚠️ Le plan n'a pas pu être déterminé pour l'abonnement {subscription.id}")
     
     # S'assurer que le statut est bien "active" si l'abonnement Stripe est actif
     # Un abonnement payé doit être actif (même si Stripe dit "trialing", on le marque comme actif après paiement)
