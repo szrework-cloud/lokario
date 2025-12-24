@@ -463,6 +463,14 @@ def get_appointments(
     """Récupère tous les rendez-vous de l'entreprise avec filtres"""
     _check_company_access(current_user)
     
+    # Vérifier si le module appointments est disponible pour ce plan
+    from app.core.subscription_limits import is_feature_enabled
+    if not is_feature_enabled(db, current_user.company_id, "appointments"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Le module rendez-vous n'est pas disponible pour le plan Essentiel. Passez au plan Pro pour accéder à cette fonctionnalité."
+        )
+    
     query = db.query(Appointment).options(
         joinedload(Appointment.client),
         joinedload(Appointment.type),
@@ -723,6 +731,14 @@ def create_appointment(
 ):
     """Crée un nouveau rendez-vous"""
     _check_company_access(current_user)
+    
+    # Vérifier si le module appointments est disponible pour ce plan
+    from app.core.subscription_limits import is_feature_enabled
+    if not is_feature_enabled(db, current_user.company_id, "appointments"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Le module rendez-vous n'est pas disponible pour le plan Essentiel. Passez au plan Pro pour accéder à cette fonctionnalité."
+        )
     
     # Vérifier que l'utilisateur est owner
     if current_user.role not in ["owner", "super_admin"]:

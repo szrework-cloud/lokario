@@ -6,6 +6,7 @@ from sqlalchemy import func
 from app.db.models.subscription import Subscription, SubscriptionPlan
 from app.db.models.billing import Quote, Invoice
 from app.db.models.clients import Client
+from app.db.models.followup import FollowUpHistory
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
@@ -13,11 +14,15 @@ from typing import Optional, Dict, Any
 # Définition des limites par plan
 PLAN_LIMITS = {
     SubscriptionPlan.STARTER: {
-        "quotes_per_month": 10,  # Maximum 10 devis par mois
-        "invoices_per_month": 10,  # Maximum 10 factures par mois
+        "quotes_per_month": 20,  # Maximum 20 devis par mois
+        "invoices_per_month": 20,  # Maximum 20 factures par mois
         "clients": 50,  # Maximum 50 clients
+        "followups_per_month": 20,  # Maximum 20 relances automatiques par mois
         "features": {
-            "auto_followups": True,  # Les relances automatiques sont autorisées
+            "auto_followups": True,  # Les relances automatiques sont autorisées (limitées)
+            "appointments": False,  # Module rendez-vous désactivé pour Essentiel
+            "inbox": False,  # Inbox masqué mais logique d'envoi conservée
+            "projects": True,  # Projets autorisés
             "pdf_export": True,  # Export PDF autorisé
             "excel_export": False,  # Export Excel uniquement pour Pro
             "custom_branding": False,  # Branding personnalisé uniquement pour Pro
@@ -29,8 +34,12 @@ PLAN_LIMITS = {
         "quotes_per_month": -1,  # Illimité (-1 = illimité)
         "invoices_per_month": -1,  # Illimité
         "clients": -1,  # Illimité
+        "followups_per_month": -1,  # Illimité
         "features": {
             "auto_followups": True,
+            "appointments": True,  # Module rendez-vous activé
+            "inbox": True,  # Inbox visible et actif
+            "projects": True,
             "pdf_export": True,
             "excel_export": True,
             "custom_branding": True,
@@ -42,8 +51,12 @@ PLAN_LIMITS = {
         "quotes_per_month": -1,
         "invoices_per_month": -1,
         "clients": -1,
+        "followups_per_month": -1,
         "features": {
             "auto_followups": True,
+            "appointments": True,
+            "inbox": True,
+            "projects": True,
             "pdf_export": True,
             "excel_export": True,
             "custom_branding": True,
@@ -162,6 +175,38 @@ def check_clients_limit(db: Session, company_id: int) -> tuple[bool, Optional[st
     return True, None
 
 
+def check_followups_limit(db: Session, company_id: int) -> tuple[bool, Optional[str]]:
+    """
+    Vérifie si l'entreprise peut envoyer une nouvelle relance selon son plan
+    
+    Returns:
+        (is_allowed, error_message)
+    """
+    plan = get_subscription_plan(db, company_id)
+    limits = get_plan_limits(plan)
+    
+    # Si illimité, autoriser
+    if limits.get("followups_per_month", -1) == -1:
+        return True, None
+    
+    # Compter les relances envoyées ce mois-ci (via FollowUpHistory)
+    now = datetime.now(timezone.utc)
+    start_of_month = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    
+    # Compter via FollowUp (FollowUpHistory a company_id directement, donc on peut aussi l'utiliser)
+    from app.db.models.followup import FollowUp
+    followups_sent_this_month = db.query(func.count(FollowUpHistory.id)).filter(
+        FollowUpHistory.company_id == company_id,
+        FollowUpHistory.sent_at >= start_of_month
+    ).scalar() or 0
+    
+    limit = limits.get("followups_per_month", -1)
+    if followups_sent_this_month >= limit:
+        return False, f"Vous avez atteint la limite de {limit} relances par mois pour le plan Essentiel. Passez au plan Pro pour des relances illimitées."
+    
+    return True, None
+
+
 def is_feature_enabled(db: Session, company_id: int, feature_name: str) -> bool:
     """
     Vérifie si une fonctionnalité est disponible pour l'entreprise selon son plan
@@ -203,22 +248,36 @@ def get_usage_stats(db: Session, company_id: int) -> Dict[str, Any]:
         Client.deleted_at.is_(None)
     ).scalar() or 0
     
+    # Compter les relances envoyées ce mois-ci
+    from app.db.models.followup import FollowUp
+    followups_sent_this_month = db.query(func.count(FollowUpHistory.id)).join(
+        FollowUp, FollowUpHistory.followup_id == FollowUp.id
+    ).filter(
+        FollowUp.company_id == company_id,
+        FollowUpHistory.sent_at >= start_of_month
+    ).scalar() or 0
+    
+    followups_limit = limits.get("followups_per_month", -1)
+    
     return {
         "plan": plan.value,
         "limits": {
             "quotes_per_month": limits["quotes_per_month"],
             "invoices_per_month": limits["invoices_per_month"],
             "clients": limits["clients"],
+            "followups_per_month": followups_limit,
         },
         "usage": {
             "quotes_this_month": quotes_count,
             "invoices_this_month": invoices_count,
             "clients_total": clients_count,
+            "followups_this_month": followups_sent_this_month,
         },
         "remaining": {
             "quotes_this_month": limits["quotes_per_month"] - quotes_count if limits["quotes_per_month"] != -1 else -1,
             "invoices_this_month": limits["invoices_per_month"] - invoices_count if limits["invoices_per_month"] != -1 else -1,
             "clients": limits["clients"] - clients_count if limits["clients"] != -1 else -1,
+            "followups_this_month": followups_limit - followups_sent_this_month if followups_limit != -1 else -1,
         }
     }
 

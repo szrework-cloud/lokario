@@ -824,6 +824,14 @@ def process_automatic_followups():
                 
                 logger.info(f"📤 Envoi de la relance {followup.id} (Type: {followup.type}, Client: {followup.client_id})")
                 
+                # Vérifier les limites de relances selon le plan
+                from app.core.subscription_limits import check_followups_limit
+                is_allowed, error_message = check_followups_limit(db, followup.company_id)
+                if not is_allowed:
+                    logger.warning(f"⚠️ Limite de relances atteinte pour entreprise {followup.company_id}: {error_message}")
+                    stats["skipped"] += 1
+                    continue
+                
                 # Récupérer la configuration pour déterminer la méthode d'envoi
                 settings = get_followup_settings(db, followup.company_id)
                 methods = settings.get("relance_methods", ["email"]) if settings else ["email"]
