@@ -1041,6 +1041,15 @@ def send_followup(
     logger.info(f"[FOLLOWUP SEND/{followup_id}] Method demandée: {request.method}")
     _check_company_access(current_user)
     
+    # Vérifier les limites de relances selon le plan
+    from app.core.subscription_limits import check_followups_limit
+    is_allowed, error_message = check_followups_limit(db, current_user.company_id)
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_message
+        )
+    
     followup = db.query(FollowUp).filter(
         FollowUp.id == followup_id,
         FollowUp.company_id == current_user.company_id
