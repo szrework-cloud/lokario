@@ -1045,7 +1045,6 @@ def update_quote(
     
     # Recharger les lignes pour s'assurer qu'elles sont incluses dans la réponse
     from sqlalchemy.orm import joinedload
-    from app.db.models.billing import QuoteLine
     
     @retry_db_operation(max_retries=3, initial_delay=0.5, max_delay=2.0)
     def _reload_quote_with_lines(session: Session, quote_id: int):
