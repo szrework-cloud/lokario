@@ -152,8 +152,8 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
             logger.info(f"[QUOTE NUMBER] Numéros valides trouvés: {sorted(valid_numbers)}, maximum: {max_number}, prochain: {next_number:03d}")
     else:
         next_number = 1
-            print(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
-            logger.info(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
+        print(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
+        logger.info(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
     
     # Boucle pour trouver un numéro disponible (gestion des race conditions)
     max_attempts = 1000  # Limite de sécurité pour éviter les boucles infinies
