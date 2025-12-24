@@ -121,7 +121,7 @@ export default function CommentCaMarchePage() {
                     <div
                       key={step.number}
                       ref={(el) => { stepsRef.current[index] = el; }}
-                      className={`relative flex flex-col lg:flex-row items-center gap-8 lg:gap-16 transition-all duration-1200 ease-out ${
+                      className={`relative flex flex-col lg:flex-row items-center gap-8 lg:gap-16 transition-all duration-1500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                         isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-40"
                       } ${isEven ? "" : "lg:flex-row-reverse"}`}
                     >
@@ -145,7 +145,7 @@ export default function CommentCaMarchePage() {
                         style={{ transitionDelay: "0.3s" }}
                       >
                         <div 
-                          className={`p-8 rounded-3xl bg-black/50 border border-[#334155]/50 backdrop-blur-sm transition-all duration-900 hover:border-[#F97316]/30 hover:shadow-lg ${
+                          className={`p-8 rounded-3xl bg-black/50 border border-[#334155]/50 backdrop-blur-sm transition-all duration-1200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-[#F97316]/30 hover:shadow-lg ${
                             isVisible ? "opacity-100 translate-x-0" : `opacity-0 ${isEven ? "-translate-x-24" : "translate-x-24"}`
                           }`}
                         >
@@ -164,7 +164,7 @@ export default function CommentCaMarchePage() {
                             {step.features.map((feature, i) => (
                               <li 
                                 key={feature} 
-                                className={`flex items-center gap-3 text-white/70 transition-all duration-700 ${
+                                className={`flex items-center gap-3 text-white/70 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                                   isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-16"
                                 }`}
                                 style={{ transitionDelay: `${0.5 + i * 0.1}s` }}
@@ -201,14 +201,14 @@ export default function CommentCaMarchePage() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-4xl mx-auto text-center mb-16">
               <h2 
-                className={`font-display text-3xl sm:text-4xl lg:text-5xl font-bold mb-6 transition-all duration-900 text-white ${
+                className={`font-display text-3xl sm:text-4xl lg:text-5xl font-bold mb-6 transition-all duration-1200 ease-[cubic-bezier(0.16,1,0.3,1)] text-white ${
                   visibleBenefits ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
                 }`}
               >
                 Des résultats <span className="bg-gradient-to-r from-[#F97316] to-[#EA580C] bg-clip-text text-transparent">mesurables</span>
               </h2>
               <p 
-                className={`text-lg text-white/70 transition-all duration-900 ${
+                className={`text-lg text-white/70 transition-all duration-1200 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                   visibleBenefits ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
                 }`}
                 style={{ transitionDelay: "0.1s" }}
@@ -221,7 +221,7 @@ export default function CommentCaMarchePage() {
               {benefits.map((benefit, index) => (
                 <div 
                   key={benefit.title}
-                  className={`text-center p-8 rounded-3xl bg-black/50 border border-[#334155]/50 backdrop-blur-sm transition-all duration-900 hover:border-[#F97316]/30 hover:shadow-lg ${
+                  className={`text-center p-8 rounded-3xl bg-black/50 border border-[#334155]/50 backdrop-blur-sm transition-all duration-1200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-[#F97316]/30 hover:shadow-lg ${
                     visibleBenefits ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
                   }`}
                   style={{ transitionDelay: `${0.2 + index * 0.1}s` }}

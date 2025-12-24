@@ -52,7 +52,7 @@ export const LandingSolutionSection = () => {
       <div className="container mx-auto px-4 relative z-10">
         {/* Header */}
         <div
-          className={`text-center max-w-3xl mx-auto mb-16 transition-all duration-900 ${
+          className={`text-center max-w-3xl mx-auto mb-16 transition-all duration-1200 ease-[cubic-bezier(0.16,1,0.3,1)] ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
           }`}
         >
@@ -66,7 +66,7 @@ export const LandingSolutionSection = () => {
 
         {/* Pillars */}
         <div
-          className={`max-w-4xl mx-auto mb-16 transition-all duration-900 delay-200 ${
+          className={`max-w-4xl mx-auto mb-16 transition-all duration-1200 ease-[cubic-bezier(0.16,1,0.3,1)] delay-200 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
           }`}
         >
@@ -83,6 +83,7 @@ export const LandingSolutionSection = () => {
                   transitionDelay: isVisible ? `${300 + index * 100}ms` : "0ms",
                   opacity: isVisible ? 1 : 0,
                   transform: isVisible ? "translateY(0)" : "translateY(40px)",
+                  transition: 'all 1s cubic-bezier(0.16, 1, 0.3, 1)',
                 }}
               >
                 <pillar.icon className="w-5 h-5 text-[#F97316]" />
@@ -94,7 +95,7 @@ export const LandingSolutionSection = () => {
 
         {/* Puzzle animation with floating words */}
         <div
-          className={`mb-20 transition-all duration-900 delay-700 ${
+          className={`mb-20 transition-all duration-1200 ease-[cubic-bezier(0.16,1,0.3,1)] delay-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
           }`}
         >
@@ -120,7 +121,7 @@ export const LandingSolutionSection = () => {
                     transform: isVisible ? 'translate(-50%, -50%) translateY(0)' : 'translate(-50%, -50%) translateY(40px)',
                     animation: isVisible ? `float-word 3s ease-in-out infinite ${index * 0.4}s` : 'none',
                     opacity: isVisible ? 1 : 0,
-                    transition: `opacity 0.8s ease-out ${1.2 + index * 0.2}s, transform 0.8s ease-out ${1.2 + index * 0.2}s`,
+                    transition: `opacity 1s cubic-bezier(0.16, 1, 0.3, 1) ${1.2 + index * 0.2}s, transform 1s cubic-bezier(0.16, 1, 0.3, 1) ${1.2 + index * 0.2}s`,
                   }}
                 >
                   <div className="w-5 h-5 rounded-full bg-[#F97316]/20 flex items-center justify-center flex-shrink-0">
@@ -141,7 +142,7 @@ export const LandingSolutionSection = () => {
                 style={{
                   opacity: isVisible ? 1 : 0,
                   transform: isVisible ? 'translateX(0)' : 'translateX(-32px)',
-                  transition: `opacity 0.7s ease-out ${0.8 + index * 0.15}s, transform 0.7s ease-out ${0.8 + index * 0.15}s`,
+                  transition: `opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1) ${0.8 + index * 0.15}s, transform 0.9s cubic-bezier(0.16, 1, 0.3, 1) ${0.8 + index * 0.15}s`,
                 }}
               >
                 <div className="w-8 h-8 rounded-full bg-[#F97316]/20 flex items-center justify-center flex-shrink-0">
@@ -155,7 +156,7 @@ export const LandingSolutionSection = () => {
 
         {/* Tagline */}
         <div
-          className={`text-center max-w-xl mx-auto mb-10 transition-all duration-900 delay-[1100ms] ${
+          className={`text-center max-w-xl mx-auto mb-10 transition-all duration-1200 ease-[cubic-bezier(0.16,1,0.3,1)] delay-[1100ms] ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
           }`}
         >
@@ -166,7 +167,7 @@ export const LandingSolutionSection = () => {
 
         {/* CTA */}
         <div
-          className={`text-center transition-all duration-900 delay-[1300ms] ${
+          className={`text-center transition-all duration-1200 ease-[cubic-bezier(0.16,1,0.3,1)] delay-[1300ms] ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
           }`}
         >

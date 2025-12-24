@@ -70,7 +70,7 @@ export const LandingValueSection = () => {
         <div className="max-w-5xl mx-auto">
           {/* Main headline */}
           <div
-            className={`text-center mb-16 transition-all duration-1200 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-32"}`}
+            className={`text-center mb-16 transition-all duration-1500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-32"}`}
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#F97316]/10 border border-[#F97316]/20 rounded-full text-[#F97316] text-sm font-medium mb-6">
               <Sparkles className="w-4 h-4" />
@@ -88,7 +88,7 @@ export const LandingValueSection = () => {
 
           {/* Stats with animated counters */}
           <div
-            className={`grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 transition-all duration-1200 delay-300 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-32"}`}
+            className={`grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 transition-all duration-1500 ease-[cubic-bezier(0.16,1,0.3,1)] delay-300 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-32"}`}
           >
             {stats.map((stat, index) => {
               const Icon = stat.icon;
@@ -118,7 +118,7 @@ export const LandingValueSection = () => {
 
           {/* Feature list with staggered animation */}
           <div
-            className={`bg-[#1E293B]/30 backdrop-blur-sm border border-white/5 rounded-3xl p-8 md:p-12 transition-all duration-1200 delay-500 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-32"}`}
+            className={`bg-[#1E293B]/30 backdrop-blur-sm border border-white/5 rounded-3xl p-8 md:p-12 transition-all duration-1500 ease-[cubic-bezier(0.16,1,0.3,1)] delay-500 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-32"}`}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {features.map((feature, index) => (
@@ -129,6 +129,7 @@ export const LandingValueSection = () => {
                     transitionDelay: `${600 + index * 150}ms`,
                     opacity: isVisible ? 1 : 0,
                     transform: isVisible ? "translateX(0)" : "translateX(-32px)",
+                    transition: 'all 1s cubic-bezier(0.16, 1, 0.3, 1)',
                   }}
                 >
                   <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#F97316]/10 border border-[#F97316]/20 flex items-center justify-center">

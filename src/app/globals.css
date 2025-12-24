@@ -210,7 +210,7 @@ button, a, input, textarea, select {
 }
 
 .animate-fade-up {
-  animation: fadeUp 0.8s ease-out forwards;
+  animation: fadeUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-float {

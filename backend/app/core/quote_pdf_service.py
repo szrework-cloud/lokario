@@ -888,15 +888,24 @@ def generate_quote_pdf(
                 
                 if is_supabase_storage_configured():
                     logger.info(f"[QUOTE PDF] Trying to download client signature from Supabase Storage: {normalized_client_path}")
-                    file_content = download_from_supabase(normalized_client_path)
-                    if file_content:
-                        client_sig_bytes = io.BytesIO(file_content)
-                        client_signature_img = Image(client_sig_bytes, width=70*mm, height=25*mm, kind='proportional')
-                        right_signature_elements.append(client_signature_img)
-                        client_sig_loaded = True
-                        logger.info(f"[QUOTE PDF] Client signature loaded from Supabase Storage: {normalized_client_path}")
+                    try:
+                        file_content = download_from_supabase(normalized_client_path)
+                        if file_content:
+                            logger.info(f"[QUOTE PDF] Downloaded {len(file_content)} bytes for client signature from Supabase")
+                            client_sig_bytes = io.BytesIO(file_content)
+                            client_sig_bytes.seek(0)  # S'assurer que le pointeur est au début
+                            client_signature_img = Image(client_sig_bytes, width=70*mm, height=25*mm, kind='proportional')
+                            right_signature_elements.append(client_signature_img)
+                            client_sig_loaded = True
+                            logger.info(f"[QUOTE PDF] Client signature loaded from Supabase Storage: {normalized_client_path}")
+                        else:
+                            logger.warning(f"[QUOTE PDF] No file content received from Supabase for client signature: {normalized_client_path}")
+                    except Exception as download_error:
+                        logger.error(f"[QUOTE PDF] Error downloading client signature from Supabase: {download_error}", exc_info=True)
+                        # L'erreur 400 peut signifier que le fichier n'existe pas ou que le chemin est incorrect
+                        # C'est normal si la signature n'a pas encore été sauvegardée dans Supabase
             except Exception as e:
-                logger.warning(f"Could not load client signature from Supabase Storage: {e}")
+                logger.warning(f"Could not load client signature from Supabase Storage: {e}", exc_info=True)
         
         if not client_sig_loaded:
             logger.warning(f"[QUOTE PDF] Client signature file not found: {client_sig_path}")
