@@ -56,6 +56,11 @@ export function useBillingLineTemplates() {
       } catch (err) {
         console.error("Erreur lors du chargement des lignes sauvegardées:", err);
         setError(err as Error);
+        // En cas d'erreur, utiliser le cache s'il existe plutôt que de laisser une liste vide
+        if (cachedLines && cachedLines.length > 0) {
+          setSavedLines(cachedLines);
+          console.warn("Utilisation du cache en cas d'erreur de connexion");
+        }
       } finally {
         setIsLoading(false);
       }

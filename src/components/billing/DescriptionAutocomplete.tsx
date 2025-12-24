@@ -35,7 +35,7 @@ export function DescriptionAutocomplete({
   defaultTaxRate = 20,
 }: DescriptionAutocompleteProps) {
   const { token } = useAuth();
-  const { savedLines, invalidateCache } = useBillingLineTemplates();
+  const { savedLines, invalidateCache, isLoading } = useBillingLineTemplates();
   const [suggestions, setSuggestions] = useState<SavedLine[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
