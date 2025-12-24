@@ -224,10 +224,17 @@ async def get_subscription(
             db.commit()
             logger.info(f"Essai gratuit expiré pour l'entreprise {company.id}")
     
+    # Log initial pour debug
+    logger.info(f"[GET_SUBSCRIPTION] Abonnement trouvé - company_id: {company.id}, plan actuel: {subscription.plan.value}, stripe_subscription_id: {subscription.stripe_subscription_id}")
+    logger.info(f"[GET_SUBSCRIPTION] Plan en base: {subscription.plan.value}, Amount: {subscription.amount}€")
+    
     # Récupérer les informations à jour depuis Stripe si disponible
     if subscription.stripe_subscription_id:
+        logger.info(f"[GET_SUBSCRIPTION] Récupération abonnement Stripe: {subscription.stripe_subscription_id}")
         try:
             stripe_sub = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
+            logger.info(f"[GET_SUBSCRIPTION] Abonnement Stripe récupéré - status: {stripe_sub.status}")
+            
             # Synchroniser les données
             subscription.status = SubscriptionStatus(stripe_sub.status)
             
@@ -243,7 +250,11 @@ async def get_subscription(
                 subscription.trial_end = datetime.fromtimestamp(stripe_sub.trial_end, tz=timezone.utc)
             
             # Synchroniser le plan depuis le price_id si nécessaire
+            logger.info(f"[GET_SUBSCRIPTION] Vérification items Stripe - hasattr items: {hasattr(stripe_sub, 'items')}")
+            if hasattr(stripe_sub, 'items') and stripe_sub.items:
+                logger.info(f"[GET_SUBSCRIPTION] Items trouvés - hasattr data: {hasattr(stripe_sub.items, 'data')}")
             if hasattr(stripe_sub, 'items') and stripe_sub.items and hasattr(stripe_sub.items, 'data') and stripe_sub.items.data:
+                logger.info(f"[GET_SUBSCRIPTION] Items.data trouvés - nombre: {len(stripe_sub.items.data)}")
                 price_item = stripe_sub.items.data[0]
                 if hasattr(price_item, 'price') and price_item.price and hasattr(price_item.price, 'id'):
                     price_id = price_item.price.id
@@ -319,6 +330,8 @@ async def get_company_subscription(
             db.commit()
         except Exception as e:
             logger.error(f"Erreur lors de la récupération de l'abonnement Stripe: {e}")
+    
+    logger.info(f"[GET_SUBSCRIPTION] Retour réponse - plan: {subscription.plan.value}, amount: {subscription.amount}€")
     
     return {
         "has_subscription": True,
