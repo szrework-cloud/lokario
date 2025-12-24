@@ -548,7 +548,6 @@ async def stripe_webhook(
         # En développement sans secret, parser directement le JSON
         # ⚠️ ATTENTION : Ne pas utiliser en production !
         try:
-            import json
             event = json.loads(payload.decode('utf-8'))
             logger.warning("Webhook traité sans vérification de signature (développement uniquement)")
         except Exception as e:
