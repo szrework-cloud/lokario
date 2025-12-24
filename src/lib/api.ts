@@ -199,7 +199,7 @@ export async function apiPut<T>(
           ? errorBody.detail[0].msg ?? message
           : typeof errorBody.detail === 'object' && errorBody.detail?.message
             ? errorBody.detail.message
-            : errorBody.detail;
+          : errorBody.detail;
       } else if (errorBody.message) {
         message = errorBody.message;
       }
@@ -209,9 +209,9 @@ export async function apiPut<T>(
         const text = await res.text();
         if (text) {
           message = text;
-        }
-      } catch {
-        // ignore
+      }
+    } catch {
+      // ignore
       }
     }
     
@@ -350,40 +350,40 @@ export async function apiUploadFile<T>(
   const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes
 
   try {
-    const res = await fetch(buildApiUrl(path), {
-      method: "POST",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: formData,
+  const res = await fetch(buildApiUrl(path), {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
       signal: controller.signal,
-    });
+  });
 
     clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      let message = "Erreur serveur";
-      try {
-        const errorBody = await res.json();
-        if (errorBody.detail) {
-          message = Array.isArray(errorBody.detail)
-            ? errorBody.detail[0].msg ?? message
-            : errorBody.detail;
-        }
-      } catch {
-        // ignore
+  if (!res.ok) {
+    let message = "Erreur serveur";
+    try {
+      const errorBody = await res.json();
+      if (errorBody.detail) {
+        message = Array.isArray(errorBody.detail)
+          ? errorBody.detail[0].msg ?? message
+          : errorBody.detail;
       }
-      
-      // Si erreur 401 (Unauthorized), créer une erreur spéciale
-      if (res.status === 401) {
-        const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
-        (authError as any).status = 401;
-        (authError as any).isAuthError = true;
-        throw authError;
-      }
-      
-      throw new Error(message);
+    } catch {
+      // ignore
     }
+    
+    // Si erreur 401 (Unauthorized), créer une erreur spéciale
+    if (res.status === 401) {
+      const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+      (authError as any).status = 401;
+      (authError as any).isAuthError = true;
+      throw authError;
+    }
+    
+    throw new Error(message);
+  }
 
     const result = await res.json();
     return result;

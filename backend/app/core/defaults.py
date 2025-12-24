@@ -57,6 +57,30 @@ def get_default_settings() -> Dict[str, Any]:
                 "secondary_color": "#F0F0F0",  # Couleur secondaire (gris clair)
                 "logo_path": None,  # Chemin vers le logo de l'entreprise
             },
+            "numbering": {
+                "quotes": {
+                    "prefix": "DEV",
+                    "separator": "-",
+                    "year_format": "YYYY",  # "YYYY" ou "YY"
+                    "number_padding": 3,  # Nombre de chiffres (3 = 001, 4 = 0001)
+                    "start_number": 1,  # Numéro de départ
+                },
+                "invoices": {
+                    "prefix": "FAC",
+                    "separator": "-",
+                    "year_format": "YYYY",
+                    "number_padding": 4,
+                    "start_number": 1,
+                },
+                "credit_notes": {
+                    "prefix": "AVO",
+                    "separator": "-",
+                    "year_format": "YYYY",
+                    "number_padding": 4,
+                    "suffix": "AVOIR",  # Suffixe pour les avoirs
+                    "start_number": 1,
+                },
+            },
         },
         "clients": {
             "blocked_client_domains": [

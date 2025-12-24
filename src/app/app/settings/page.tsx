@@ -290,6 +290,30 @@ export default function SettingsPage() {
   const [taxRates, setTaxRates] = useState<number[]>([0, 2.1, 5.5, 10, 20]);
   const [newTaxRate, setNewTaxRate] = useState<string>("");
 
+  // État pour la numérotation
+  const [quoteNumbering, setQuoteNumbering] = useState({
+    prefix: "DEV",
+    separator: "-",
+    year_format: "YYYY",
+    number_padding: 3,
+    start_number: 1,
+  });
+  const [invoiceNumbering, setInvoiceNumbering] = useState({
+    prefix: "FAC",
+    separator: "-",
+    year_format: "YYYY",
+    number_padding: 4,
+    start_number: 1,
+  });
+  const [creditNoteNumbering, setCreditNoteNumbering] = useState({
+    prefix: "AVO",
+    separator: "-",
+    year_format: "YYYY",
+    number_padding: 4,
+    suffix: "AVOIR",
+    start_number: 1,
+  });
+
   // État pour les lignes de facturation sauvegardées
   const [billingLineTemplates, setBillingLineTemplates] = useState<BillingLineTemplate[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
@@ -318,12 +342,43 @@ export default function SettingsPage() {
     tax_rate: "",
   });
 
-  // Charger les taux de TVA depuis les settings
+  // Charger les taux de TVA et la numérotation depuis les settings
   useEffect(() => {
     if (settings?.settings) {
       const billingSettings = (settings.settings as any).billing;
       if (billingSettings?.tax_rates) {
         setTaxRates(billingSettings.tax_rates);
+      }
+      // Charger la configuration de numérotation
+      if (billingSettings?.numbering) {
+        if (billingSettings.numbering.quotes) {
+          setQuoteNumbering({
+            prefix: billingSettings.numbering.quotes.prefix || "DEV",
+            separator: billingSettings.numbering.quotes.separator || "-",
+            year_format: billingSettings.numbering.quotes.year_format || "YYYY",
+            number_padding: billingSettings.numbering.quotes.number_padding || 3,
+            start_number: billingSettings.numbering.quotes.start_number || 1,
+          });
+        }
+        if (billingSettings.numbering.invoices) {
+          setInvoiceNumbering({
+            prefix: billingSettings.numbering.invoices.prefix || "FAC",
+            separator: billingSettings.numbering.invoices.separator || "-",
+            year_format: billingSettings.numbering.invoices.year_format || "YYYY",
+            number_padding: billingSettings.numbering.invoices.number_padding || 4,
+            start_number: billingSettings.numbering.invoices.start_number || 1,
+          });
+        }
+        if (billingSettings.numbering.credit_notes) {
+          setCreditNoteNumbering({
+            prefix: billingSettings.numbering.credit_notes.prefix || "AVO",
+            separator: billingSettings.numbering.credit_notes.separator || "-",
+            year_format: billingSettings.numbering.credit_notes.year_format || "YYYY",
+            number_padding: billingSettings.numbering.credit_notes.number_padding || 4,
+            suffix: billingSettings.numbering.credit_notes.suffix || "AVOIR",
+            start_number: billingSettings.numbering.credit_notes.start_number || 1,
+          });
+        }
       }
       // Charger la configuration du design des devis
       const quoteDesign = billingSettings?.quote_design || {};
@@ -1904,6 +1959,319 @@ export default function SettingsPage() {
                     className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {isSaving ? "Sauvegarde..." : "Sauvegarder les taux de TVA"}
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Section Numérotation des Devis et Factures */}
+            <Card>
+              <CardHeader>
+                <h2 className="text-lg font-semibold text-[#0F172A]">Numérotation des Devis et Factures</h2>
+                <p className="text-sm text-[#64748B] mt-1">
+                  Configurez le format de numérotation et le numéro de départ pour vos devis et factures.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* DEVIS */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-[#0F172A]">Devis</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Préfixe
+                      </label>
+                      <input
+                        type="text"
+                        value={quoteNumbering.prefix}
+                        onChange={(e) => setQuoteNumbering({ ...quoteNumbering, prefix: e.target.value.toUpperCase() })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        maxLength={10}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Séparateur
+                      </label>
+                      <input
+                        type="text"
+                        value={quoteNumbering.separator}
+                        onChange={(e) => setQuoteNumbering({ ...quoteNumbering, separator: e.target.value })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        maxLength={1}
+                        placeholder="-"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Format année
+                      </label>
+                      <select
+                        value={quoteNumbering.year_format}
+                        onChange={(e) => setQuoteNumbering({ ...quoteNumbering, year_format: e.target.value })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      >
+                        <option value="YYYY">YYYY (2025)</option>
+                        <option value="YY">YY (25)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Padding (chiffres)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="6"
+                        value={quoteNumbering.number_padding}
+                        onChange={(e) => setQuoteNumbering({ ...quoteNumbering, number_padding: parseInt(e.target.value) || 3 })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Numéro de départ
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={quoteNumbering.start_number}
+                        onChange={(e) => setQuoteNumbering({ ...quoteNumbering, start_number: parseInt(e.target.value) || 1 })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      />
+                      <p className="text-xs text-[#64748B] mt-1">
+                        Le prochain devis commencera à partir de ce numéro si aucun devis n'existe encore.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-[#F0F9FF] rounded-lg border border-[#BFDBFE]">
+                    <p className="text-xs text-[#64748B] mb-1">Aperçu:</p>
+                    <p className="text-sm font-mono font-semibold text-[#0F172A]">
+                      {(() => {
+                        const year = new Date().getFullYear();
+                        const yearStr = quoteNumbering.year_format === "YY" ? String(year).slice(-2) : String(year);
+                        const numStr = String(quoteNumbering.start_number).padStart(quoteNumbering.number_padding, "0");
+                        return `${quoteNumbering.prefix}${quoteNumbering.separator}${yearStr}${quoteNumbering.separator}${numStr}`;
+                      })()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-[#E5E7EB]"></div>
+
+                {/* FACTURES */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-[#0F172A]">Factures</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Préfixe
+                      </label>
+                      <input
+                        type="text"
+                        value={invoiceNumbering.prefix}
+                        onChange={(e) => setInvoiceNumbering({ ...invoiceNumbering, prefix: e.target.value.toUpperCase() })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        maxLength={10}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Séparateur
+                      </label>
+                      <input
+                        type="text"
+                        value={invoiceNumbering.separator}
+                        onChange={(e) => setInvoiceNumbering({ ...invoiceNumbering, separator: e.target.value })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        maxLength={1}
+                        placeholder="-"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Format année
+                      </label>
+                      <select
+                        value={invoiceNumbering.year_format}
+                        onChange={(e) => setInvoiceNumbering({ ...invoiceNumbering, year_format: e.target.value })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      >
+                        <option value="YYYY">YYYY (2025)</option>
+                        <option value="YY">YY (25)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Padding (chiffres)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="6"
+                        value={invoiceNumbering.number_padding}
+                        onChange={(e) => setInvoiceNumbering({ ...invoiceNumbering, number_padding: parseInt(e.target.value) || 4 })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Numéro de départ
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={invoiceNumbering.start_number}
+                        onChange={(e) => setInvoiceNumbering({ ...invoiceNumbering, start_number: parseInt(e.target.value) || 1 })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      />
+                      <p className="text-xs text-[#64748B] mt-1">
+                        La prochaine facture commencera à partir de ce numéro si aucune facture n'existe encore.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-[#F0F9FF] rounded-lg border border-[#BFDBFE]">
+                    <p className="text-xs text-[#64748B] mb-1">Aperçu:</p>
+                    <p className="text-sm font-mono font-semibold text-[#0F172A]">
+                      {(() => {
+                        const year = new Date().getFullYear();
+                        const yearStr = invoiceNumbering.year_format === "YY" ? String(year).slice(-2) : String(year);
+                        const numStr = String(invoiceNumbering.start_number).padStart(invoiceNumbering.number_padding, "0");
+                        return `${invoiceNumbering.prefix}${invoiceNumbering.separator}${yearStr}${invoiceNumbering.separator}${numStr}`;
+                      })()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-[#E5E7EB]"></div>
+
+                {/* AVOIRS */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-[#0F172A]">Avoirs (Notes de crédit)</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Préfixe
+                      </label>
+                      <input
+                        type="text"
+                        value={creditNoteNumbering.prefix}
+                        onChange={(e) => setCreditNoteNumbering({ ...creditNoteNumbering, prefix: e.target.value.toUpperCase() })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        maxLength={10}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Séparateur
+                      </label>
+                      <input
+                        type="text"
+                        value={creditNoteNumbering.separator}
+                        onChange={(e) => setCreditNoteNumbering({ ...creditNoteNumbering, separator: e.target.value })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        maxLength={1}
+                        placeholder="-"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Format année
+                      </label>
+                      <select
+                        value={creditNoteNumbering.year_format}
+                        onChange={(e) => setCreditNoteNumbering({ ...creditNoteNumbering, year_format: e.target.value })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      >
+                        <option value="YYYY">YYYY (2025)</option>
+                        <option value="YY">YY (25)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Padding (chiffres)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="6"
+                        value={creditNoteNumbering.number_padding}
+                        onChange={(e) => setCreditNoteNumbering({ ...creditNoteNumbering, number_padding: parseInt(e.target.value) || 4 })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Suffixe
+                      </label>
+                      <input
+                        type="text"
+                        value={creditNoteNumbering.suffix}
+                        onChange={(e) => setCreditNoteNumbering({ ...creditNoteNumbering, suffix: e.target.value.toUpperCase() })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        maxLength={20}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-[#64748B] mb-1">
+                        Numéro de départ
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={creditNoteNumbering.start_number}
+                        onChange={(e) => setCreditNoteNumbering({ ...creditNoteNumbering, start_number: parseInt(e.target.value) || 1 })}
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                      />
+                      <p className="text-xs text-[#64748B] mt-1">
+                        Le prochain avoir commencera à partir de ce numéro si aucun avoir n'existe encore.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-[#F0F9FF] rounded-lg border border-[#BFDBFE]">
+                    <p className="text-xs text-[#64748B] mb-1">Aperçu:</p>
+                    <p className="text-sm font-mono font-semibold text-[#0F172A]">
+                      {(() => {
+                        const year = new Date().getFullYear();
+                        const yearStr = creditNoteNumbering.year_format === "YY" ? String(year).slice(-2) : String(year);
+                        const numStr = String(creditNoteNumbering.start_number).padStart(creditNoteNumbering.number_padding, "0");
+                        return `${creditNoteNumbering.prefix}${creditNoteNumbering.separator}${yearStr}${creditNoteNumbering.separator}${numStr}${creditNoteNumbering.separator}${creditNoteNumbering.suffix}`;
+                      })()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-[#E5E7EB]">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!settings) return;
+                      setIsSaving(true);
+                      try {
+                        const updatedSettings = {
+                          ...settings.settings,
+                          billing: {
+                            ...((settings.settings as any).billing || {}),
+                            numbering: {
+                              quotes: quoteNumbering,
+                              invoices: invoiceNumbering,
+                              credit_notes: creditNoteNumbering,
+                            },
+                          },
+                        };
+                        await saveSettings(updatedSettings);
+                        showToast("Configuration de numérotation sauvegardée avec succès", "success");
+                      } catch (error: any) {
+                        console.error("Error saving numbering config:", error);
+                        showToast(error.message || "Erreur lors de la sauvegarde", "error");
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    disabled={isSaving}
+                    className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? "Sauvegarde..." : "Sauvegarder la numérotation"}
                   </button>
                 </div>
               </CardContent>

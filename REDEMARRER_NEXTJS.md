@@ -82,3 +82,5 @@ Next.js recharge automatiquement les fichiers modifiés. Si vous ne voyez pas le
 3. **Redémarrez Next.js** si le hot-reload ne fonctionne pas
 
 
+
+

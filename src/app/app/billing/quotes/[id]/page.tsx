@@ -497,17 +497,17 @@ export default function QuoteDetailPage() {
                     // Vérifier que quote et quote.lines existent
                     if (!quote || !quote.lines || quote.lines.length === 0) {
                       return (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]"
-                          >
-                            TVA
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]">
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]"
+                    >
+                      TVA
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]">
                             {formatAmount(quote?.tax || 0)}
-                          </td>
-                        </tr>
+                    </td>
+                  </tr>
                       );
                     }
 

@@ -695,7 +695,7 @@ async def import_clients_csv(
                             value = clean_control_characters(str(value))
                             value = value.strip()
                             # Retourner None si la valeur est vide après nettoyage
-                            return value if value else None
+                    return value if value else None
                         except Exception as e:
                             # Si le nettoyage échoue, retourner None
                             return None
@@ -762,7 +762,7 @@ async def import_clients_csv(
                         existing_client = db.query(Client).filter(
                             Client.company_id == company_id,
                             Client.name.ilike(normalized_name)  # Case-insensitive
-                        ).first()
+                    ).first()
                 
                 if existing_client:
                     # Mettre à jour le client existant (ne pas recréer)

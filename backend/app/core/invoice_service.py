@@ -7,6 +7,10 @@ from typing import Optional, Dict, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from app.db.models.billing import Invoice, InvoiceStatus, InvoiceType, InvoiceLine
+from app.core.numbering_service import (
+    get_numbering_config, format_document_number, parse_document_number, get_next_number
+)
+from app.db.models.company_settings import CompanySettings
 
 
 # Taux de TVA autorisés par défaut en France
@@ -137,10 +141,10 @@ def validate_invoice_totals(invoice: Invoice, tolerance: Decimal = Decimal('0.01
 
 def generate_invoice_number(db: Session, company_id: int, invoice_type: InvoiceType = InvoiceType.FACTURE) -> str:
     """
-    Génère un numéro de facture séquentiel inviolable.
+    Génère un numéro de facture séquentiel inviolable selon la configuration de l'entreprise.
     
     Le numéro est généré de manière séquentielle pour chaque entreprise et chaque année,
-    sans rupture dans la séquence.
+    sans rupture dans la séquence. Utilise la configuration personnalisable de numérotation si disponible.
     
     Args:
         db: Session de base de données
@@ -148,47 +152,66 @@ def generate_invoice_number(db: Session, company_id: int, invoice_type: InvoiceT
         invoice_type: Type de facture (FACTURE ou AVOIR)
         
     Returns:
-        Numéro de facture au format FAC-YYYY-NNNN ou FAC-YYYY-NNNN-AVOIR
+        Numéro de facture formaté selon la configuration
     """
     current_year = datetime.now().year
     
-    # Récupérer le dernier numéro de l'année pour cette entreprise et ce type
-    # Exclure les factures supprimées
-    last_invoice = db.query(Invoice).filter(
+    # Charger la configuration de numérotation
+    company_settings_obj = db.query(CompanySettings).filter(
+        CompanySettings.company_id == company_id
+    ).first()
+    company_settings = company_settings_obj.settings if company_settings_obj else None
+    
+    # Choisir le type de config selon le type de facture
+    if invoice_type == InvoiceType.AVOIR:
+        config = get_numbering_config(company_settings, "credit_notes")
+        suffix = config.get("suffix", "AVOIR")
+    else:
+        config = get_numbering_config(company_settings, "invoices")
+        suffix = None
+    
+    # Construire le pattern pour chercher les numéros de cette année
+    prefix = config.get("prefix", "FAC")
+    separator = config.get("separator", "-")
+    year_format = config.get("year_format", "YYYY")
+    year_str = str(current_year) if year_format == "YYYY" else str(current_year)[-2:]
+    
+    pattern = f"{prefix}{separator}{year_str}{separator}%"
+    
+    # Récupérer tous les factures de cette année pour cette entreprise et ce type
+    invoices = db.query(Invoice).filter(
         Invoice.company_id == company_id,
         Invoice.invoice_type == invoice_type,
         Invoice.deleted_at.is_(None),
-        extract('year', Invoice.created_at) == current_year
-    ).order_by(Invoice.id.desc()).first()
+        Invoice.number.like(pattern)
+    ).all()
     
-    if last_invoice:
-        # Extraire le numéro séquentiel du dernier numéro
-        # Format: FAC-YYYY-NNNN ou FAC-YYYY-NNNN-AVOIR
-        parts = last_invoice.number.split('-')
-        if len(parts) >= 3:
-            try:
-                last_number = int(parts[2])
-                next_number = last_number + 1
-            except ValueError:
-                # Si le format est incorrect, commencer à 1
-                next_number = 1
-        else:
-            next_number = 1
+    invoice_numbers = [invoice.number for invoice in invoices]
+    
+    # Parser tous les numéros existants avec la config actuelle
+    parsed_numbers = []
+    for invoice_number in invoice_numbers:
+        parsed = parse_document_number(invoice_number, config)
+        if parsed is not None:
+            parsed_numbers.append(parsed)
+    
+    if parsed_numbers:
+        max_number = max(parsed_numbers)
+        start_number = config.get("start_number", 1)
+        next_number = get_next_number(max_number, start_number, parsed_numbers)
     else:
-        next_number = 1
+        # Aucune facture existante, utiliser le start_number
+        next_number = config.get("start_number", 1)
     
     # Boucle pour trouver un numéro disponible (gestion des race conditions)
     max_attempts = 1000  # Limite de sécurité pour éviter les boucles infinies
     attempt = 0
     
     while attempt < max_attempts:
-        # Générer le nouveau numéro
-        if invoice_type == InvoiceType.AVOIR:
-            number = f"FAC-{current_year}-{next_number:04d}-AVOIR"
-        else:
-            number = f"FAC-{current_year}-{next_number:04d}"
+        # Générer le nouveau numéro avec la configuration
+        number = format_document_number(current_year, next_number, config, suffix=suffix)
         
-        # Vérifier l'unicité (inclure les factures supprimées pour éviter les doublons)
+        # Vérifier l'unicité pour cette entreprise
         existing = db.query(Invoice).filter(
             Invoice.number == number,
             Invoice.company_id == company_id
@@ -205,10 +228,11 @@ def generate_invoice_number(db: Session, company_id: int, invoice_type: InvoiceT
     # Si on arrive ici, on a épuisé toutes les tentatives
     # Générer un numéro avec timestamp pour éviter le conflit
     timestamp = int(datetime.now().timestamp() * 1000) % 10000
+    # Utiliser le format par défaut en cas d'urgence
     if invoice_type == InvoiceType.AVOIR:
-        number = f"FAC-{current_year}-{timestamp:04d}-AVOIR"
+        number = f"{prefix}-{current_year}-{timestamp:04d}-{suffix}"
     else:
-        number = f"FAC-{current_year}-{timestamp:04d}"
+        number = f"{prefix}-{current_year}-{timestamp:04d}"
     
     return number
 

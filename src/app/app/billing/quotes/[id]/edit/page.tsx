@@ -238,7 +238,7 @@ export default function EditQuotePage() {
         // (on pourrait utiliser un toast ici si disponible)
       } else {
         // Rediriger vers la page de détail pour les autres statuts
-        router.push(`/app/billing/quotes/${quote.id}`);
+      router.push(`/app/billing/quotes/${quote.id}`);
       }
     } catch (err: any) {
       console.error("Error saving quote:", err);
@@ -282,7 +282,7 @@ export default function EditQuotePage() {
           console.error("Erreur lors du rechargement du devis:", reloadErr);
         }
       } else {
-        setError(err.message || "Erreur lors de la sauvegarde du devis");
+      setError(err.message || "Erreur lors de la sauvegarde du devis");
       }
     } finally {
       setIsSaving(false);
@@ -415,8 +415,8 @@ export default function EditQuotePage() {
                   <p className="text-xs mt-2">Cliquez sur "+ Ajouter une ligne" pour en ajouter une.</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {quote.lines.map((line) => (
+              <div className="space-y-4">
+                {quote.lines.map((line) => (
                   <div
                     key={line.id}
                     className="p-4 rounded-lg border border-[#E5E7EB] bg-white"
@@ -549,8 +549,8 @@ export default function EditQuotePage() {
                       </span>
                     </div>
                   </div>
-                  ))}
-                </div>
+                ))}
+              </div>
               )}
             </div>
 
@@ -603,9 +603,9 @@ export default function EditQuotePage() {
                   // Si un seul taux, afficher simplement "TVA"
                   if (sortedTaxRates.length === 1) {
                     return (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#64748B]">TVA</span>
-                        <span className="font-medium text-[#0F172A]">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#64748B]">TVA</span>
+                  <span className="font-medium text-[#0F172A]">
                           {formatAmount(quote.tax || 0)}
                         </span>
                       </div>
@@ -626,8 +626,8 @@ export default function EditQuotePage() {
                         <span className="text-[#64748B]">{taxRateLabel}</span>
                         <span className="font-medium text-[#0F172A]">
                           {formatAmount(taxInfo.tax || 0)}
-                        </span>
-                      </div>
+                  </span>
+                </div>
                     );
                   }).filter(Boolean);
                 })()}
@@ -722,19 +722,19 @@ export default function EditQuotePage() {
             </div>
 
             {/* Notes */}
-            <div>
-              <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                Notes
-              </label>
-              <textarea
-                value={quote.notes || ""}
-                onChange={(e) =>
-                  setQuote({ ...quote, notes: e.target.value })
-                }
-                rows={4}
-                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                placeholder="Notes internes..."
-              />
+              <div>
+                <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={quote.notes || ""}
+                  onChange={(e) =>
+                    setQuote({ ...quote, notes: e.target.value })
+                  }
+                  rows={4}
+                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                  placeholder="Notes internes..."
+                />
             </div>
 
             {/* Statut */}

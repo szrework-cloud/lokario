@@ -301,10 +301,10 @@ export default function PublicQuotePage() {
                   // Si un seul taux, afficher simplement "TVA"
                   if (sortedTaxRates.length === 1) {
                     return (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#64748B]">TVA</span>
-                        <span className="text-[#0F172A]">{formatAmount(quote.total_tax || 0)}</span>
-                      </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#64748B]">TVA</span>
+                  <span className="text-[#0F172A]">{formatAmount(quote.total_tax || 0)}</span>
+                </div>
                     );
                   }
 

@@ -16,14 +16,14 @@
 ### Étape 3 : Exécuter la migration
 Dans le shell qui s'ouvre, tapez :
 
-```bash
+   ```bash
 cd backend
 alembic upgrade head
-```
+   ```
 
 **OU** si vous êtes déjà dans le bon répertoire :
 
-```bash
+   ```bash
 alembic upgrade head
 ```
 
@@ -38,16 +38,16 @@ INFO  [alembic.runtime.migration] Running upgrade ... -> fix_quotes_number_uniqu
 ## 🚀 Méthode 2 : Via Railway CLI
 
 ### Étape 1 : Lier le projet (si pas déjà fait)
-```bash
+   ```bash
 cd "/Users/glr_adem/Documents/B2B SAAS"
-railway link
-```
+   railway link
+   ```
 Sélectionnez votre projet "lokario" dans la liste.
 
 ### Étape 2 : Exécuter la migration
-```bash
-railway run alembic upgrade head
-```
+   ```bash
+   railway run alembic upgrade head
+   ```
 
 **OU** si vous devez aller dans le dossier backend :
 
@@ -82,17 +82,17 @@ Vous devriez voir la version de migration actuelle, qui devrait inclure `fix_quo
 ## 🔍 En cas de problème
 
 ### Si la commande `alembic` n'est pas trouvée
-```bash
+   ```bash
 # Vérifier que vous êtes dans le bon répertoire
 pwd
 # Devrait afficher quelque chose comme /app ou /app/backend
 
 # Si vous êtes à la racine, allez dans backend
-cd backend
+   cd backend
 
 # Réessayer
-alembic upgrade head
-```
+   alembic upgrade head
+   ```
 
 ### Si la migration échoue
 1. **Vérifier les logs** dans Railway Dashboard

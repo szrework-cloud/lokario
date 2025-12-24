@@ -261,3 +261,5 @@ def classify_conversation_hybrid(db, conversation, message, company_id, use_ai_f
 **En résumé** : Le système essaie toujours les règles simples en premier. Si elles retournent `None` (aucun match), alors l'IA est appelée. C'est automatique et transparent.
 
 
+
+

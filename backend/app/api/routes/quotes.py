@@ -25,6 +25,9 @@ from app.core.invoice_service import (
     calculate_line_totals, validate_tax_rate, get_valid_tax_rates,
     generate_invoice_number, recalculate_invoice_totals, validate_invoice_totals
 )
+from app.core.numbering_service import (
+    get_numbering_config, format_document_number, parse_document_number, get_next_number
+)
 from app.core.quote_pdf_service import generate_quote_pdf
 from app.db.models.conversation import Conversation, InboxMessage, MessageAttachment
 from app.db.models.inbox_integration import InboxIntegration
@@ -58,12 +61,11 @@ def get_client_info(db: Session, client_id: int, company_id: int) -> Optional[Cl
 
 def generate_quote_number(db: Session, company_id: int, last_failed_number: Optional[str] = None) -> str:
     """
-    Génère un numéro de devis séquentiel inviolable (ex: DEV-2025-001).
+    Génère un numéro de devis séquentiel inviolable selon la configuration de l'entreprise.
     
     Le numéro est généré de manière séquentielle pour chaque entreprise et chaque année,
     sans rupture dans la séquence. Gère les race conditions en vérifiant l'unicité.
-    Utilise une requête SQL directe pour s'assurer de voir tous les devis existants,
-    même dans le contexte d'une transaction.
+    Utilise la configuration personnalisable de numérotation si disponible.
     
     Args:
         db: Session de base de données
@@ -72,147 +74,113 @@ def generate_quote_number(db: Session, company_id: int, last_failed_number: Opti
     """
     current_year = datetime.now().year
     
+    # Charger la configuration de numérotation
+    company_settings_obj = db.query(CompanySettings).filter(
+        CompanySettings.company_id == company_id
+    ).first()
+    company_settings = company_settings_obj.settings if company_settings_obj else None
+    config = get_numbering_config(company_settings, "quotes")
+    
     # Si un numéro a échoué, on commence à partir de celui-ci + 1
     if last_failed_number:
         try:
-            # Extraire le numéro séquentiel du numéro qui a échoué
-            failed_number_part = int(last_failed_number.split("-")[-1])
-            next_number = failed_number_part + 1
-            logger.info(f"[QUOTE NUMBER] Reprise après échec: dernier numéro tenté {last_failed_number}, prochain: {next_number}")
+            # Parser le numéro échoué avec la config actuelle
+            failed_number = parse_document_number(last_failed_number, config)
+            if failed_number is not None:
+                next_number = failed_number + 1
+                logger.info(f"[QUOTE NUMBER] Reprise après échec: dernier numéro tenté {last_failed_number}, prochain: {next_number}")
+            else:
+                # Si le parsing échoue, on continue avec la logique normale
+                last_failed_number = None
         except (ValueError, IndexError):
-            # Si le parsing échoue, on continue avec la logique normale
             last_failed_number = None
     
     # Si pas de numéro échoué, trouver le numéro maximum existant
     if not last_failed_number:
-        # Utiliser une requête SQL directe pour trouver le numéro maximum
-        # Cela garantit qu'on voit tous les devis commités, même après un rollback
-        from sqlalchemy import text
+        # Construire le pattern pour chercher les numéros de cette année
+        # Utiliser la config pour construire le pattern
+        prefix = config.get("prefix", "DEV")
+        separator = config.get("separator", "-")
+        year_format = config.get("year_format", "YYYY")
+        year_str = str(current_year) if year_format == "YYYY" else str(current_year)[-2:]
         
-        # Utiliser l'ORM SQLAlchemy au lieu de text() pour garantir le filtrage correct par company_id
-        # IMPORTANT: Filtrer STRICTEMENT par company_id pour que chaque entreprise commence à 1
-        pattern = f"DEV-{current_year}-%"
+        # Pattern pour LIKE: "DEV-2025-%" ou selon la config
+        pattern = f"{prefix}{separator}{year_str}{separator}%"
         
-        # Debug: Vérifier le company_id reçu
-        print(f"[QUOTE NUMBER DEBUG] company_id reçu: {company_id} (type: {type(company_id)})")
-        print(f"[QUOTE NUMBER DEBUG] pattern: {pattern}")
-        
-        # Vérifier d'abord combien de devis existent pour cette entreprise (sans filtre sur le numéro)
-        total_quotes_for_company = db.query(Quote).filter(Quote.company_id == company_id).count()
-        print(f"[QUOTE NUMBER DEBUG] Total devis pour company_id={company_id}: {total_quotes_for_company}")
-        
-        # Utiliser l'ORM pour être sûr que le filtrage fonctionne correctement
+        # Récupérer tous les devis de cette année pour cette entreprise
         quotes = db.query(Quote).filter(
-        Quote.company_id == company_id,
+            Quote.company_id == company_id,
             Quote.number.like(pattern)
         ).all()
         
-        # Debug: afficher les devis trouvés
-        print(f"[QUOTE NUMBER DEBUG] Devis trouvés avec pattern {pattern}: {len(quotes)}")
-        for quote in quotes:
-            print(f"[QUOTE NUMBER DEBUG]   - ID: {quote.id}, Number: {quote.number}, Company ID: {quote.company_id} (vérifié: {quote.company_id == company_id})")
-        
-        # Vérification supplémentaire: compter avec une requête SQL directe pour comparer
-        from sqlalchemy import text
-        sql_check = text("""
-            SELECT COUNT(*) 
-            FROM quotes 
-            WHERE company_id = :company_id 
-            AND number LIKE :pattern
-        """)
-        sql_result = db.execute(sql_check, {"company_id": company_id, "pattern": pattern})
-        sql_count = sql_result.scalar()
-        print(f"[QUOTE NUMBER DEBUG] Vérification SQL directe: {sql_count} devis trouvés")
-        
         quotes_numbers = [quote.number for quote in quotes]
         
-        # Utiliser print() en plus de logger pour garantir la visibilité
-        print(f"[QUOTE NUMBER] Devis trouvés pour company_id={company_id}, année={current_year}: {len(quotes_numbers)} devis")
         logger.info(f"[QUOTE NUMBER] Devis trouvés pour company_id={company_id}, année={current_year}: {len(quotes_numbers)} devis")
-        if quotes_numbers:
-            print(f"[QUOTE NUMBER] Numéros existants pour company_id={company_id}: {quotes_numbers}")
-            logger.info(f"[QUOTE NUMBER] Numéros existants pour company_id={company_id}: {quotes_numbers}")  # Afficher tous les numéros pour debug
         
         if quotes_numbers:
-            # Extraire tous les numéros et trouver le maximum
-            max_number = 0
-            valid_numbers = []
+            # Parser tous les numéros existants avec la config actuelle
+            parsed_numbers = []
             for quote_number in quotes_numbers:
-                try:
-                    # Format attendu: DEV-YYYY-NNN
-                    number_part = int(quote_number.split("-")[-1])
-                    valid_numbers.append(number_part)
-                    if number_part > max_number:
-                        max_number = number_part
-                except (ValueError, IndexError):
-                    logger.warning(f"[QUOTE NUMBER] Format de numéro invalide ignoré: {quote_number}")
-                    continue
-            next_number = max_number + 1
-            print(f"[QUOTE NUMBER] Numéros valides trouvés: {sorted(valid_numbers)}, maximum: {max_number}, prochain: {next_number:03d}")
-            logger.info(f"[QUOTE NUMBER] Numéros valides trouvés: {sorted(valid_numbers)}, maximum: {max_number}, prochain: {next_number:03d}")
+                parsed = parse_document_number(quote_number, config)
+                if parsed is not None:
+                    parsed_numbers.append(parsed)
+            
+            if parsed_numbers:
+                max_number = max(parsed_numbers)
+                # Utiliser get_next_number pour respecter le start_number
+                start_number = config.get("start_number", 1)
+                next_number = get_next_number(max_number, start_number, parsed_numbers)
+                logger.info(f"[QUOTE NUMBER] Numéros valides trouvés: {sorted(parsed_numbers)}, maximum: {max_number}, start_number: {start_number}, prochain: {next_number}")
+            else:
+                # Aucun numéro valide trouvé, utiliser le start_number
+                next_number = config.get("start_number", 1)
+        else:
+            # Aucun devis existant, utiliser le start_number
+            next_number = config.get("start_number", 1)
+            logger.info(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à {next_number}")
     else:
-        next_number = 1
-        print(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
-        logger.info(f"[QUOTE NUMBER] Aucun devis existant pour company_id={company_id}, année={current_year}, démarrage à 1")
+        # Si on est dans le cas last_failed_number, next_number est déjà défini
+        pass
     
     # Boucle pour trouver un numéro disponible (gestion des race conditions)
     max_attempts = 1000  # Limite de sécurité pour éviter les boucles infinies
     attempt = 0
+    initial_next_number = next_number
     
     while attempt < max_attempts:
-        # Générer le nouveau numéro
-        number = f"DEV-{current_year}-{next_number:03d}"
+        # Générer le nouveau numéro avec la configuration
+        number = format_document_number(current_year, next_number, config)
         
-        # Vérifier l'unicité avec une requête SQL directe
-        # IMPORTANT: Si la contrainte globale ix_quotes_number existe encore (migration non appliquée),
-        # on doit vérifier l'unicité globale, pas seulement par entreprise
+        # Vérifier l'unicité pour cette entreprise
         from sqlalchemy import text
-        
-        # D'abord, vérifier si la contrainte globale existe encore
-        # En vérifiant si un numéro existe globalement (pas seulement pour cette entreprise)
-        check_query_global = text("""
-            SELECT COUNT(*) 
-            FROM quotes 
-            WHERE number = :number
-        """)
-        
-        result_global = db.execute(check_query_global, {"number": number})
-        count_global = result_global.scalar()
-        
-        # Vérifier aussi pour cette entreprise spécifique (pour la contrainte composite)
-        check_query_company = text("""
+        check_query = text("""
             SELECT COUNT(*) 
             FROM quotes 
             WHERE company_id = :company_id 
             AND number = :number
         """)
         
-        result_company = db.execute(check_query_company, {
+        result = db.execute(check_query, {
             "company_id": company_id,
             "number": number
         })
-        count_company = result_company.scalar()
+        count = result.scalar()
         
-        logger.debug(f"[QUOTE NUMBER] Vérification unicité: {number} -> count_global={count_global}, count_company={count_company}")
-        
-        # IMPORTANT: Avec la contrainte composite (company_id, number), on ne vérifie QUE count_company
-        # Chaque entreprise peut avoir le même numéro (ex: DEV-2025-001 pour company_id=1 et company_id=6)
-        # On ignore count_global car il n'est plus pertinent avec la contrainte composite
-        if count_company == 0:
-            # Numéro disponible pour cette entreprise, on peut l'utiliser
-            print(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1}) - disponible pour company_id={company_id}")
+        if count == 0:
+            # Numéro disponible pour cette entreprise
             logger.info(f"[QUOTE NUMBER] Numéro généré: {number} (tentative {attempt + 1}) - disponible pour company_id={company_id}")
             return number
         
         # Numéro déjà utilisé, incrémenter et réessayer
-        logger.warning(f"[QUOTE NUMBER] Numéro {number} déjà utilisé (count_global={count_global}, count_company={count_company}), incrémentation...")
+        logger.warning(f"[QUOTE NUMBER] Numéro {number} déjà utilisé, incrémentation...")
         next_number += 1
         attempt += 1
     
     # Si on arrive ici, on a épuisé toutes les tentatives
     # Générer un numéro avec timestamp pour éviter le conflit
     timestamp = int(datetime.now().timestamp() * 1000) % 10000
-    number = f"DEV-{current_year}-{timestamp:03d}"
+    # Utiliser le format par défaut en cas d'urgence
+    number = f"{config.get('prefix', 'DEV')}-{current_year}-{timestamp:03d}"
     logger.warning(f"[QUOTE NUMBER] Épuisement des tentatives, utilisation d'un numéro avec timestamp: {number}")
     
     return number

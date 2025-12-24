@@ -609,12 +609,12 @@ export default function NewQuotePage() {
                   // Vérifier que formData.lines existe
                   if (!formData.lines || formData.lines.length === 0) {
                     return (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#64748B]">TVA</span>
-                        <span className="font-medium text-[#0F172A]">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#64748B]">TVA</span>
+                  <span className="font-medium text-[#0F172A]">
                           {formatAmount(tax || 0)}
-                        </span>
-                      </div>
+                  </span>
+                </div>
                     );
                   }
 
