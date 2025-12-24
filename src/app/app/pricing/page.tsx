@@ -57,8 +57,10 @@ export default function PricingPage() {
   }
 
   const plans = plansData?.plans || [];
-  const currentPlan = subscriptionData?.subscription?.plan || null;
+  const subscription = subscriptionData?.subscription;
+  const currentPlan = subscription?.plan || null;
   const hasSubscription = subscriptionData?.has_subscription || false;
+  const isSubscriptionActive = subscription && (subscription.status === "active" || subscription.status === "trialing");
   
   // Filtrer les plans par interval sélectionné
   const filteredPlans = plans.filter(plan => plan.interval === selectedInterval);
@@ -154,16 +156,25 @@ export default function PricingPage() {
 
         {/* Plans disponibles (filtrés par interval) */}
         <div className={`grid gap-6 ${filteredPlans.length === 1 ? 'max-w-md mx-auto' : 'md:grid-cols-2 max-w-4xl mx-auto'}`}>
-          {filteredPlans.map((plan) => (
-            <PricingCard
-              key={plan.id}
-              plan={plan}
-              isPopular={plan.id.includes("professional")} // Marquer le plan Pro comme populaire
-              currentPlan={currentPlan}
-              onSelect={() => handleSelectPlan(plan)}
-              isLoading={selectedPlan === plan.id && createCheckout.isPending}
-            />
-          ))}
+          {filteredPlans.map((plan) => {
+            const planName = plan.id.split("_")[0]; // "starter" ou "professional"
+            const isCurrentPlan = isSubscriptionActive && currentPlan === planName;
+            
+            return (
+              <PricingCard
+                key={plan.id}
+                plan={plan}
+                isPopular={plan.id.includes("professional")} // Marquer le plan Pro comme populaire
+                currentPlan={currentPlan}
+                onSelect={() => {
+                  if (!isCurrentPlan) {
+                    handleSelectPlan(plan);
+                  }
+                }}
+                isLoading={selectedPlan === plan.id && createCheckout.isPending}
+              />
+            );
+          })}
         </div>
 
         {/* FAQ ou informations supplémentaires */}

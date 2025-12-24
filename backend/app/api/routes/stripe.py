@@ -666,14 +666,26 @@ async def handle_checkout_session_completed(event, db: Session):
             try:
                 price_obj = stripe.Price.retrieve(price_item["price"]["id"])
                 subscription.amount = price_obj.unit_amount / 100 if price_obj.unit_amount else 0
-                # Déterminer le plan depuis les métadonnées ou le price
-                if metadata.get("plan"):
-                    subscription.plan = SubscriptionPlan(metadata["plan"])
             except Exception as e:
                 logger.error(f"Erreur lors de la récupération du prix: {e}")
     
+    # Déterminer le plan depuis les métadonnées
+    if metadata.get("plan"):
+        try:
+            subscription.plan = SubscriptionPlan(metadata["plan"])
+        except ValueError:
+            logger.warning(f"Plan invalide dans les métadonnées: {metadata.get('plan')}")
+    
+    # S'assurer que le statut est bien "active" si l'abonnement Stripe est actif
+    # Un abonnement payé doit être actif (même si Stripe dit "trialing", on le marque comme actif après paiement)
+    if stripe_subscription.status == "active":
+        subscription.status = SubscriptionStatus.ACTIVE
+    elif stripe_subscription.status == "trialing":
+        # Si on vient de payer, on passe à actif, sinon on garde trialing
+        subscription.status = SubscriptionStatus.ACTIVE
+    
     db.commit()
-    logger.info(f"Abonnement mis à jour avec succès pour company_id: {company_id}")
+    logger.info(f"Abonnement mis à jour avec succès pour company_id: {company_id}, status: {subscription.status.value}")
 
 async def handle_subscription_created(event, db: Session):
     """Gère la création d'un abonnement Stripe (après paiement)"""

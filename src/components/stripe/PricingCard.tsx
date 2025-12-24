@@ -21,7 +21,9 @@ export function PricingCard({
   onSelect,
   isLoading = false,
 }: PricingCardProps) {
-  const isCurrentPlan = currentPlan === plan.id;
+  // Comparer le plan : currentPlan est "starter" ou "professional", plan.id est "starter_monthly" ou "professional_yearly"
+  const planName = plan.id.split("_")[0]; // Extraire "starter" ou "professional" de "starter_monthly"
+  const isCurrentPlan = currentPlan === planName;
 
   return (
     <motion.div
