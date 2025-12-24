@@ -3787,8 +3787,8 @@ function SubscriptionTab() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="border border-[#E5E7EB] rounded-lg p-4">
                   <p className="text-sm font-medium text-[#64748B] mb-1">Plan</p>
-                  <p className="text-lg font-semibold text-[#0F172A] capitalize">
-                    {subscription.plan === "starter" ? "Offre de démarrage" : subscription.plan}
+                  <p className="text-lg font-semibold text-[#0F172A]">
+                    {subscription.plan === "starter" ? "Essentiel" : subscription.plan === "professional" ? "Pro" : subscription.plan}
                   </p>
                 </div>
                 <div className="border border-[#E5E7EB] rounded-lg p-4">

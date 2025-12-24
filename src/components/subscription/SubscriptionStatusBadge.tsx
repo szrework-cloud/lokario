@@ -47,20 +47,17 @@ export function SubscriptionStatusBadge() {
     return null;
   }
 
-  // Ne rien afficher si pas d'abonnement ou si l'abonnement est actif (pas d'essai)
-  if (!subscriptionData?.subscription || (status !== "trialing" && status !== "incomplete_expired")) {
-    // Afficher quand même le plan si on a un abonnement actif
-    if (subscriptionData?.subscription && status === "active" && planName) {
-      return (
-        <div
-          onClick={() => router.push("/app/pricing")}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#F0F9FF] border border-[#BFDBFE] cursor-pointer hover:bg-[#E0F2FE] transition-colors"
-        >
-          <span className="text-xs font-medium text-[#0F172A]">{planName}</span>
-        </div>
-      );
-    }
-    return null;
+  // Si abonnement actif, afficher seulement le plan (sans jours restants ni statut d'essai)
+  // Un abonnement "active" signifie qu'il a été payé, donc on ne montre plus les jours restants
+  if (subscriptionData?.subscription && status === "active" && planName) {
+    return (
+      <div
+        onClick={() => router.push("/app/pricing")}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#F0F9FF] border border-[#BFDBFE] cursor-pointer hover:bg-[#E0F2FE] transition-colors"
+      >
+        <span className="text-xs font-medium text-[#0F172A]">{planName}</span>
+      </div>
+    );
   }
 
   // Si l'essai est expiré
@@ -76,8 +73,12 @@ export function SubscriptionStatusBadge() {
     );
   }
 
-  // Si on est en période d'essai, afficher les jours restants
-  if (status === "trialing" && daysRemaining !== null && planName) {
+  // Si on est en période d'essai GRATUITE (trialing sans avoir payé), afficher les jours restants
+  // Seulement si le montant est 0 (essai gratuit initial)
+  const subscription = subscriptionData?.subscription;
+  const isFreeTrial = subscription && subscription.amount === 0 && status === "trialing";
+  
+  if (isFreeTrial && daysRemaining !== null && planName) {
     return (
       <div
         onClick={() => router.push("/app/pricing")}

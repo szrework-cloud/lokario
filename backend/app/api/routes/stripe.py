@@ -186,6 +186,22 @@ async def get_subscription(
                 subscription.trial_start = datetime.fromtimestamp(stripe_sub["trial_start"])
             if stripe_sub.get("trial_end"):
                 subscription.trial_end = datetime.fromtimestamp(stripe_sub["trial_end"])
+            
+            # Synchroniser le plan depuis le price_id si nécessaire
+            if stripe_sub.get("items") and stripe_sub["items"].get("data"):
+                price_item = stripe_sub["items"]["data"][0]
+                if price_item.get("price") and price_item["price"].get("id"):
+                    price_id = price_item["price"]["id"]
+                    # Si le price_id a changé, mettre à jour le plan
+                    if subscription.stripe_price_id != price_id:
+                        subscription.stripe_price_id = price_id
+                        # Déterminer le plan depuis le price_id
+                        if price_id == settings.STRIPE_PRICE_STARTER_MONTHLY or price_id == settings.STRIPE_PRICE_STARTER_YEARLY:
+                            subscription.plan = SubscriptionPlan.STARTER
+                        elif price_id == settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY or price_id == settings.STRIPE_PRICE_PROFESSIONAL_YEARLY:
+                            subscription.plan = SubscriptionPlan.PROFESSIONAL
+                        logger.info(f"Plan synchronisé depuis Stripe: {subscription.plan.value}")
+            
             db.commit()
         except Exception as e:
             logger.error(f"Erreur lors de la récupération de l'abonnement Stripe: {e}")
@@ -669,12 +685,30 @@ async def handle_checkout_session_completed(event, db: Session):
             except Exception as e:
                 logger.error(f"Erreur lors de la récupération du prix: {e}")
     
-    # Déterminer le plan depuis les métadonnées
+    # Déterminer le plan depuis les métadonnées OU depuis le price_id
+    plan_updated = False
     if metadata.get("plan"):
         try:
             subscription.plan = SubscriptionPlan(metadata["plan"])
+            plan_updated = True
+            logger.info(f"Plan mis à jour depuis métadonnées: {metadata.get('plan')}")
         except ValueError:
             logger.warning(f"Plan invalide dans les métadonnées: {metadata.get('plan')}")
+    
+    # Si le plan n'a pas été mis à jour depuis les métadonnées, essayer de le déterminer depuis le price_id
+    if not plan_updated and subscription.stripe_price_id:
+        try:
+            # Comparer avec les price IDs configurés
+            if subscription.stripe_price_id == settings.STRIPE_PRICE_STARTER_MONTHLY or subscription.stripe_price_id == settings.STRIPE_PRICE_STARTER_YEARLY:
+                subscription.plan = SubscriptionPlan.STARTER
+                plan_updated = True
+                logger.info("Plan déterminé depuis price_id: STARTER")
+            elif subscription.stripe_price_id == settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY or subscription.stripe_price_id == settings.STRIPE_PRICE_PROFESSIONAL_YEARLY:
+                subscription.plan = SubscriptionPlan.PROFESSIONAL
+                plan_updated = True
+                logger.info("Plan déterminé depuis price_id: PROFESSIONAL")
+        except Exception as e:
+            logger.error(f"Erreur lors de la détermination du plan depuis price_id: {e}")
     
     # S'assurer que le statut est bien "active" si l'abonnement Stripe est actif
     # Un abonnement payé doit être actif (même si Stripe dit "trialing", on le marque comme actif après paiement)
