@@ -41,9 +41,6 @@ export default function EditQuotePage() {
         setError(null);
         const data = await getQuote(token, quoteId);
         
-        console.log("[EDIT QUOTE] Données reçues du backend:", data);
-        console.log("[EDIT QUOTE] Lignes reçues:", data.lines);
-        
         // Adapter les données du backend au format frontend
         const adaptedQuote: Quote = {
           ...data,
@@ -66,9 +63,6 @@ export default function EditQuotePage() {
           timeline: [],
           history: [],
         };
-        
-        console.log("[EDIT QUOTE] Quote adapté:", adaptedQuote);
-        console.log("[EDIT QUOTE] Nombre de lignes:", adaptedQuote.lines.length);
         
         setQuote(adaptedQuote);
       } catch (err: any) {
