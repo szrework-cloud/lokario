@@ -453,8 +453,8 @@ export default function EditQuotePage() {
                       </span>
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
               )}
             </div>
 
