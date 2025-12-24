@@ -65,44 +65,76 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
         from app.core.config import settings
         upload_dir = Path(settings.UPLOAD_DIR).resolve()  # Utiliser resolve() pour obtenir le chemin absolu
         
+        # Toujours construire le chemin absolu pour vérifier l'existence locale
         if not Path(normalized_path).is_absolute():
             logo_path_absolute = upload_dir / normalized_path
             logo_path = str(logo_path_absolute.resolve())  # Resolve pour normaliser le chemin
             logger.info(f"[LOGO] UPLOAD_DIR: {upload_dir}, normalized_path: {normalized_path}, final path: {logo_path}")
         else:
-            logo_path = str(Path(normalized_path).resolve())
-            logger.info(f"[LOGO] Path already absolute, resolved: {logo_path}")
+            # Si c'est déjà absolu, extraire le chemin relatif pour Supabase
+            try:
+                # Essayer d'extraire le chemin relatif depuis UPLOAD_DIR
+                logo_path_obj = Path(logo_path)
+                if logo_path_obj.is_relative_to(upload_dir):
+                    normalized_path = str(logo_path_obj.relative_to(upload_dir))
+                else:
+                    # Si ce n'est pas relatif à UPLOAD_DIR, utiliser le nom du fichier
+                    normalized_path = logo_path_obj.name
+            except (ValueError, AttributeError):
+                # Si Python < 3.9, utiliser une méthode alternative
+                normalized_path = str(Path(logo_path).name)
+            logo_path = str(Path(logo_path).resolve())
+            logger.info(f"[LOGO] Path already absolute, resolved: {logo_path}, normalized for Supabase: {normalized_path}")
         
         logo_path_obj = Path(logo_path)
         logger.info(f"[LOGO] Checking if file exists: {logo_path_obj} (exists: {logo_path_obj.exists()})")
+        
+        # Essayer de charger depuis le système de fichiers local
         if logo_path_obj.exists():
             try:
-                # Utiliser directement le fichier image sans conversion
-                # ReportLab peut gérer les PNG avec transparence directement
                 logo = Image(logo_path, width=35*mm, height=35*mm, kind='proportional')
-                
-                # Positionner le logo en haut à droite
                 logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
                 logo_loaded = True
-                logger.info(f"[LOGO] Logo loaded successfully from: {logo_path}")
+                logger.info(f"[LOGO] Logo loaded successfully from local filesystem: {logo_path}")
             except Exception as e:
-                logger.warning(f"Could not load logo: {e}")
+                logger.warning(f"Could not load logo from local filesystem: {e}")
                 logo_loaded = False
-        else:
-            logger.warning(f"Logo file not found: {logo_path}")
-            # Essayer de trouver le fichier avec le chemin normalisé directement
-            if normalized_path and not Path(normalized_path).is_absolute():
-                alt_path = upload_dir / normalized_path
-                alt_path_resolved = alt_path.resolve()
-                logger.info(f"[LOGO] Trying alternative path: {alt_path_resolved} (exists: {alt_path_resolved.exists()})")
-                if alt_path_resolved.exists():
-                    try:
-                        logo = Image(str(alt_path_resolved), width=35*mm, height=35*mm, kind='proportional')
+        
+        # Si le fichier n'existe pas localement, essayer Supabase Storage
+        if not logo_loaded and normalized_path:
+            try:
+                from app.core.supabase_storage_service import download_file as download_from_supabase, is_supabase_storage_configured
+                import io
+                
+                if is_supabase_storage_configured():
+                    logger.info(f"[LOGO] Trying to download from Supabase Storage: {normalized_path}")
+                    file_content = download_from_supabase(normalized_path)
+                    if file_content:
+                        # Utiliser BytesIO pour créer une image depuis les bytes
+                        logo_bytes = io.BytesIO(file_content)
+                        logo = Image(logo_bytes, width=35*mm, height=35*mm, kind='proportional')
                         logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
                         logo_loaded = True
-                        logger.info(f"[LOGO] Logo loaded from alternative path: {alt_path_resolved}")
-                    except Exception as e:
-                        logger.warning(f"Could not load logo from alternative path: {e}")
+                        logger.info(f"[LOGO] Logo loaded successfully from Supabase Storage: {normalized_path}")
+            except Exception as e:
+                logger.warning(f"Could not load logo from Supabase Storage: {e}")
+        
+        # Dernier recours : essayer le chemin alternatif
+        if not logo_loaded and normalized_path and not Path(normalized_path).is_absolute():
+            alt_path = upload_dir / normalized_path
+            alt_path_resolved = alt_path.resolve()
+            logger.info(f"[LOGO] Trying alternative path: {alt_path_resolved} (exists: {alt_path_resolved.exists()})")
+            if alt_path_resolved.exists():
+                try:
+                    logo = Image(str(alt_path_resolved), width=35*mm, height=35*mm, kind='proportional')
+                    logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
+                    logo_loaded = True
+                    logger.info(f"[LOGO] Logo loaded from alternative path: {alt_path_resolved}")
+                except Exception as e:
+                    logger.warning(f"Could not load logo from alternative path: {e}")
+        
+        if not logo_loaded:
+            logger.warning(f"Logo file not found: {logo_path} (tried local filesystem, Supabase Storage, and alternative paths)")
     
     # Nom de l'entreprise en haut à droite (uniquement si pas de logo)
     if company_name and not logo_loaded:
@@ -197,31 +229,10 @@ def generate_quote_pdf(
     
     primary_color = design_config.get("primary_color", "#F97316")
     secondary_color = design_config.get("secondary_color", "#F0F0F0")
-    logo_path = design_config.get("logo_path")
+    logo_path = design_config.get("logo_path")  # Passer le chemin original à draw_header_on_canvas
     footer_text = design_config.get("footer_text")
     terms_text = design_config.get("terms_text")
-    signature_path = design_config.get("signature_path")
-    
-    # Normaliser le chemin du logo : enlever le préfixe "uploads" s'il existe déjà
-    if logo_path:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[QUOTE PDF] Original logo_path: {logo_path}")
-        
-        normalized_path = logo_path
-        if normalized_path.startswith("uploads/"):
-            normalized_path = normalized_path[8:]  # Enlever "uploads/"
-        elif normalized_path.startswith("./uploads/"):
-            normalized_path = normalized_path[11:]  # Enlever "./uploads/"
-        
-        # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
-        upload_dir = Path(settings.UPLOAD_DIR).resolve()
-        if not Path(normalized_path).is_absolute():
-            logo_path = str((upload_dir / normalized_path).resolve())
-        else:
-            logo_path = str(Path(normalized_path).resolve())
-        
-        logger.info(f"[QUOTE PDF] Normalized logo_path: {logo_path}")
+    signature_path = design_config.get("signature_path")  # Passer le chemin original
     
     # Créer le document PDF avec SimpleDocTemplate
     doc = SimpleDocTemplate(
@@ -689,35 +700,61 @@ def generate_quote_pdf(
     # Section signatures (entreprise et client)
     story.append(Spacer(1, 10*mm))
     
-    # Préparer le chemin de la signature si disponible
-    signature_image_path = None
+    # Colonne gauche : Signature entreprise
+    left_signature_elements = []
     if signature_path:
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"[QUOTE PDF] Original signature_path: {signature_path}")
         
-        # Normaliser le chemin : enlever le préfixe "uploads" s'il existe déjà
-        normalized_path = signature_path
-        if normalized_path.startswith("uploads/"):
-            normalized_path = normalized_path[8:]  # Enlever "uploads/"
-        elif normalized_path.startswith("./uploads/"):
-            normalized_path = normalized_path[11:]  # Enlever "./uploads/"
+        # Normaliser le chemin
+        normalized_sig_path = signature_path
+        if normalized_sig_path.startswith("uploads/"):
+            normalized_sig_path = normalized_sig_path[8:]
+        elif normalized_sig_path.startswith("./uploads/"):
+            normalized_sig_path = normalized_sig_path[11:]
         
         upload_dir = Path(settings.UPLOAD_DIR).resolve()
-        if not Path(normalized_path).is_absolute():
-            signature_image_path = str((upload_dir / normalized_path).resolve())
+        if not Path(normalized_sig_path).is_absolute():
+            signature_image_path = str((upload_dir / normalized_sig_path).resolve())
         else:
-            signature_image_path = str(Path(normalized_path).resolve())
+            signature_image_path = str(Path(normalized_sig_path).resolve())
         
         logger.info(f"[QUOTE PDF] Normalized signature_path: {signature_image_path}")
-    
-    # Colonne gauche : Signature entreprise
-    left_signature_elements = []
-    if signature_image_path and Path(signature_image_path).exists():
-        try:
-            signature_img = Image(signature_image_path, width=70*mm, height=25*mm, kind='proportional')
-            left_signature_elements.append(signature_img)
-            left_signature_elements.append(Spacer(1, 3*mm))
+        
+        # Essayer de charger depuis le système de fichiers local
+        signature_loaded = False
+        if Path(signature_image_path).exists():
+            try:
+                signature_img = Image(signature_image_path, width=70*mm, height=25*mm, kind='proportional')
+                left_signature_elements.append(signature_img)
+                left_signature_elements.append(Spacer(1, 3*mm))
+                signature_loaded = True
+                logger.info(f"[QUOTE PDF] Signature loaded from local filesystem: {signature_image_path}")
+            except Exception as e:
+                logger.warning(f"Could not load signature from local filesystem: {e}")
+        
+        # Si le fichier n'existe pas localement, essayer Supabase Storage
+        if not signature_loaded:
+            try:
+                from app.core.supabase_storage_service import download_file as download_from_supabase, is_supabase_storage_configured
+                import io
+                
+                if is_supabase_storage_configured():
+                    logger.info(f"[QUOTE PDF] Trying to download signature from Supabase Storage: {normalized_sig_path}")
+                    file_content = download_from_supabase(normalized_sig_path)
+                    if file_content:
+                        signature_bytes = io.BytesIO(file_content)
+                        signature_img = Image(signature_bytes, width=70*mm, height=25*mm, kind='proportional')
+                        left_signature_elements.append(signature_img)
+                        left_signature_elements.append(Spacer(1, 3*mm))
+                        signature_loaded = True
+                        logger.info(f"[QUOTE PDF] Signature loaded from Supabase Storage: {normalized_sig_path}")
+            except Exception as e:
+                logger.warning(f"Could not load signature from Supabase Storage: {e}")
+        
+        if not signature_loaded:
+            logger.warning(f"[QUOTE PDF] Signature file not found: {signature_image_path}")
         except Exception:
             pass
     
@@ -769,10 +806,37 @@ def generate_quote_pdf(
         
         logger.info(f"[QUOTE PDF] Normalized client_signature_path: {client_sig_path}")
         
+        # Essayer de charger depuis le système de fichiers local
+        client_sig_loaded = False
         if Path(client_sig_path).exists():
             try:
                 client_signature_img = Image(client_sig_path, width=70*mm, height=25*mm, kind='proportional')
                 right_signature_elements.append(client_signature_img)
+                client_sig_loaded = True
+                logger.info(f"[QUOTE PDF] Client signature loaded from local filesystem: {client_sig_path}")
+            except Exception as e:
+                logger.warning(f"Could not load client signature from local filesystem: {e}")
+        
+        # Si le fichier n'existe pas localement, essayer Supabase Storage
+        if not client_sig_loaded:
+            try:
+                from app.core.supabase_storage_service import download_file as download_from_supabase, is_supabase_storage_configured
+                import io
+                
+                if is_supabase_storage_configured():
+                    logger.info(f"[QUOTE PDF] Trying to download client signature from Supabase Storage: {normalized_client_path}")
+                    file_content = download_from_supabase(normalized_client_path)
+                    if file_content:
+                        client_sig_bytes = io.BytesIO(file_content)
+                        client_signature_img = Image(client_sig_bytes, width=70*mm, height=25*mm, kind='proportional')
+                        right_signature_elements.append(client_signature_img)
+                        client_sig_loaded = True
+                        logger.info(f"[QUOTE PDF] Client signature loaded from Supabase Storage: {normalized_client_path}")
+            except Exception as e:
+                logger.warning(f"Could not load client signature from Supabase Storage: {e}")
+        
+        if not client_sig_loaded:
+            logger.warning(f"[QUOTE PDF] Client signature file not found: {client_sig_path}")
                 right_signature_elements.append(Spacer(1, 3*mm))
             except Exception:
                 # Si erreur, utiliser l'espace vide
