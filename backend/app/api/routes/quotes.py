@@ -1206,7 +1206,16 @@ def get_quote_pdf(
         
         # Générer le PDF avec la signature du client si elle existe
         client_signature_path = quote.client_signature_path if hasattr(quote, 'client_signature_path') else None
-        generate_quote_pdf(quote, client, company, str(pdf_path), design_config=design_config, client_signature_path=client_signature_path)
+        try:
+            logger.info(f"[QUOTE PDF] Generating PDF for quote {quote_id}, client_signature_path: {client_signature_path}")
+            generate_quote_pdf(quote, client, company, str(pdf_path), design_config=design_config, client_signature_path=client_signature_path)
+            logger.info(f"[QUOTE PDF] PDF generated successfully at: {pdf_path}")
+        except Exception as pdf_error:
+            logger.error(f"[QUOTE PDF] Error generating PDF: {pdf_error}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Erreur lors de la génération du PDF: {str(pdf_error)}"
+            )
         
         # SÉCURITÉ : Pour un devis signé, servir uniquement le PDF archivé (non modifiable)
         if existing_signature and existing_signature.signed_pdf_path:
@@ -1252,25 +1261,55 @@ def get_quote_pdf(
                 )
         
         # Lire le PDF généré
-        with open(pdf_path, "rb") as f:
-            pdf_bytes = f.read()
-        
-        # Optionnel: supprimer le fichier temporaire après lecture
-        # os.remove(pdf_path)
-        
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'inline; filename="devis_{quote.number}.pdf"'
-            }
-        )
+        try:
+            if not pdf_path.exists():
+                logger.error(f"[QUOTE PDF] Generated PDF file does not exist: {pdf_path}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Le fichier PDF généré est introuvable: {pdf_path}"
+                )
+            
+            logger.info(f"[QUOTE PDF] Reading PDF file: {pdf_path} (size: {pdf_path.stat().st_size} bytes)")
+            with open(pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+            
+            if not pdf_bytes:
+                logger.error(f"[QUOTE PDF] PDF file is empty: {pdf_path}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Le fichier PDF généré est vide"
+                )
+            
+            logger.info(f"[QUOTE PDF] PDF read successfully, {len(pdf_bytes)} bytes")
+            
+            # Optionnel: supprimer le fichier temporaire après lecture
+            # os.remove(pdf_path)
+            
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'inline; filename="devis_{quote.number}.pdf"'
+                }
+            )
+        except HTTPException:
+            raise
+        except Exception as read_error:
+            logger.error(f"[QUOTE PDF] Error reading PDF file: {read_error}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Erreur lors de la lecture du PDF: {str(read_error)}"
+            )
     except ImportError as e:
+        logger.error(f"[QUOTE PDF] Import error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Service PDF non disponible: {str(e)}"
         )
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"[QUOTE PDF] Unexpected error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur lors de la génération du PDF: {str(e)}"

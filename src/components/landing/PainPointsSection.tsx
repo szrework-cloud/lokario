@@ -77,8 +77,8 @@ export const LandingPainPointsSection = () => {
               <div className="relative">
                 {/* Central brain icon */}
                 <div
-                  className={`relative z-10 w-24 h-24 rounded-full bg-[#1E293B] border border-white/10 flex items-center justify-center transition-all duration-700 delay-200 ${
-                    isVisible ? "opacity-100 scale-100" : "opacity-0 scale-50"
+                  className={`relative z-10 w-24 h-24 rounded-full bg-[#1E293B] border border-white/10 flex items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] delay-200 ${
+                    isVisible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-50 translate-y-20"
                   }`}
                 >
                   <Brain className="w-12 h-12 text-[#F97316]" />
@@ -94,8 +94,8 @@ export const LandingPainPointsSection = () => {
                   return (
                     <div
                       key={index}
-                      className={`absolute w-12 h-12 rounded-full bg-[#1E293B]/80 border border-white/5 flex items-center justify-center transition-all duration-700 ${
-                        isVisible ? "opacity-100 scale-100" : "opacity-0 scale-50"
+                      className={`absolute w-12 h-12 rounded-full bg-[#1E293B]/80 border border-white/5 flex items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                        isVisible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-50 translate-y-20"
                       }`}
                       style={{
                         left: `calc(50% + ${x}px - 24px)`,
@@ -132,8 +132,8 @@ export const LandingPainPointsSection = () => {
             {/* Mobile: simplified brain icon */}
             <div className="flex md:hidden justify-center mb-8">
               <div
-                className={`w-16 h-16 rounded-full bg-[#1E293B] border border-white/10 flex items-center justify-center transition-all duration-700 delay-200 ${
-                  isVisible ? "opacity-100 scale-100" : "opacity-0 scale-50"
+                className={`w-16 h-16 rounded-full bg-[#1E293B] border border-white/10 flex items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] delay-200 ${
+                  isVisible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-50 translate-y-20"
                 }`}
               >
                 <Brain className="w-8 h-8 text-[#F97316]" />
