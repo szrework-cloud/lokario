@@ -1248,16 +1248,16 @@ def get_quote_pdf(
             
             logger.info(f"[QUOTE PDF] PDF read successfully, {len(pdf_bytes)} bytes")
             
-        # Optionnel: supprimer le fichier temporaire après lecture
-        # os.remove(pdf_path)
-        
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'inline; filename="devis_{quote.number}.pdf"'
-            }
-        )
+            # Optionnel: supprimer le fichier temporaire après lecture
+            # os.remove(pdf_path)
+            
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'inline; filename="devis_{quote.number}.pdf"'
+                }
+            )
         except HTTPException:
             raise
         except Exception as read_error:
