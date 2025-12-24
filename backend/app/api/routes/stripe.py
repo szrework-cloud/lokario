@@ -605,10 +605,15 @@ async def stripe_webhook(
         
     except Exception as e:
         event_id = event.get("id", "unknown")
+        import traceback
+        error_traceback = traceback.format_exc()
         logger.error(f"Erreur lors du traitement de l'événement {event_id}: {e}")
+        logger.error(f"Traceback complet:\n{error_traceback}")
         event_record.error_message = str(e)
         db.commit()
-        raise HTTPException(status_code=500, detail="Erreur lors du traitement")
+        # Retourner l'erreur avec plus de détails (mais ne pas exposer le traceback complet en production)
+        error_detail = str(e) if settings.ENVIRONMENT.lower() in ["development", "dev", "staging"] else "Erreur lors du traitement"
+        raise HTTPException(status_code=500, detail=error_detail)
     
     return {"status": "success"}
 
@@ -625,18 +630,29 @@ async def handle_checkout_session_completed(event, db: Session):
     else:
         checkout_session_data = event
     
+    # Vérifier si c'est un webhook de test (livemode = False)
+    livemode = checkout_session_data.get("livemode", True)
+    logger.info(f"Mode webhook: {'live' if livemode else 'test'}")
+    
     # Récupérer l'ID de la subscription depuis la session de checkout
     subscription_id = checkout_session_data.get("subscription")
     if not subscription_id:
         logger.warning("Aucun subscription_id dans checkout.session.completed")
+        logger.warning(f"Données de la session: {checkout_session_data}")
+        # Pour les tests webhooks, c'est OK de ne pas avoir de subscription_id
+        logger.info("Webhook de test sans subscription_id - ignoré")
         return
     
     # Récupérer les métadonnées
-    metadata = checkout_session_data.get("metadata", {})
+    metadata = checkout_session_data.get("metadata", {}) or {}
     company_id = metadata.get("company_id")
     
     if not company_id:
         logger.warning("Aucun company_id dans les métadonnées du checkout")
+        logger.warning(f"Métadonnées disponibles: {metadata}")
+        logger.warning(f"Données de la session (clés): {list(checkout_session_data.keys())}")
+        # Pour les tests webhooks, c'est OK de ne pas avoir de company_id
+        logger.info("Webhook de test sans company_id - ignoré (normal pour un test)")
         return
     
     company_id = int(company_id)
@@ -655,8 +671,8 @@ async def handle_checkout_session_completed(event, db: Session):
     ).first()
     
     if not subscription:
-        logger.warning(f"Aucun abonnement trouvé en base pour company_id: {company_id}")
-        return
+        logger.error(f"Aucun abonnement trouvé en base pour company_id: {company_id}")
+        raise ValueError(f"Aucun abonnement trouvé en base pour company_id: {company_id}")
     
     # Mettre à jour l'abonnement avec les infos Stripe
     subscription.stripe_subscription_id = stripe_subscription.id
