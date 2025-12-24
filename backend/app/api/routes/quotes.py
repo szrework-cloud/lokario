@@ -1223,63 +1223,8 @@ def get_quote_pdf(
         # NOTE : Pour un devis signé, on sert toujours le PDF régénéré pour garantir que le logo et les images sont à jour
         # Le hash de signature est vérifié séparément si nécessaire
         # Ancien code (commenté) : servait le PDF archivé, mais cela causait des problèmes avec le logo après les corrections
-        # if existing_signature and existing_signature.signed_pdf_path:
-            # Servir le PDF archivé original au lieu de régénérer
-            archived_pdf_path = Path(settings.UPLOAD_DIR) / existing_signature.signed_pdf_path
-            if archived_pdf_path.exists():
-                # Vérifier que la signature du client existe dans Supabase ou localement
-                # Si elle n'existe pas, régénérer le PDF avec la signature actuelle
-                signature_exists = False
-                if quote.client_signature_path:
-                    normalized_sig_path = quote.client_signature_path
-                    if normalized_sig_path.startswith("uploads/"):
-                        normalized_sig_path = normalized_sig_path[8:]
-                    elif normalized_sig_path.startswith("./uploads/"):
-                        normalized_sig_path = normalized_sig_path[11:]
-                    
-                    # Vérifier localement
-                    local_sig_path = Path(settings.UPLOAD_DIR) / normalized_sig_path
-                    if local_sig_path.exists():
-                        signature_exists = True
-                    else:
-                        # Vérifier dans Supabase
-                        try:
-                            from app.core.supabase_storage_service import download_file as download_from_supabase, is_supabase_storage_configured
-                            if is_supabase_storage_configured():
-                                file_content = download_from_supabase(normalized_sig_path)
-                                if file_content:
-                                    signature_exists = True
-                        except:
-                            pass
-                
-                # ANCIEN CODE (commenté) : Servait le PDF archivé, mais causait des problèmes avec le logo après corrections
-                # On sert maintenant toujours le PDF régénéré pour garantir que le logo et les images sont corrects
-                # if signature_exists:
-                #     with open(archived_pdf_path, "rb") as f:
-                #         pdf_bytes = f.read()
-                #     
-                #     # Vérifier l'intégrité du PDF archivé
-                #     current_hash = hashlib.sha256(pdf_bytes).hexdigest()
-                #     if current_hash != existing_signature.signature_hash:
-                #         logger.error(
-                #             f"CRITICAL: PDF integrity mismatch for signed quote {quote_id}: "
-                #             f"expected={existing_signature.signature_hash}, got={current_hash}. "
-                #             f"The archived PDF may have been tampered with!"
-                #         )
-                #         raise HTTPException(
-                #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                #             detail="Erreur d'intégrité du PDF signé. Le document peut avoir été modifié."
-                #         )
-                #     
-                #     return Response(
-                #         content=pdf_bytes,
-                #         media_type="application/pdf",
-                #         headers={
-                #             "Content-Disposition": f'inline; filename="devis_{quote.number}_signed.pdf"'
-                #         }
-                #     )
-                # Continuer pour servir le PDF régénéré ci-dessous (qui inclut toujours le logo et les images corrects)
-                pass
+        # Le PDF archivé était créé avec l'ancien code et n'avait pas le logo visible.
+        # En servant toujours le PDF régénéré, on garantit que le logo et les images sont toujours corrects.
         
         # Lire le PDF généré
         try:
