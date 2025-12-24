@@ -91,16 +91,40 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
                     file_content = download_from_supabase(normalized_path)
                     if file_content:
                         logger.info(f"[LOGO] Downloaded {len(file_content)} bytes from Supabase")
-                        # Utiliser BytesIO pour créer une image depuis les bytes
-                        logo_bytes = io.BytesIO(file_content)
-                        logo_bytes.seek(0)  # S'assurer que le pointeur est au début
+                        # Sauvegarder temporairement le fichier pour ReportLab
+                        # ReportLab a parfois des problèmes avec BytesIO, donc on sauvegarde temporairement
+                        import tempfile
+                        temp_logo_path = None
                         try:
-                            logo_image = Image(logo_bytes, width=35*mm, height=35*mm, kind='proportional')
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+                                temp_file.write(file_content)
+                                temp_logo_path = temp_file.name
+                            
+                            logger.info(f"[LOGO] Saved temporary logo file: {temp_logo_path}")
+                            logo_image = Image(temp_logo_path, width=35*mm, height=35*mm, kind='proportional')
                             logo_loaded = True
                             logger.info(f"[LOGO] Image object created successfully from Supabase Storage: {normalized_path}")
+                            
+                            # Nettoyer le fichier temporaire après utilisation (mais on le garde jusqu'à la fin du dessin)
+                            import atexit
+                            import os
+                            def cleanup_temp_logo():
+                                if temp_logo_path and os.path.exists(temp_logo_path):
+                                    try:
+                                        os.unlink(temp_logo_path)
+                                    except:
+                                        pass
+                            atexit.register(cleanup_temp_logo)
                         except Exception as img_error:
                             logger.error(f"[LOGO] Error creating image from Supabase bytes: {img_error}", exc_info=True)
                             logo_loaded = False
+                            # Nettoyer le fichier temporaire en cas d'erreur
+                            if temp_logo_path:
+                                try:
+                                    import os
+                                    os.unlink(temp_logo_path)
+                                except:
+                                    pass
                     else:
                         logger.warning(f"[LOGO] No file content received from Supabase Storage for: {normalized_path}")
             except Exception as e:
