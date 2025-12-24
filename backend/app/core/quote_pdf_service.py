@@ -110,14 +110,22 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
                     logger.info(f"[LOGO] Trying to download from Supabase Storage: {normalized_path}")
                     file_content = download_from_supabase(normalized_path)
                     if file_content:
+                        logger.info(f"[LOGO] Downloaded {len(file_content)} bytes from Supabase")
                         # Utiliser BytesIO pour créer une image depuis les bytes
                         logo_bytes = io.BytesIO(file_content)
-                        logo = Image(logo_bytes, width=35*mm, height=35*mm, kind='proportional')
-                        logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
-                        logo_loaded = True
-                        logger.info(f"[LOGO] Logo loaded successfully from Supabase Storage: {normalized_path}")
+                        try:
+                            logo = Image(logo_bytes, width=35*mm, height=35*mm, kind='proportional')
+                            logger.info(f"[LOGO] Image object created successfully, drawing at position ({A4[0] - 50*mm}, {A4[1] - 40*mm})")
+                            logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
+                            logo_loaded = True
+                            logger.info(f"[LOGO] Logo drawn successfully on canvas from Supabase Storage: {normalized_path}")
+                        except Exception as img_error:
+                            logger.error(f"[LOGO] Error creating or drawing image from Supabase bytes: {img_error}", exc_info=True)
+                            logo_loaded = False
+                    else:
+                        logger.warning(f"[LOGO] No file content received from Supabase Storage for: {normalized_path}")
             except Exception as e:
-                logger.warning(f"Could not load logo from Supabase Storage: {e}")
+                logger.error(f"Could not load logo from Supabase Storage: {e}", exc_info=True)
         
         # Dernier recours : essayer le chemin alternatif
         if not logo_loaded and normalized_path and not Path(normalized_path).is_absolute():
