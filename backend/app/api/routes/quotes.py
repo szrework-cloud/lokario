@@ -1024,15 +1024,40 @@ def update_quote(
         quote.total_ttc = Decimal("0")
         quote.amount = Decimal("0")
     
-    db.commit()
-    db.refresh(quote)
+    # Utiliser retry pour gérer les erreurs de connexion SSL lors du commit
+    from app.db.retry import retry_db_operation
+    
+    @retry_db_operation(max_retries=3, initial_delay=0.5, max_delay=2.0)
+    def _commit_and_refresh(session: Session, quote_obj: Quote):
+        session.commit()
+        session.refresh(quote_obj)
+        return quote_obj
+    
+    try:
+        quote = _commit_and_refresh(db, quote)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur lors du commit de la mise à jour du devis {quote_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la sauvegarde du devis. Veuillez réessayer."
+        )
     
     # Recharger les lignes pour s'assurer qu'elles sont incluses dans la réponse
     from sqlalchemy.orm import joinedload
     from app.db.models.billing import QuoteLine
-    quote = db.query(Quote).options(joinedload(Quote.lines)).filter(Quote.id == quote.id).first()
-    if quote and quote.lines:
-        quote.lines = sorted(quote.lines, key=lambda x: x.order)
+    
+    @retry_db_operation(max_retries=3, initial_delay=0.5, max_delay=2.0)
+    def _reload_quote_with_lines(session: Session, quote_id: int):
+        return session.query(Quote).options(joinedload(Quote.lines)).filter(Quote.id == quote_id).first()
+    
+    try:
+        quote = _reload_quote_with_lines(db, quote.id)
+        if quote and quote.lines:
+            quote.lines = sorted(quote.lines, key=lambda x: x.order)
+    except Exception as e:
+        logger.warning(f"Erreur lors du rechargement des lignes du devis {quote_id}: {e}. Utilisation des données en mémoire.", exc_info=True)
+        # Continuer avec les données en mémoire si le rechargement échoue
     
     # Si le statut est passé à "envoyé", envoyer l'email
     if should_send_email:
