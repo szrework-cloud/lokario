@@ -68,14 +68,10 @@ export function PricingCard({
                 <p className="text-sm text-[#64748B]">
                   Soit <span className="font-semibold text-[#0F172A]">{plan.yearly_price.toFixed(2).replace('.', ',')}€</span> par an
                 </p>
-                {plan.name === "Essentiel" && (
+                {/* Calcul des économies basé sur le prix mensuel équivalent */}
+                {plan.interval === "year" && plan.monthly_equivalent && plan.price && (
                   <p className="text-xs text-[#F97316] mt-1 font-medium">
-                    Économisez {((19.99 - plan.price) * 12).toFixed(2).replace('.', ',')}€/an
-                  </p>
-                )}
-                {plan.name === "Pro" && (
-                  <p className="text-xs text-[#F97316] mt-1 font-medium">
-                    Économisez {((59.99 - plan.price) * 12).toFixed(2).replace('.', ',')}€/an
+                    Économisez {((plan.monthly_equivalent - plan.price) * 12).toFixed(2).replace('.', ',')}€/an
                   </p>
                 )}
               </div>

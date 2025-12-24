@@ -63,23 +63,27 @@ async def get_plans(
     plans = []
     
     # Fonction helper pour récupérer le prix depuis Stripe
-    def get_price_from_stripe(price_id: str) -> Optional[float]:
+    def get_price_from_stripe(price_id: str, plan_name: str = "") -> Optional[float]:
         """Récupère le prix depuis Stripe pour vérifier qu'il correspond"""
         if not settings.STRIPE_SECRET_KEY:
             return None
         try:
             price_obj = stripe.Price.retrieve(price_id)
             # Stripe stocke les prix en centimes
-            return price_obj.unit_amount / 100 if price_obj.unit_amount else None
+            price = price_obj.unit_amount / 100 if price_obj.unit_amount else None
+            logger.info(f"[PLANS] Prix récupéré depuis Stripe pour {plan_name} (price_id={price_id}): {price}€")
+            return price
         except Exception as e:
             logger.error(f"Erreur lors de la récupération du prix Stripe {price_id}: {e}")
             return None
     
     # Plan Essentiel - Mensuel
     if settings.STRIPE_PRICE_STARTER_MONTHLY:
-        stripe_price = get_price_from_stripe(settings.STRIPE_PRICE_STARTER_MONTHLY)
+        logger.info(f"[PLANS] Configuration Essentiel mensuel - Price ID: {settings.STRIPE_PRICE_STARTER_MONTHLY}")
+        stripe_price = get_price_from_stripe(settings.STRIPE_PRICE_STARTER_MONTHLY, "Essentiel mensuel")
         # Utiliser le prix depuis Stripe si disponible, sinon le prix par défaut
         price = stripe_price if stripe_price is not None else 19.99
+        logger.info(f"[PLANS] Prix final Essentiel mensuel: {price}€")
         
         plans.append({
             "id": "starter_monthly",
@@ -126,9 +130,11 @@ async def get_plans(
     
     # Plan Pro - Mensuel
     if settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY:
-        stripe_price = get_price_from_stripe(settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY)
+        logger.info(f"[PLANS] Configuration Pro mensuel - Price ID: {settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY}")
+        stripe_price = get_price_from_stripe(settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY, "Pro mensuel")
         # Utiliser le prix depuis Stripe si disponible, sinon le prix par défaut
         price = stripe_price if stripe_price is not None else 59.99
+        logger.info(f"[PLANS] Prix final Pro mensuel: {price}€")
         
         plans.append({
             "id": "professional_monthly",
@@ -180,6 +186,11 @@ async def get_plans(
             "yearly_price": yearly_price,  # Prix total annuel
             "monthly_equivalent": monthly_equivalent,  # Prix mensuel équivalent
         })
+    
+    # Logger tous les plans retournés pour debug
+    logger.info(f"[PLANS] {len(plans)} plans retournés:")
+    for plan in plans:
+        logger.info(f"[PLANS]   - {plan['name']} ({plan['id']}): {plan['price']}€/{plan['interval']} - Price ID: {plan['stripe_price_id']}")
     
     return {"plans": plans}
 
