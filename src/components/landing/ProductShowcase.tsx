@@ -93,7 +93,7 @@ export const LandingProductShowcase = () => {
       
       <div className="container mx-auto px-4 lg:px-8 relative z-10">
         <div 
-          className={`text-center mb-16 lg:mb-24 transition-all duration-1200 ${
+          className={`text-center mb-16 lg:mb-24 transition-all duration-1500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
             isVisible ? 'opacity-100 translate-y-0 translate-x-0' : 'opacity-0 translate-y-32 -translate-x-32'
           }`}
         >
@@ -218,14 +218,14 @@ export const LandingProductShowcase = () => {
               return (
                 <div 
                   key={index}
-                  className={`flex gap-4 transition-all duration-700 ${
+                  className={`flex gap-4 transition-all duration-1000 ${
                     visibleFeatures.includes(index) 
                       ? 'opacity-100 translate-x-0' 
                       : `opacity-0 ${isEven ? 'translate-x-32' : '-translate-x-32'}`
                   }`}
                   style={{ 
                     transitionDelay: `${200 * (index + 1)}ms`,
-                    transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)'
+                    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)'
                   }}
                 >
                   <div className="flex-shrink-0 mt-1">

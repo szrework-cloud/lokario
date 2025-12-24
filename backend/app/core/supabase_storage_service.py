@@ -159,12 +159,20 @@ def download_file(file_path: str) -> Optional[bytes]:
     client = get_supabase_client()
     
     if not client:
+        logger.debug(f"Supabase client not available, cannot download: {file_path}")
         return None
     
     try:
         response = client.storage.from_(settings.SUPABASE_STORAGE_BUCKET).download(file_path)
         return response if response else None
-    except Exception:
+    except Exception as e:
+        # L'erreur 400 peut signifier que le fichier n'existe pas ou que le chemin est incorrect
+        # C'est normal pour certains fichiers qui n'ont pas encore été uploadés dans Supabase
+        error_msg = str(e)
+        if "400" in error_msg or "404" in error_msg or "not found" in error_msg.lower():
+            logger.debug(f"File not found in Supabase Storage (this is normal if file wasn't uploaded yet): {file_path}")
+        else:
+            logger.warning(f"Error downloading file from Supabase Storage: {file_path}, error: {e}")
         return None
 
 
