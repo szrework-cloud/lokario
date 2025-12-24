@@ -48,22 +48,34 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     # Logo si disponible (en haut à droite)
     logo_loaded = False
     if logo_path:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[LOGO] Original logo_path from config: {logo_path}")
+        
         # Normaliser le chemin : enlever le préfixe "uploads" s'il existe déjà
         normalized_path = logo_path
         if normalized_path.startswith("uploads/"):
             normalized_path = normalized_path[8:]  # Enlever "uploads/"
+            logger.info(f"[LOGO] Removed 'uploads/' prefix, normalized: {normalized_path}")
         elif normalized_path.startswith("./uploads/"):
             normalized_path = normalized_path[11:]  # Enlever "./uploads/"
+            logger.info(f"[LOGO] Removed './uploads/' prefix, normalized: {normalized_path}")
         
         # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
-        if not Path(normalized_path).is_absolute():
-            from app.core.config import settings
-            upload_dir = Path(settings.UPLOAD_DIR)
-            logo_path = str(upload_dir / normalized_path)
-        else:
-            logo_path = normalized_path
+        from app.core.config import settings
+        upload_dir = Path(settings.UPLOAD_DIR).resolve()  # Utiliser resolve() pour obtenir le chemin absolu
         
-        if Path(logo_path).exists():
+        if not Path(normalized_path).is_absolute():
+            logo_path_absolute = upload_dir / normalized_path
+            logo_path = str(logo_path_absolute.resolve())  # Resolve pour normaliser le chemin
+            logger.info(f"[LOGO] UPLOAD_DIR: {upload_dir}, normalized_path: {normalized_path}, final path: {logo_path}")
+        else:
+            logo_path = str(Path(normalized_path).resolve())
+            logger.info(f"[LOGO] Path already absolute, resolved: {logo_path}")
+        
+        logo_path_obj = Path(logo_path)
+        logger.info(f"[LOGO] Checking if file exists: {logo_path_obj} (exists: {logo_path_obj.exists()})")
+        if logo_path_obj.exists():
             try:
                 # Utiliser directement le fichier image sans conversion
                 # ReportLab peut gérer les PNG avec transparence directement
@@ -72,15 +84,25 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
                 # Positionner le logo en haut à droite
                 logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
                 logo_loaded = True
+                logger.info(f"[LOGO] Logo loaded successfully from: {logo_path}")
             except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.warning(f"Could not load logo: {e}")
                 logo_loaded = False
         else:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(f"Logo file not found: {logo_path}")
+            # Essayer de trouver le fichier avec le chemin normalisé directement
+            if normalized_path and not Path(normalized_path).is_absolute():
+                alt_path = upload_dir / normalized_path
+                alt_path_resolved = alt_path.resolve()
+                logger.info(f"[LOGO] Trying alternative path: {alt_path_resolved} (exists: {alt_path_resolved.exists()})")
+                if alt_path_resolved.exists():
+                    try:
+                        logo = Image(str(alt_path_resolved), width=35*mm, height=35*mm, kind='proportional')
+                        logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
+                        logo_loaded = True
+                        logger.info(f"[LOGO] Logo loaded from alternative path: {alt_path_resolved}")
+                    except Exception as e:
+                        logger.warning(f"Could not load logo from alternative path: {e}")
     
     # Nom de l'entreprise en haut à droite (uniquement si pas de logo)
     if company_name and not logo_loaded:
@@ -182,6 +204,10 @@ def generate_quote_pdf(
     
     # Normaliser le chemin du logo : enlever le préfixe "uploads" s'il existe déjà
     if logo_path:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[QUOTE PDF] Original logo_path: {logo_path}")
+        
         normalized_path = logo_path
         if normalized_path.startswith("uploads/"):
             normalized_path = normalized_path[8:]  # Enlever "uploads/"
@@ -189,11 +215,13 @@ def generate_quote_pdf(
             normalized_path = normalized_path[11:]  # Enlever "./uploads/"
         
         # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
+        upload_dir = Path(settings.UPLOAD_DIR).resolve()
         if not Path(normalized_path).is_absolute():
-            upload_dir = Path(settings.UPLOAD_DIR)
-            logo_path = str(upload_dir / normalized_path)
+            logo_path = str((upload_dir / normalized_path).resolve())
         else:
-            logo_path = normalized_path
+            logo_path = str(Path(normalized_path).resolve())
+        
+        logger.info(f"[QUOTE PDF] Normalized logo_path: {logo_path}")
     
     # Créer le document PDF avec SimpleDocTemplate
     doc = SimpleDocTemplate(
@@ -664,6 +692,10 @@ def generate_quote_pdf(
     # Préparer le chemin de la signature si disponible
     signature_image_path = None
     if signature_path:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[QUOTE PDF] Original signature_path: {signature_path}")
+        
         # Normaliser le chemin : enlever le préfixe "uploads" s'il existe déjà
         normalized_path = signature_path
         if normalized_path.startswith("uploads/"):
@@ -671,11 +703,13 @@ def generate_quote_pdf(
         elif normalized_path.startswith("./uploads/"):
             normalized_path = normalized_path[11:]  # Enlever "./uploads/"
         
+        upload_dir = Path(settings.UPLOAD_DIR).resolve()
         if not Path(normalized_path).is_absolute():
-            upload_dir = Path(settings.UPLOAD_DIR)
-            signature_image_path = str(upload_dir / normalized_path)
+            signature_image_path = str((upload_dir / normalized_path).resolve())
         else:
-            signature_image_path = normalized_path
+            signature_image_path = str(Path(normalized_path).resolve())
+        
+        logger.info(f"[QUOTE PDF] Normalized signature_path: {signature_image_path}")
     
     # Colonne gauche : Signature entreprise
     left_signature_elements = []
@@ -715,6 +749,10 @@ def generate_quote_pdf(
     
     # Utiliser la signature du client si fournie, sinon espace vide
     if client_signature_path:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[QUOTE PDF] Original client_signature_path: {client_signature_path}")
+        
         # Normaliser le chemin : enlever le préfixe "uploads" s'il existe déjà
         normalized_client_path = client_signature_path
         if normalized_client_path.startswith("uploads/"):
@@ -723,11 +761,13 @@ def generate_quote_pdf(
             normalized_client_path = normalized_client_path[11:]  # Enlever "./uploads/"
         
         # Chemin absolu pour la signature du client
+        upload_dir = Path(settings.UPLOAD_DIR).resolve()
         if not Path(normalized_client_path).is_absolute():
-            upload_dir = Path(settings.UPLOAD_DIR)
-            client_sig_path = str(upload_dir / normalized_client_path)
+            client_sig_path = str((upload_dir / normalized_client_path).resolve())
         else:
-            client_sig_path = normalized_client_path
+            client_sig_path = str(Path(normalized_client_path).resolve())
+        
+        logger.info(f"[QUOTE PDF] Normalized client_signature_path: {client_sig_path}")
         
         if Path(client_sig_path).exists():
             try:

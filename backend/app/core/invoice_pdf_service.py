@@ -87,6 +87,10 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
     
     # Normaliser le chemin du logo : enlever le préfixe "uploads" s'il existe déjà
     if logo_path:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[INVOICE PDF] Original logo_path: {logo_path}")
+        
         normalized_path = logo_path
         if normalized_path.startswith("uploads/"):
             normalized_path = normalized_path[8:]  # Enlever "uploads/"
@@ -94,11 +98,13 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
             normalized_path = normalized_path[11:]  # Enlever "./uploads/"
         
         # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
+        upload_dir = Path(settings.UPLOAD_DIR).resolve()
         if not Path(normalized_path).is_absolute():
-            upload_dir = Path(settings.UPLOAD_DIR)
-            logo_path = str(upload_dir / normalized_path)
+            logo_path = str((upload_dir / normalized_path).resolve())
         else:
-            logo_path = normalized_path
+            logo_path = str(Path(normalized_path).resolve())
+        
+        logger.info(f"[INVOICE PDF] Normalized logo_path: {logo_path}")
     
     logo_loaded = False
     if logo_path and Path(logo_path).exists():
@@ -516,6 +522,10 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
     
     # Normaliser le chemin de la signature : enlever le préfixe "uploads" s'il existe déjà
     if signature_path:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[INVOICE PDF] Original signature_path: {signature_path}")
+        
         normalized_path = signature_path
         if normalized_path.startswith("uploads/"):
             normalized_path = normalized_path[8:]  # Enlever "uploads/"
@@ -523,11 +533,13 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
             normalized_path = normalized_path[11:]  # Enlever "./uploads/"
         
         # Si signature_path est relatif, le rendre absolu depuis UPLOAD_DIR
+        upload_dir = Path(settings.UPLOAD_DIR).resolve()
         if not Path(normalized_path).is_absolute():
-            upload_dir = Path(settings.UPLOAD_DIR)
-            signature_path = str(upload_dir / normalized_path)
+            signature_path = str((upload_dir / normalized_path).resolve())
         else:
-            signature_path = normalized_path
+            signature_path = str(Path(normalized_path).resolve())
+        
+        logger.info(f"[INVOICE PDF] Normalized signature_path: {signature_path}")
     
     if signature_path and Path(signature_path).exists():
         try:
