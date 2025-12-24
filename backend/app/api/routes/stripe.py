@@ -693,13 +693,16 @@ async def handle_checkout_session_completed(event, db: Session):
     # Mettre à jour l'abonnement avec les infos Stripe
     subscription.stripe_subscription_id = stripe_subscription.id
     subscription.status = SubscriptionStatus(stripe_subscription.status)
-    subscription.current_period_start = datetime.fromtimestamp(stripe_subscription.current_period_start)
-    subscription.current_period_end = datetime.fromtimestamp(stripe_subscription.current_period_end)
+    # Convertir les timestamps (les objets Stripe ont des attributs, pas des dict)
+    if hasattr(stripe_subscription, 'current_period_start') and stripe_subscription.current_period_start:
+        subscription.current_period_start = datetime.fromtimestamp(stripe_subscription.current_period_start, tz=timezone.utc)
+    if hasattr(stripe_subscription, 'current_period_end') and stripe_subscription.current_period_end:
+        subscription.current_period_end = datetime.fromtimestamp(stripe_subscription.current_period_end, tz=timezone.utc)
     
-    if stripe_subscription.get("trial_start"):
-        subscription.trial_start = datetime.fromtimestamp(stripe_subscription["trial_start"])
-    if stripe_subscription.get("trial_end"):
-        subscription.trial_end = datetime.fromtimestamp(stripe_subscription["trial_end"])
+    if hasattr(stripe_subscription, 'trial_start') and stripe_subscription.trial_start:
+        subscription.trial_start = datetime.fromtimestamp(stripe_subscription.trial_start, tz=timezone.utc)
+    if hasattr(stripe_subscription, 'trial_end') and stripe_subscription.trial_end:
+        subscription.trial_end = datetime.fromtimestamp(stripe_subscription.trial_end, tz=timezone.utc)
     
     # Mettre à jour le customer_id si nécessaire
     if stripe_subscription.customer:
@@ -827,10 +830,18 @@ async def handle_subscription_updated(event, db: Session):
     
     if subscription:
         subscription.status = SubscriptionStatus(subscription_data["status"])
-        subscription.current_period_start = datetime.fromtimestamp(subscription_data["current_period_start"])
-        subscription.current_period_end = datetime.fromtimestamp(subscription_data["current_period_end"])
+        # Convertir les timestamps en datetime avec vérification
+        if subscription_data.get("current_period_start"):
+            if isinstance(subscription_data["current_period_start"], (int, float)):
+                subscription.current_period_start = datetime.fromtimestamp(subscription_data["current_period_start"], tz=timezone.utc)
+        
+        if subscription_data.get("current_period_end"):
+            if isinstance(subscription_data["current_period_end"], (int, float)):
+                subscription.current_period_end = datetime.fromtimestamp(subscription_data["current_period_end"], tz=timezone.utc)
+        
         if subscription_data.get("canceled_at"):
-            subscription.canceled_at = datetime.fromtimestamp(subscription_data["canceled_at"])
+            if isinstance(subscription_data["canceled_at"], (int, float)):
+                subscription.canceled_at = datetime.fromtimestamp(subscription_data["canceled_at"], tz=timezone.utc)
         db.commit()
 
 
