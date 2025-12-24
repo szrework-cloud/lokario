@@ -140,13 +140,16 @@ class BillingLineTemplate(Base):
 
 class Invoice(Base):
     __tablename__ = "invoices"
+    __table_args__ = (
+        UniqueConstraint('company_id', 'number', name='uq_invoices_company_number'),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
     quote_id = Column(Integer, ForeignKey("quotes.id"), nullable=True, index=True)
-    number = Column(String, nullable=False, unique=True, index=True)  # "FAC-2025-014"
+    number = Column(String, nullable=False, index=True)  # "FAC-2025-014" - Unicité avec company_id via UniqueConstraint
     
     # Type et avoirs
     invoice_type = Column(Enum(InvoiceType), nullable=False, default=InvoiceType.FACTURE, index=True)
