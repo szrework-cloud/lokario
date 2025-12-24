@@ -14,7 +14,7 @@ from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision: str = 'aeb521bd56a7'
-down_revision: Union[str, None] = 'fix_quotes_number_unique'
+down_revision: Union[str, None] = '8d8d12c59a28'  # Dépend de la merge qui inclut fix_quotes_number_unique
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
