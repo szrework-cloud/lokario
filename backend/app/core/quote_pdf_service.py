@@ -87,12 +87,15 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     # Dessiner le logo maintenant (après la bande et le texte, pour être au-dessus)
     if logo_loaded and logo_image:
         try:
-            # Position du logo : en haut à droite, mais plus bas pour éviter la bande diagonale
-            # La bande diagonale va jusqu'à environ 30mm depuis le haut
-            # Le logo doit être en dessous de la bande mais toujours en haut à droite
-            # Ajuster la position pour qu'il soit visible (la marge supérieure est de 90mm)
-            logo_x = A4[0] - 50*mm  # 50mm depuis le bord droit (environ 145mm depuis la gauche)
-            logo_y = A4[1] - 45*mm  # 45mm depuis le haut pour être visible et en dessous de la bande diagonale
+            # Position du logo : en haut à droite, dans la zone visible (pas dans la marge)
+            # IMPORTANT: En ReportLab canvas, les coordonnées sont depuis le BAS (y=0 en bas)
+            # La marge supérieure est de 90mm, donc la zone visible commence à y = A4[1] - 90mm depuis le bas
+            # Le logo doit être dans la zone visible, en haut à droite
+            # Position X : aligné à droite avec une marge de 20mm (marge droite du document)
+            logo_x = A4[0] - 20*mm - 35*mm  # 20mm marge droite + 35mm largeur logo
+            # Position Y : dans la zone visible, juste sous la marge supérieure (90mm depuis le haut = A4[1] - 90mm depuis le bas)
+            # On place le logo à 95mm depuis le haut pour avoir 5mm d'espacement sous la marge
+            logo_y = A4[1] - 95*mm  # 95mm depuis le haut = zone visible + espacement
             logger.info(f"[LOGO] Drawing logo at position ({logo_x}, {logo_y}), size: {35*mm}x{35*mm}")
             logger.info(f"[LOGO] A4 dimensions: width={A4[0]}, height={A4[1]}")
             logger.info(f"[LOGO] Logo will be drawn at: x={logo_x} (from left), y={logo_y} (from bottom)")
