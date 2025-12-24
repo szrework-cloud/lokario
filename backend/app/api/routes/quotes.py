@@ -448,6 +448,7 @@ def preview_quote_design(
         quote_id=0,
         description="Prestation de service exemple",
         quantity=Decimal("2"),
+        unit="heure",  # Ajout de l'unité pour le preview
         unit_price_ht=Decimal("50.00"),
         tax_rate=Decimal("20.00"),
         subtotal_ht=Decimal("100.00"),
