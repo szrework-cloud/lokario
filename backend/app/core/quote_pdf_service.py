@@ -171,8 +171,9 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
             # Position du logo : en haut à droite, mais plus bas pour éviter la bande diagonale
             # La bande diagonale va jusqu'à environ 30mm depuis le haut
             # Le logo doit être en dessous de la bande mais toujours en haut à droite
+            # Ajuster la position pour qu'il soit visible (la marge supérieure est de 90mm)
             logo_x = A4[0] - 50*mm  # 50mm depuis le bord droit (environ 145mm depuis la gauche)
-            logo_y = A4[1] - 60*mm  # 60mm depuis le haut pour être en dessous de la bande diagonale
+            logo_y = A4[1] - 45*mm  # 45mm depuis le haut pour être visible et en dessous de la bande diagonale
             logger.info(f"[LOGO] Drawing logo at position ({logo_x}, {logo_y}), size: {35*mm}x{35*mm}")
             logger.info(f"[LOGO] A4 dimensions: width={A4[0]}, height={A4[1]}")
             logger.info(f"[LOGO] Logo will be drawn at: x={logo_x} (from left), y={logo_y} (from bottom)")
