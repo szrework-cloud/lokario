@@ -2059,10 +2059,15 @@ async def send_quote_email(
         design_config = {}
         if company_settings_obj and company_settings_obj.settings:
             billing_design = company_settings_obj.settings.get("billing", {}).get("quote_design", {})
+            company_info = company_settings_obj.settings.get("company_info", {})
+            
+            # Toujours utiliser company_info.logo_path comme source unique de vérité
+            logo_path = company_info.get("logo_path")
+            
             design_config = {
                 "primary_color": billing_design.get("primary_color", "#F97316"),
                 "secondary_color": billing_design.get("secondary_color", "#F0F0F0"),
-                "logo_path": billing_design.get("logo_path"),
+                "logo_path": logo_path,
                 "signature_path": billing_design.get("signature_path"),
                 "footer_text": billing_design.get("footer_text"),
                 "terms_text": billing_design.get("terms_text")
