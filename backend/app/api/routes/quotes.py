@@ -2485,7 +2485,7 @@ async def upload_client_signature(
             except Exception:
                 pass
     
-    # Sauvegarder la nouvelle signature
+    # Sauvegarder la nouvelle signature localement
     try:
         with open(file_path, "wb") as f:
             f.write(image_data)
@@ -2495,8 +2495,30 @@ async def upload_client_signature(
             detail=f"Error saving signature: {str(e)}"
         )
     
-    # Mettre à jour le devis
+    # Uploader la signature dans Supabase Storage pour la persistance
     relative_path = f"{current_user.company_id}/signatures/{unique_filename}"
+    try:
+        from app.core.supabase_storage_service import upload_file as upload_to_supabase, is_supabase_storage_configured
+        
+        if is_supabase_storage_configured():
+            logger.info(f"[SIGNATURE] Uploading client signature to Supabase Storage: {relative_path}")
+            supabase_path = upload_to_supabase(
+                file_path=relative_path,
+                file_content=image_data,
+                content_type="image/png",
+                company_id=current_user.company_id
+            )
+            if supabase_path:
+                logger.info(f"[SIGNATURE] ✅ Client signature uploaded to Supabase Storage: {supabase_path}")
+            else:
+                logger.warning(f"[SIGNATURE] ⚠️ Failed to upload client signature to Supabase Storage, but local file saved")
+        else:
+            logger.info(f"[SIGNATURE] Supabase Storage not configured, signature saved locally only")
+    except Exception as e:
+        logger.warning(f"[SIGNATURE] ⚠️ Error uploading signature to Supabase Storage: {e}, but local file saved")
+        # Ne pas faire échouer la signature si l'upload Supabase échoue
+    
+    # Mettre à jour le devis
     quote.client_signature_path = relative_path
     
     # Générer le PDF APRÈS signature pour calculer le hash final

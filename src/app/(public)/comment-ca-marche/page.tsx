@@ -227,7 +227,7 @@ export default function CommentCaMarchePage() {
                   style={{ transitionDelay: `${0.2 + index * 0.1}s` }}
                 >
                   <div className="font-display text-5xl font-bold bg-gradient-to-r from-[#F97316] to-[#EA580C] bg-clip-text text-transparent mb-2">
-                    {benefit.value}<span className="text-3xl">{benefit.suffix}</span>
+                    Jusqu'à {benefit.value}<span className="text-3xl">{benefit.suffix}</span>
                   </div>
                   <div className="text-white font-medium mb-1">{benefit.title}</div>
                   <div className="text-white/60 text-sm">{benefit.description}</div>
