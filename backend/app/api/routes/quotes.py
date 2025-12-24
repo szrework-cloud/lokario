@@ -668,24 +668,24 @@ def create_quote(
                 # Générer le numéro de devis (passer le dernier numéro qui a échoué si disponible)
                 number = generate_quote_number(db, current_user.company_id, last_failed_number)
                 logger.info(f"[QUOTE CREATE] Tentative {retry_count + 1}: Génération du numéro {number}")
-        
-        # Créer le devis
-        quote = Quote(
-            company_id=current_user.company_id,
-            client_id=quote_data.client_id,
-            project_id=quote_data.project_id,
-            number=number,
-            status=quote_status,
-            notes=quote_data.notes,
-            conditions=quote_data.conditions,
-            discount_type=quote_data.discount_type,
-            discount_value=quote_data.discount_value,
-            discount_label=quote_data.discount_label,
-            amount=Decimal("0"),  # Sera recalculé
-        )
-        
-        db.add(quote)
-        db.flush()  # Pour obtenir l'ID
+                
+                # Créer le devis
+                quote = Quote(
+                    company_id=current_user.company_id,
+                    client_id=quote_data.client_id,
+                    project_id=quote_data.project_id,
+                    number=number,
+                    status=quote_status,
+                    notes=quote_data.notes,
+                    conditions=quote_data.conditions,
+                    discount_type=quote_data.discount_type,
+                    discount_value=quote_data.discount_value,
+                    discount_label=quote_data.discount_label,
+                    amount=Decimal("0"),  # Sera recalculé
+                )
+                
+                db.add(quote)
+                db.flush()  # Pour obtenir l'ID
                 
                 # Si on arrive ici, le flush a réussi, on peut sortir de la boucle
                 break
