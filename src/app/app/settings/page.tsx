@@ -3789,7 +3789,7 @@ function SubscriptionTab() {
                   <p className="text-sm font-medium text-[#64748B] mb-1">Plan</p>
                   <p className="text-lg font-semibold text-[#0F172A]">
                     {subscription.status === "trialing" && subscription.amount === 0 
-                      ? "Essai gratuit" 
+                      ? "Gratuit" 
                       : subscription.plan === "starter" 
                         ? "Essentiel" 
                         : subscription.plan === "professional" 

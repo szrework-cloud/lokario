@@ -18,7 +18,10 @@ export function SubscriptionStatusBadge() {
     
     // Déterminer le nom du plan
     let displayPlanName = "";
-    if (plan === "starter") {
+    // Si c'est un essai gratuit (trialing avec amount = 0), afficher "Gratuit"
+    if (subscription.status === "trialing" && subscription.amount === 0) {
+      displayPlanName = "Gratuit";
+    } else if (plan === "starter") {
       displayPlanName = "Essentiel";
     } else if (plan === "professional") {
       displayPlanName = "Pro";

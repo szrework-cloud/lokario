@@ -3,7 +3,7 @@ Service pour gérer les limites d'utilisation selon le plan d'abonnement
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.db.models.subscription import Subscription, SubscriptionPlan
+from app.db.models.subscription import Subscription, SubscriptionPlan, SubscriptionStatus
 from app.db.models.billing import Quote, Invoice
 from app.db.models.client import Client
 from app.db.models.followup import FollowUpHistory
@@ -95,6 +95,15 @@ def check_quotes_limit(db: Session, company_id: int) -> tuple[bool, Optional[str
     Returns:
         (is_allowed, error_message)
     """
+    # Vérifier si c'est un essai gratuit (pas encore payé)
+    subscription = db.query(Subscription).filter(
+        Subscription.company_id == company_id
+    ).first()
+    
+    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet sans limite
+    if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
+        return True, None
+    
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
     
@@ -125,6 +134,15 @@ def check_invoices_limit(db: Session, company_id: int) -> tuple[bool, Optional[s
     Returns:
         (is_allowed, error_message)
     """
+    # Vérifier si c'est un essai gratuit (pas encore payé)
+    subscription = db.query(Subscription).filter(
+        Subscription.company_id == company_id
+    ).first()
+    
+    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet sans limite
+    if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
+        return True, None
+    
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
     
@@ -155,6 +173,15 @@ def check_clients_limit(db: Session, company_id: int) -> tuple[bool, Optional[st
     Returns:
         (is_allowed, error_message)
     """
+    # Vérifier si c'est un essai gratuit (pas encore payé)
+    subscription = db.query(Subscription).filter(
+        Subscription.company_id == company_id
+    ).first()
+    
+    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet sans limite
+    if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
+        return True, None
+    
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
     
@@ -181,6 +208,15 @@ def check_followups_limit(db: Session, company_id: int) -> tuple[bool, Optional[
     Returns:
         (is_allowed, error_message)
     """
+    # Vérifier si c'est un essai gratuit (pas encore payé)
+    subscription = db.query(Subscription).filter(
+        Subscription.company_id == company_id
+    ).first()
+    
+    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet sans limite
+    if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
+        return True, None
+    
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
     
@@ -213,6 +249,15 @@ def is_feature_enabled(db: Session, company_id: int, feature_name: str) -> bool:
     Args:
         feature_name: Nom de la fonctionnalité (ex: "excel_export", "custom_branding")
     """
+    # Vérifier si c'est un essai gratuit (pas encore payé)
+    subscription = db.query(Subscription).filter(
+        Subscription.company_id == company_id
+    ).first()
+    
+    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet à toutes les fonctionnalités
+    if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
+        return True
+    
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
     
