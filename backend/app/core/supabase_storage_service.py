@@ -107,9 +107,18 @@ def upload_file(
         import io
         
         # Construire le chemin complet dans le bucket
-        # Format: company_id/filename (ex: "1/logo_xxx.png")
-        if company_id:
-            storage_path = f"{company_id}/{Path(file_path).name}"
+        # Si company_id est fourni ET que file_path ne commence pas déjà par company_id,
+        # alors on préfixe avec company_id. Sinon, on utilise file_path tel quel.
+        # Cela permet de préserver les sous-dossiers (ex: "2/signatures/file.png")
+        if company_id and not file_path.startswith(f"{company_id}/"):
+            # Si le chemin commence déjà par un nombre (potentiellement un company_id), l'enlever
+            parts = file_path.split("/", 1)
+            if len(parts) > 1 and parts[0].isdigit():
+                # Le chemin commence déjà par un company_id, utiliser tel quel
+                storage_path = file_path
+            else:
+                # Ajouter company_id au début
+                storage_path = f"{company_id}/{file_path}"
         else:
             storage_path = file_path
         
