@@ -768,13 +768,6 @@ export default function EditQuotePage() {
                 Annuler
               </button>
               <button
-                onClick={() => handleSave("brouillon")}
-                disabled={isSaving}
-                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB] disabled:opacity-60"
-              >
-                {isSaving ? "Enregistrement..." : "Enregistrer comme brouillon"}
-              </button>
-              <button
                 onClick={() => handleSave(quote.status)}
                 disabled={isSaving}
                 className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60"
