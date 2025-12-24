@@ -35,9 +35,24 @@ def get_billing_line_templates(
             detail="User is not attached to a company"
         )
     
-    templates = db.query(BillingLineTemplate).filter(
-        BillingLineTemplate.company_id == current_user.company_id
-    ).order_by(BillingLineTemplate.created_at.desc()).all()
+    # Utiliser retry pour gérer les erreurs de connexion SSL
+    from app.db.retry import retry_db_operation
+    
+    @retry_db_operation(max_retries=3, initial_delay=0.5, max_delay=2.0)
+    def _get_templates():
+        return db.query(BillingLineTemplate).filter(
+            BillingLineTemplate.company_id == current_user.company_id
+        ).order_by(BillingLineTemplate.created_at.desc()).all()
+    
+    try:
+        templates = _get_templates()
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erreur lors de la récupération des templates de lignes de facturation: {e}", exc_info=True)
+        # En cas d'erreur, retourner une liste vide plutôt que de faire échouer la requête
+        # Cela permet à l'interface de continuer à fonctionner même si la DB a des problèmes temporaires
+        return []
     
     return templates
 
