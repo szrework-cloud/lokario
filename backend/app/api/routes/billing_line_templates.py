@@ -35,20 +35,60 @@ def get_billing_line_templates(
             detail="User is not attached to a company"
         )
     
-    # Utiliser retry pour gérer les erreurs de connexion SSL
-    from app.db.retry import retry_db_operation
+    # Utiliser retry avec nouvelle session à chaque tentative pour gérer les erreurs de connexion SSL
+    from app.db.retry import is_connection_error
+    from app.db.session import SessionLocal
     import logging
+    import time
     
     logger = logging.getLogger(__name__)
     
-    @retry_db_operation(max_retries=3, initial_delay=0.5, max_delay=2.0)
-    def _get_templates(session: Session):
-        return session.query(BillingLineTemplate).filter(
-            BillingLineTemplate.company_id == current_user.company_id
-        ).order_by(BillingLineTemplate.created_at.desc()).all()
+    # Fonction pour obtenir les templates avec retry et nouvelle session à chaque tentative
+    def _get_templates_with_retry():
+        last_exception = None
+        
+        for attempt in range(4):  # 4 tentatives (0, 1, 2, 3)
+            new_session = None
+            try:
+                # Créer une nouvelle session à chaque tentative
+                new_session = SessionLocal()
+                templates = new_session.query(BillingLineTemplate).filter(
+                    BillingLineTemplate.company_id == current_user.company_id
+                ).order_by(BillingLineTemplate.created_at.desc()).all()
+                return templates
+            except Exception as e:
+                last_exception = e
+                if new_session:
+                    try:
+                        new_session.rollback()
+                        new_session.close()
+                    except:
+                        pass
+                
+                # Vérifier si c'est une erreur de connexion
+                if not is_connection_error(e):
+                    # Si ce n'est pas une erreur de connexion, propager immédiatement
+                    raise
+                
+                if attempt < 3:  # Pas la dernière tentative
+                    delay = 0.5 * (2 ** attempt)  # 0.5s, 1s, 2s
+                    logger.warning(f"Erreur de connexion lors de la récupération des templates (tentative {attempt + 1}/4): {e}. Retry dans {delay:.2f}s...")
+                    time.sleep(delay)
+                else:
+                    # Dernière tentative échouée
+                    logger.error(f"Échec après 4 tentatives de récupération des templates: {e}", exc_info=True)
+            finally:
+                if new_session:
+                    try:
+                        new_session.close()
+                    except:
+                        pass
+        
+        # Si on arrive ici, toutes les tentatives ont échoué
+        raise last_exception if last_exception else Exception("Erreur inconnue lors de la récupération des templates")
     
     try:
-        templates = _get_templates(db)
+        templates = _get_templates_with_retry()
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des templates de lignes de facturation après retry: {e}", exc_info=True)
         # En cas d'erreur persistante, retourner une liste vide plutôt que de faire échouer la requête
