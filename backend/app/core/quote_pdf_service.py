@@ -1009,4 +1009,49 @@ def generate_quote_pdf(
     # Générer le PDF avec les callbacks pour l'en-tête et le pied de page
     doc.build(story, onFirstPage=on_first_page, onLaterPages=on_later_pages)
     
+    # Nettoyage des fichiers temporaires après génération du PDF
+    # En entreprise, on nettoie toujours les fichiers temporaires pour éviter l'accumulation
+    try:
+        import os
+        import time
+        from app.core.config import settings
+        upload_dir = Path(settings.UPLOAD_DIR).resolve()
+        
+        # Nettoyer les fichiers temporaires de logos et signatures
+        # On garde les fichiers pendant 1 heure au cas où ils seraient encore utilisés
+        # mais on nettoie les fichiers plus anciens
+        current_time = time.time()
+        max_age = 3600  # 1 heure
+        
+        # Nettoyer les logos temporaires
+        for company_id_dir in upload_dir.iterdir():
+            if company_id_dir.is_dir():
+                temp_logos_dir = company_id_dir / "temp_logos"
+                if temp_logos_dir.exists():
+                    for temp_file in temp_logos_dir.iterdir():
+                        if temp_file.is_file():
+                            file_age = current_time - temp_file.stat().st_mtime
+                            if file_age > max_age:
+                                try:
+                                    temp_file.unlink()
+                                    logger.info(f"[CLEANUP] Deleted old temp logo: {temp_file}")
+                                except Exception as e:
+                                    logger.warning(f"[CLEANUP] Could not delete temp logo {temp_file}: {e}")
+                
+                # Nettoyer les signatures temporaires
+                temp_signatures_dir = company_id_dir / "temp_signatures"
+                if temp_signatures_dir.exists():
+                    for temp_file in temp_signatures_dir.iterdir():
+                        if temp_file.is_file():
+                            file_age = current_time - temp_file.stat().st_mtime
+                            if file_age > max_age:
+                                try:
+                                    temp_file.unlink()
+                                    logger.info(f"[CLEANUP] Deleted old temp signature: {temp_file}")
+                                except Exception as e:
+                                    logger.warning(f"[CLEANUP] Could not delete temp signature {temp_file}: {e}")
+    except Exception as cleanup_error:
+        # Ne pas faire échouer la génération du PDF si le nettoyage échoue
+        logger.warning(f"[CLEANUP] Error during temp files cleanup: {cleanup_error}")
+    
     return output_path
