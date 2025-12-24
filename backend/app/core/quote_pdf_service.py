@@ -924,6 +924,8 @@ def generate_quote_pdf(
             try:
                 from app.core.supabase_storage_service import download_file as download_from_supabase, is_supabase_storage_configured
                 import io
+                import os
+                import uuid
                 
                 if is_supabase_storage_configured():
                     logger.info(f"[QUOTE PDF] Trying to download client signature from Supabase Storage: {normalized_client_path}")
@@ -931,12 +933,26 @@ def generate_quote_pdf(
                         file_content = download_from_supabase(normalized_client_path)
                         if file_content:
                             logger.info(f"[QUOTE PDF] Downloaded {len(file_content)} bytes for client signature from Supabase")
-                            client_sig_bytes = io.BytesIO(file_content)
-                            client_sig_bytes.seek(0)  # S'assurer que le pointeur est au début
-                            client_signature_img = Image(client_sig_bytes, width=70*mm, height=25*mm, kind='proportional')
+                            
+                            # Sauvegarder temporairement le fichier pour ReportLab
+                            # ReportLab a parfois des problèmes avec BytesIO, donc on sauvegarde temporairement
+                            # Extraire company_id du normalized_client_path (format: "company_id/signatures/filename")
+                            company_id_from_path = normalized_client_path.split("/")[0] if "/" in normalized_client_path else "temp"
+                            temp_sig_dir = upload_dir / company_id_from_path / "temp_signatures"
+                            temp_sig_dir.mkdir(parents=True, exist_ok=True)
+                            temp_sig_path = temp_sig_dir / f"client_sig_{uuid.uuid4().hex[:8]}.png"
+                            
+                            with open(temp_sig_path, "wb") as temp_file:
+                                temp_file.write(file_content)
+                            
+                            logger.info(f"[QUOTE PDF] Saved temporary client signature file: {temp_sig_path}")
+                            client_signature_img = Image(str(temp_sig_path), width=70*mm, height=25*mm, kind='proportional')
                             right_signature_elements.append(client_signature_img)
                             client_sig_loaded = True
                             logger.info(f"[QUOTE PDF] Client signature loaded from Supabase Storage: {normalized_client_path}")
+                            
+                            # Le fichier temporaire sera nettoyé après la génération complète du PDF
+                            # On ne le supprime pas immédiatement car ReportLab peut en avoir besoin
                         else:
                             logger.warning(f"[QUOTE PDF] No file content received from Supabase for client signature: {normalized_client_path}")
                     except Exception as download_error:
