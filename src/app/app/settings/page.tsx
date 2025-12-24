@@ -3778,7 +3778,7 @@ function SubscriptionTab() {
                   window.location.href = "/app/pricing";
                 }}
               >
-                Voir les offres
+                Voir les abonnements
               </AnimatedButton>
             </div>
           ) : subscription ? (
@@ -3836,19 +3836,30 @@ function SubscriptionTab() {
                 )}
               </div>
 
-              {/* Bouton pour gérer l'abonnement */}
-              <div className="pt-4 border-t border-[#E5E7EB]">
-                <AnimatedButton
-                  variant="primary"
-                  onClick={handleManageSubscription}
-                  loading={createPortalSession.isPending}
-                  className="w-full md:w-auto"
-                >
-                  Gérer mon abonnement
-                </AnimatedButton>
-                <p className="text-xs text-[#64748B] mt-2">
+              {/* Boutons d'action */}
+              <div className="pt-4 border-t border-[#E5E7EB] space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <AnimatedButton
+                    variant="primary"
+                    onClick={handleManageSubscription}
+                    loading={createPortalSession.isPending}
+                    className="w-full sm:w-auto"
+                  >
+                    Gérer mon abonnement
+                  </AnimatedButton>
+                  <AnimatedButton
+                    variant="secondary"
+                    onClick={() => {
+                      window.location.href = "/app/pricing";
+                    }}
+                    className="w-full sm:w-auto"
+                  >
+                    Voir les abonnements
+                  </AnimatedButton>
+                </div>
+                <p className="text-xs text-[#64748B]">
                   Accédez au portail client Stripe pour modifier votre méthode de paiement, 
-                  voir vos factures ou annuler votre abonnement.
+                  voir vos factures ou annuler votre abonnement. Ou consultez toutes les offres disponibles.
                 </p>
               </div>
             </div>
