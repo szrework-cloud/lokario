@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { getBillingLineTemplates, createBillingLineTemplate, BillingLineTemplate } from "@/services/billingLineTemplatesService";
+import { useBillingLineTemplates } from "@/hooks/useBillingLineTemplates";
+import { createBillingLineTemplate, getBillingLineTemplates, BillingLineTemplate } from "@/services/billingLineTemplatesService";
 
 interface SavedLine {
   id: number;
@@ -34,35 +35,12 @@ export function DescriptionAutocomplete({
   defaultTaxRate = 20,
 }: DescriptionAutocompleteProps) {
   const { token } = useAuth();
-  const [savedLines, setSavedLines] = useState<SavedLine[]>([]);
+  const { savedLines, invalidateCache } = useBillingLineTemplates();
   const [suggestions, setSuggestions] = useState<SavedLine[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
-
-  // Charger les lignes sauvegardées depuis l'API
-  useEffect(() => {
-    const loadSavedLines = async () => {
-      if (!token) return;
-      
-      try {
-        const templates = await getBillingLineTemplates(token);
-        const adaptedLines: SavedLine[] = templates.map((template: BillingLineTemplate) => ({
-          id: template.id,
-          description: template.description,
-          unit: template.unit || undefined,
-          unitPrice: typeof template.unit_price_ht === 'string' ? parseFloat(template.unit_price_ht) : template.unit_price_ht,
-          taxRate: typeof template.tax_rate === 'string' ? parseFloat(template.tax_rate) : template.tax_rate,
-        }));
-        setSavedLines(adaptedLines);
-      } catch (err) {
-        console.error("Erreur lors du chargement des lignes sauvegardées:", err);
-      }
-    };
-    
-    loadSavedLines();
-  }, [token]);
 
   // Fonction pour mettre à jour les suggestions
   const updateSuggestions = (searchValue: string) => {
@@ -226,7 +204,7 @@ export function DescriptionAutocomplete({
               onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                // Si on a une fonction onSaveNewLine, enregistrer la nouvelle ligne
+                  // Si on a une fonction onSaveNewLine, enregistrer la nouvelle ligne
                 if (onSaveNewLine && value.trim().length > 0) {
                   // Sauvegarder dans la base de données
                   if (token) {
@@ -237,6 +215,9 @@ export function DescriptionAutocomplete({
                         unit_price_ht: defaultUnitPrice,
                         tax_rate: defaultTaxRate,
                       });
+                      // Invalider le cache pour forcer le rechargement
+                      invalidateCache();
+                      
                       // Recharger les lignes sauvegardées
                       const templates = await getBillingLineTemplates(token);
                       const adaptedLines: SavedLine[] = templates.map((template: BillingLineTemplate) => ({
@@ -246,7 +227,6 @@ export function DescriptionAutocomplete({
                         unitPrice: typeof template.unit_price_ht === 'string' ? parseFloat(template.unit_price_ht) : template.unit_price_ht,
                         taxRate: typeof template.tax_rate === 'string' ? parseFloat(template.tax_rate) : template.tax_rate,
                       }));
-                      setSavedLines(adaptedLines);
                       
                       // Sélectionner automatiquement la ligne créée
                       const newTemplate = templates.find(t => t.description === value.trim() && t.unit_price_ht === defaultUnitPrice && t.tax_rate === defaultTaxRate);
