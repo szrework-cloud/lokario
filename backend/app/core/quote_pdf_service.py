@@ -22,7 +22,7 @@ from app.core.config import settings
 from app.core.pdf_image_loader import load_image_for_pdf, cleanup_temp_images
 
 
-def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path=None, company_name=None):
+def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path=None, company_name=None, company_id=None):
     """Dessine l'en-tête moderne avec les couleurs personnalisées."""
     import logging
     logger = logging.getLogger(__name__)
@@ -32,15 +32,18 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     logo_image = None
     logo_loaded = False
     if logo_path:
-        # Extraire company_id du logo_path si possible (format: "company_id/filename")
-        # Note: company_id peut être passé via doc.company_id si disponible
-        company_id = None
-        try:
-            if "/" in logo_path:
-                company_id_str = logo_path.split("/")[0]
-                company_id = int(company_id_str)
-        except (ValueError, IndexError):
-            company_id = None
+        # Utiliser company_id si fourni, sinon essayer de l'extraire du chemin
+        if not company_id:
+            try:
+                if "/" in logo_path:
+                    company_id_str = logo_path.split("/")[0]
+                    company_id = int(company_id_str)
+                    logger.debug(f"[LOGO] Extracted company_id from logo_path: {company_id}")
+            except (ValueError, IndexError):
+                logger.warning(f"[LOGO] Could not extract company_id from logo_path: {logo_path}")
+                company_id = None
+        
+        logger.info(f"[LOGO] Loading logo with path: {logo_path}, company_id: {company_id}")
         
         # Utiliser la fonction utilitaire centralisée pour charger le logo
         upload_dir = Path(settings.UPLOAD_DIR).resolve()
@@ -57,9 +60,9 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
         if logo_result.loaded and logo_result.image:
             logo_image = logo_result.image
             logo_loaded = True
-            logger.info(f"[LOGO] ✅ Logo loaded successfully")
+            logger.info(f"[LOGO] ✅ Logo loaded successfully from: {logo_path}")
         else:
-            logger.warning(f"[LOGO] ⚠️ Logo could not be loaded from: {logo_path}")
+            logger.warning(f"[LOGO] ⚠️ Logo could not be loaded from: {logo_path} (company_id: {company_id})")
     
     # Bande diagonale principale (coin supérieur gauche, traverse la page)
     canvas_obj.setFillColor(colors.HexColor(primary_color))
@@ -207,7 +210,7 @@ def generate_quote_pdf(
     # Log pour debug
     import logging
     logger = logging.getLogger(__name__)
-    logger.info(f"[QUOTE PDF] logo_path from design_config: {logo_path}")
+    logger.info(f"[QUOTE PDF] Design config - logo_path: {logo_path}, signature_path: {signature_path}, company_id: {company.id if company else None}")
     
     # Créer le document PDF avec SimpleDocTemplate
     doc = SimpleDocTemplate(
@@ -838,11 +841,11 @@ def generate_quote_pdf(
     
     # Fonctions pour dessiner l'en-tête et le pied de page
     def on_first_page(canvas_obj, doc):
-        draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path, company.name if company else None)
+        draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path, company.name if company else None, company.id if company else None)
         draw_footer_on_canvas(canvas_obj, doc, primary_color, footer_text)
     
     def on_later_pages(canvas_obj, doc):
-        draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path, company.name if company else None)
+        draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path, company.name if company else None, company.id if company else None)
         draw_footer_on_canvas(canvas_obj, doc, primary_color, footer_text)
     
     # Générer le PDF avec les callbacks pour l'en-tête et le pied de page
