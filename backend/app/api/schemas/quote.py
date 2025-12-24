@@ -76,6 +76,7 @@ class QuoteUpdate(BaseModel):
     discount_value: Optional[Decimal] = Field(None, ge=0, description="Valeur de la réduction (en % ou en €)")
     discount_label: Optional[str] = Field(None, description="Libellé de la réduction")
     lines: Optional[List[QuoteLineCreate]] = None
+    updated_at: Optional[datetime] = Field(None, description="Timestamp de la dernière modification pour optimistic locking")
 
 
 class QuoteRead(QuoteBase):

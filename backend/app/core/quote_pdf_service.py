@@ -48,11 +48,20 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     # Logo si disponible (en haut à droite)
     logo_loaded = False
     if logo_path:
+        # Normaliser le chemin : enlever le préfixe "uploads" s'il existe déjà
+        normalized_path = logo_path
+        if normalized_path.startswith("uploads/"):
+            normalized_path = normalized_path[8:]  # Enlever "uploads/"
+        elif normalized_path.startswith("./uploads/"):
+            normalized_path = normalized_path[11:]  # Enlever "./uploads/"
+        
         # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
-        if not Path(logo_path).is_absolute():
+        if not Path(normalized_path).is_absolute():
             from app.core.config import settings
             upload_dir = Path(settings.UPLOAD_DIR)
-            logo_path = str(upload_dir / logo_path)
+            logo_path = str(upload_dir / normalized_path)
+        else:
+            logo_path = normalized_path
         
         if Path(logo_path).exists():
             try:
@@ -171,10 +180,20 @@ def generate_quote_pdf(
     terms_text = design_config.get("terms_text")
     signature_path = design_config.get("signature_path")
     
-    # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
-    if logo_path and not Path(logo_path).is_absolute():
-        upload_dir = Path(settings.UPLOAD_DIR)
-        logo_path = str(upload_dir / logo_path)
+    # Normaliser le chemin du logo : enlever le préfixe "uploads" s'il existe déjà
+    if logo_path:
+        normalized_path = logo_path
+        if normalized_path.startswith("uploads/"):
+            normalized_path = normalized_path[8:]  # Enlever "uploads/"
+        elif normalized_path.startswith("./uploads/"):
+            normalized_path = normalized_path[11:]  # Enlever "./uploads/"
+        
+        # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
+        if not Path(normalized_path).is_absolute():
+            upload_dir = Path(settings.UPLOAD_DIR)
+            logo_path = str(upload_dir / normalized_path)
+        else:
+            logo_path = normalized_path
     
     # Créer le document PDF avec SimpleDocTemplate
     doc = SimpleDocTemplate(
@@ -645,11 +664,18 @@ def generate_quote_pdf(
     # Préparer le chemin de la signature si disponible
     signature_image_path = None
     if signature_path:
-        if not Path(signature_path).is_absolute():
+        # Normaliser le chemin : enlever le préfixe "uploads" s'il existe déjà
+        normalized_path = signature_path
+        if normalized_path.startswith("uploads/"):
+            normalized_path = normalized_path[8:]  # Enlever "uploads/"
+        elif normalized_path.startswith("./uploads/"):
+            normalized_path = normalized_path[11:]  # Enlever "./uploads/"
+        
+        if not Path(normalized_path).is_absolute():
             upload_dir = Path(settings.UPLOAD_DIR)
-            signature_image_path = str(upload_dir / signature_path)
+            signature_image_path = str(upload_dir / normalized_path)
         else:
-            signature_image_path = signature_path
+            signature_image_path = normalized_path
     
     # Colonne gauche : Signature entreprise
     left_signature_elements = []
@@ -689,12 +715,19 @@ def generate_quote_pdf(
     
     # Utiliser la signature du client si fournie, sinon espace vide
     if client_signature_path:
+        # Normaliser le chemin : enlever le préfixe "uploads" s'il existe déjà
+        normalized_client_path = client_signature_path
+        if normalized_client_path.startswith("uploads/"):
+            normalized_client_path = normalized_client_path[8:]  # Enlever "uploads/"
+        elif normalized_client_path.startswith("./uploads/"):
+            normalized_client_path = normalized_client_path[11:]  # Enlever "./uploads/"
+        
         # Chemin absolu pour la signature du client
-        if not Path(client_signature_path).is_absolute():
+        if not Path(normalized_client_path).is_absolute():
             upload_dir = Path(settings.UPLOAD_DIR)
-            client_sig_path = str(upload_dir / client_signature_path)
+            client_sig_path = str(upload_dir / normalized_client_path)
         else:
-            client_sig_path = client_signature_path
+            client_sig_path = normalized_client_path
         
         if Path(client_sig_path).exists():
             try:

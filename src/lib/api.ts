@@ -191,15 +191,28 @@ export async function apiPut<T>(
 
   if (!res.ok) {
     let message = "Erreur serveur";
+    let errorBody: any = null;
     try {
-      const errorBody = await res.json();
+      errorBody = await res.json();
       if (errorBody.detail) {
         message = Array.isArray(errorBody.detail)
           ? errorBody.detail[0].msg ?? message
-          : errorBody.detail;
+          : typeof errorBody.detail === 'object' && errorBody.detail?.message
+            ? errorBody.detail.message
+            : errorBody.detail;
+      } else if (errorBody.message) {
+        message = errorBody.message;
       }
     } catch {
-      // ignore
+      // Si on ne peut pas parser le JSON, essayer de récupérer le texte
+      try {
+        const text = await res.text();
+        if (text) {
+          message = text;
+        }
+      } catch {
+        // ignore
+      }
     }
     
     // Si erreur 401 (Unauthorized), créer une erreur spéciale
@@ -210,7 +223,12 @@ export async function apiPut<T>(
       throw authError;
     }
     
-    throw new Error(message);
+    // Créer une erreur avec le statut et le body pour permettre la gestion des erreurs spécifiques
+    const error = new Error(message);
+    (error as any).status = res.status;
+    (error as any).response = { status: res.status, data: errorBody };
+    (error as any).data = errorBody;
+    throw error;
   }
 
   return res.json();

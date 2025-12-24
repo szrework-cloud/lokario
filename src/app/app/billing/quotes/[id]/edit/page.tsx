@@ -60,6 +60,7 @@ export default function EditQuotePage() {
           discount_type: data.discount_type,
           discount_value: data.discount_value,
           discount_label: data.discount_label,
+          updated_at: data.updated_at, // Pour optimistic locking
           timeline: [],
           history: [],
         };
@@ -200,6 +201,7 @@ export default function EditQuotePage() {
         discount_value: quote.discount_value,
         discount_label: quote.discount_label,
         status: status,
+        updated_at: quote.updated_at, // Envoyer updated_at pour optimistic locking
       };
 
       // Appeler l'API pour mettre à jour le devis
@@ -228,6 +230,7 @@ export default function EditQuotePage() {
           discount_type: data.discount_type,
           discount_value: data.discount_value,
           discount_label: data.discount_label,
+          updated_at: data.updated_at, // Mettre à jour updated_at après sauvegarde
           timeline: [],
           history: [],
         };
@@ -240,7 +243,48 @@ export default function EditQuotePage() {
       }
     } catch (err: any) {
       console.error("Error saving quote:", err);
-      setError(err.message || "Erreur lors de la sauvegarde du devis");
+      
+      // Gérer l'erreur de conflit (optimistic locking)
+      if (err.response?.status === 409 || err.status === 409) {
+        const errorDetail = err.response?.data?.detail || err.data?.detail;
+        const errorMessage = typeof errorDetail === 'object' && errorDetail?.message 
+          ? errorDetail.message 
+          : "Le devis a été modifié par un autre utilisateur ou dans un autre onglet. Les modifications ont été rechargées.";
+        
+        setError(errorMessage);
+        
+        // Recharger le devis pour afficher la version à jour
+        try {
+          const data = await getQuote(token, quote.id);
+          const adaptedQuote: Quote = {
+            ...data,
+            client_name: data.client_name || "",
+            lines: (data.lines || []).map((line) => ({
+              id: line.id || 0,
+              description: line.description || "",
+              quantity: line.quantity || 1,
+              unit: line.unit || "",
+              unitPrice: line.unit_price_ht || 0,
+              taxRate: line.tax_rate || 0,
+              total: line.total_ttc || 0,
+            })),
+            subtotal: data.subtotal_ht || 0,
+            tax: data.total_tax || 0,
+            total: data.total_ttc || data.amount || 0,
+            discount_type: data.discount_type,
+            discount_value: data.discount_value,
+            discount_label: data.discount_label,
+            updated_at: data.updated_at, // Mettre à jour updated_at
+            timeline: [],
+            history: [],
+          };
+          setQuote(adaptedQuote);
+        } catch (reloadErr) {
+          console.error("Erreur lors du rechargement du devis:", reloadErr);
+        }
+      } else {
+        setError(err.message || "Erreur lors de la sauvegarde du devis");
+      }
     } finally {
       setIsSaving(false);
     }

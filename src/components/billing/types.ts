@@ -51,6 +51,7 @@ export interface Quote {
   discount_value?: number | null;
   discount_label?: string | null;
   created_at: string;
+  updated_at?: string; // Pour optimistic locking
   sent_at?: string;
   accepted_at?: string;
   refused_at?: string;

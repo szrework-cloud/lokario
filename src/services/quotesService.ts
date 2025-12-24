@@ -82,6 +82,7 @@ export interface QuoteUpdate {
   discount_value?: number | null;
   discount_label?: string | null;
   lines?: QuoteLine[];
+  updated_at?: Date | string; // Pour optimistic locking
 }
 
 // ============================================================================

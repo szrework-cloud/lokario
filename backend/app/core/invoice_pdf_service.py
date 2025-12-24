@@ -85,10 +85,20 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
     if design_config:
         logo_path = design_config.get("logo_path")
     
-    # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
-    if logo_path and not Path(logo_path).is_absolute():
-        upload_dir = Path(settings.UPLOAD_DIR)
-        logo_path = str(upload_dir / logo_path)
+    # Normaliser le chemin du logo : enlever le préfixe "uploads" s'il existe déjà
+    if logo_path:
+        normalized_path = logo_path
+        if normalized_path.startswith("uploads/"):
+            normalized_path = normalized_path[8:]  # Enlever "uploads/"
+        elif normalized_path.startswith("./uploads/"):
+            normalized_path = normalized_path[11:]  # Enlever "./uploads/"
+        
+        # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
+        if not Path(normalized_path).is_absolute():
+            upload_dir = Path(settings.UPLOAD_DIR)
+            logo_path = str(upload_dir / normalized_path)
+        else:
+            logo_path = normalized_path
     
     logo_loaded = False
     if logo_path and Path(logo_path).exists():
@@ -504,10 +514,20 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
     if design_config:
         signature_path = design_config.get("signature_path")
     
-    # Si signature_path est relatif, le rendre absolu depuis UPLOAD_DIR
-    if signature_path and not Path(signature_path).is_absolute():
-        upload_dir = Path(settings.UPLOAD_DIR)
-        signature_path = str(upload_dir / signature_path)
+    # Normaliser le chemin de la signature : enlever le préfixe "uploads" s'il existe déjà
+    if signature_path:
+        normalized_path = signature_path
+        if normalized_path.startswith("uploads/"):
+            normalized_path = normalized_path[8:]  # Enlever "uploads/"
+        elif normalized_path.startswith("./uploads/"):
+            normalized_path = normalized_path[11:]  # Enlever "./uploads/"
+        
+        # Si signature_path est relatif, le rendre absolu depuis UPLOAD_DIR
+        if not Path(normalized_path).is_absolute():
+            upload_dir = Path(settings.UPLOAD_DIR)
+            signature_path = str(upload_dir / normalized_path)
+        else:
+            signature_path = normalized_path
     
     if signature_path and Path(signature_path).exists():
         try:

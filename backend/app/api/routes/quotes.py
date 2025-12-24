@@ -862,6 +862,50 @@ def update_quote(
             detail="Quote not found"
         )
     
+    # OPTIMISTIC LOCKING : Vérifier que le devis n'a pas été modifié entre-temps
+    if quote_data.updated_at is not None:
+        # Pydantic devrait déjà convertir la chaîne en datetime, mais on vérifie quand même
+        client_updated_at = quote_data.updated_at
+        if isinstance(client_updated_at, str):
+            # Essayer d'abord avec fromisoformat (format ISO standard)
+            try:
+                client_updated_at = datetime.fromisoformat(client_updated_at.replace('Z', '+00:00'))
+            except ValueError:
+                # Si ça échoue, essayer de parser avec strptime (format plus flexible)
+                try:
+                    # Formats courants
+                    for fmt in ['%Y-%m-%dT%H:%M:%S.%f%z', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%d %H:%M:%S%z']:
+                        try:
+                            client_updated_at = datetime.strptime(client_updated_at, fmt)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        # Si aucun format ne fonctionne, lever une erreur
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Format de date invalide pour updated_at"
+                        )
+                except Exception:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Format de date invalide pour updated_at"
+                    )
+        
+        # Comparer les timestamps (tolérance de 1 seconde pour les différences d'arrondi)
+        if quote.updated_at and client_updated_at:
+            time_diff = abs((quote.updated_at - client_updated_at).total_seconds())
+            if time_diff > 1.0:  # Plus d'1 seconde de différence
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "CONCURRENT_MODIFICATION",
+                        "message": "Le devis a été modifié par un autre utilisateur ou dans un autre onglet.",
+                        "current_updated_at": quote.updated_at.isoformat() if quote.updated_at else None,
+                        "client_updated_at": client_updated_at.isoformat() if client_updated_at else None
+                    }
+                )
+    
     # PROTECTION SÉCURITÉ : Empêcher la modification d'un devis signé
     existing_signature = db.query(QuoteSignature).filter(
         QuoteSignature.quote_id == quote_id
