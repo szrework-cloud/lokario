@@ -835,34 +835,40 @@ async def handle_checkout_session_completed(event, db: Session):
     if stripe_subscription.customer:
         subscription.stripe_customer_id = stripe_subscription.customer
     
-    # Mettre à jour le plan et le montant depuis les items
-    if hasattr(stripe_subscription, 'items') and stripe_subscription.items and hasattr(stripe_subscription.items, 'data') and stripe_subscription.items.data:
-        price_item = stripe_subscription.items.data[0]
-        if hasattr(price_item, 'price') and price_item.price and hasattr(price_item.price, 'id'):
-            price_id = price_item.price.id
-            subscription.stripe_price_id = price_id
-            logger.info(f"[CHECKOUT] Price ID récupéré depuis Stripe: {price_id}")
-            
-            # Récupérer le montant depuis le price
+    # Vérifier si c'est un essai gratuit (trialing avec amount = 0)
+    # Pendant l'essai gratuit, on ne modifie PAS le plan ni le montant
+    is_free_trial = subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0
+    if is_free_trial:
+        logger.info(f"[CHECKOUT] Essai gratuit détecté - plan et montant conservés (plan: {subscription.plan.value}, amount: {subscription.amount}€)")
+    else:
+        # Mettre à jour le plan et le montant depuis les items (seulement si ce n'est PAS un essai gratuit)
+        if hasattr(stripe_subscription, 'items') and stripe_subscription.items and hasattr(stripe_subscription.items, 'data') and stripe_subscription.items.data:
+            price_item = stripe_subscription.items.data[0]
+            if hasattr(price_item, 'price') and price_item.price and hasattr(price_item.price, 'id'):
+                price_id = price_item.price.id
+                subscription.stripe_price_id = price_id
+                logger.info(f"[CHECKOUT] Price ID récupéré depuis Stripe: {price_id}")
+                
+                # Récupérer le montant depuis le price
+                try:
+                    price_obj = stripe.Price.retrieve(price_id)
+                    subscription.amount = price_obj.unit_amount / 100 if price_obj.unit_amount else 0
+                    logger.info(f"[CHECKOUT] Montant récupéré: {subscription.amount}€")
+                except Exception as e:
+                    logger.error(f"Erreur lors de la récupération du prix: {e}")
+        
+        # Déterminer le plan depuis les métadonnées OU depuis le price_id
+        plan_updated = False
+        if metadata.get("plan"):
             try:
-                price_obj = stripe.Price.retrieve(price_id)
-                subscription.amount = price_obj.unit_amount / 100 if price_obj.unit_amount else 0
-                logger.info(f"[CHECKOUT] Montant récupéré: {subscription.amount}€")
-            except Exception as e:
-                logger.error(f"Erreur lors de la récupération du prix: {e}")
-    
-    # Déterminer le plan depuis les métadonnées OU depuis le price_id
-    plan_updated = False
-    if metadata.get("plan"):
-        try:
-            subscription.plan = SubscriptionPlan(metadata["plan"])
-            plan_updated = True
-            logger.info(f"[CHECKOUT] Plan mis à jour depuis métadonnées: {metadata.get('plan')}")
-        except ValueError:
-            logger.warning(f"[CHECKOUT] Plan invalide dans les métadonnées: {metadata.get('plan')}")
-    
-    # Si le plan n'a pas été mis à jour depuis les métadonnées, essayer de le déterminer depuis le price_id
-    if not plan_updated and subscription.stripe_price_id:
+                subscription.plan = SubscriptionPlan(metadata["plan"])
+                plan_updated = True
+                logger.info(f"[CHECKOUT] Plan mis à jour depuis métadonnées: {metadata.get('plan')}")
+            except ValueError:
+                logger.warning(f"[CHECKOUT] Plan invalide dans les métadonnées: {metadata.get('plan')}")
+        
+        # Si le plan n'a pas été mis à jour depuis les métadonnées, essayer de le déterminer depuis le price_id
+        if not plan_updated and subscription.stripe_price_id:
         try:
             logger.info(f"[CHECKOUT] Détermination du plan depuis price_id: {subscription.stripe_price_id}")
             logger.info(f"[CHECKOUT] Price IDs configurés - STARTER_MONTHLY: {settings.STRIPE_PRICE_STARTER_MONTHLY}, STARTER_YEARLY: {settings.STRIPE_PRICE_STARTER_YEARLY}")
