@@ -55,15 +55,15 @@ export const LandingPainPointsSection = () => {
           {/* Main headline */}
           <div className="text-center mb-16">
             <h2
-              className={`font-display text-4xl sm:text-5xl lg:text-6xl text-white mb-4 transition-all duration-700 ${
-                isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+              className={`font-display text-4xl sm:text-5xl lg:text-6xl text-white mb-4 transition-all duration-900 ${
+                isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
               }`}
             >
               Le quotidien <span className="bg-gradient-to-r from-[#F97316] via-[#EA580C] to-[#F97316]/60 bg-clip-text text-transparent">déborde.</span>
             </h2>
             <p
-              className={`text-xl sm:text-2xl text-white/70 transition-all duration-700 delay-100 ${
-                isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+              className={`text-xl sm:text-2xl text-white/70 transition-all duration-900 delay-100 ${
+                isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
               }`}
             >
               Pas par manque de volonté.
@@ -145,8 +145,8 @@ export const LandingPainPointsSection = () => {
               {painPoints.map((point, index) => (
                 <div
                   key={index}
-                  className={`flex items-center gap-3 p-4 rounded-lg bg-[#1E293B]/50 border border-white/5 backdrop-blur-sm transition-all duration-500 hover:bg-[#1E293B]/80 hover:border-[#F97316]/30 ${
-                    isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-8"
+                  className={`flex items-center gap-3 p-4 rounded-lg bg-[#1E293B]/50 border border-white/5 backdrop-blur-sm transition-all duration-700 hover:bg-[#1E293B]/80 hover:border-[#F97316]/30 ${
+                    isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-24"
                   }`}
                   style={{ transitionDelay: `${point.delay + 0.3}s` }}
                 >
@@ -161,8 +161,8 @@ export const LandingPainPointsSection = () => {
 
           {/* Solution hint */}
           <div
-            className={`text-center p-8 rounded-2xl bg-gradient-to-br from-[#1E293B] to-[#334155]/30 border border-white/5 transition-all duration-700 delay-[1.2s] ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+            className={`text-center p-8 rounded-2xl bg-gradient-to-br from-[#1E293B] to-[#334155]/30 border border-white/5 transition-all duration-900 delay-[1.2s] ${
+              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
             }`}
           >
             <p className="text-lg text-white/80 mb-2">Vous ne manquez pas d'organisation.</p>

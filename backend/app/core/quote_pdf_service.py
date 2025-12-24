@@ -243,6 +243,11 @@ def generate_quote_pdf(
     terms_text = design_config.get("terms_text")
     signature_path = design_config.get("signature_path")  # Passer le chemin original
     
+    # Log pour debug
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[QUOTE PDF] logo_path from design_config: {logo_path}")
+    
     # Créer le document PDF avec SimpleDocTemplate
     doc = SimpleDocTemplate(
         output_path,
