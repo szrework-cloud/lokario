@@ -95,7 +95,7 @@ export const LandingPainPointsSection = () => {
                     <div
                       key={index}
                       className={`absolute w-12 h-12 rounded-full bg-[#1E293B]/80 border border-white/5 flex items-center justify-center transition-all duration-700 ${
-                        isVisible ? "opacity-100" : "opacity-0"
+                        isVisible ? "opacity-100 scale-100" : "opacity-0 scale-50"
                       }`}
                       style={{
                         left: `calc(50% + ${x}px - 24px)`,
