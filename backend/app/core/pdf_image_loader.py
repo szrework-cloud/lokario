@@ -133,7 +133,7 @@ def load_image_for_pdf(
             file_content = download_from_supabase(normalized_path)
             
             if not file_content:
-                logger.warning(f"[IMAGE LOADER] ⚠️ No file content received from Supabase Storage")
+                logger.warning(f"[IMAGE LOADER] ⚠️ File not found in Supabase Storage: {normalized_path} (file may not exist or upload may have failed)")
                 return ImageLoadResult(loaded=False)
             
             logger.info(f"[IMAGE LOADER] Downloaded {len(file_content)} bytes from Supabase Storage")
