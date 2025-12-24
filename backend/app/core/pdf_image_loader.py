@@ -99,7 +99,7 @@ def load_image_for_pdf(
     
     # Normaliser le chemin
     normalized_path, absolute_path = normalize_image_path(image_path, upload_dir)
-    logger.debug(f"[IMAGE LOADER] Normalized path: {normalized_path}, Absolute path: {absolute_path}")
+    logger.info(f"[IMAGE LOADER] Normalized path: {normalized_path}, Absolute path: {absolute_path}")
     
     # TENTATIVE 1: Charger depuis le système de fichiers local
     if absolute_path:
@@ -113,9 +113,9 @@ def load_image_for_pdf(
                 logger.warning(f"[IMAGE LOADER] ⚠️ Failed to load image from local filesystem: {e}", exc_info=True)
                 # Continuer pour essayer Supabase Storage
         else:
-            logger.debug(f"[IMAGE LOADER] Local file does not exist: {absolute_path}, will try Supabase Storage")
+            logger.info(f"[IMAGE LOADER] Local file does not exist: {absolute_path}, will try Supabase Storage")
     else:
-        logger.debug(f"[IMAGE LOADER] No absolute path computed, will try Supabase Storage")
+        logger.info(f"[IMAGE LOADER] No absolute path computed, will try Supabase Storage")
     
     # TENTATIVE 2: Charger depuis Supabase Storage
     if normalized_path:
