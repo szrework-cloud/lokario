@@ -1211,7 +1211,7 @@ def get_quote_pdf(
         client_signature_path = quote.client_signature_path if hasattr(quote, 'client_signature_path') else None
         try:
             logger.info(f"[QUOTE PDF] Generating PDF for quote {quote_id}, client_signature_path: {client_signature_path}")
-        generate_quote_pdf(quote, client, company, str(pdf_path), design_config=design_config, client_signature_path=client_signature_path)
+            generate_quote_pdf(quote, client, company, str(pdf_path), design_config=design_config, client_signature_path=client_signature_path)
             logger.info(f"[QUOTE PDF] PDF generated successfully at: {pdf_path}")
         except Exception as pdf_error:
             logger.error(f"[QUOTE PDF] Error generating PDF: {pdf_error}", exc_info=True)
