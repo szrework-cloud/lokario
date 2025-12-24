@@ -247,15 +247,25 @@ async def get_subscription(
                 price_item = stripe_sub.items.data[0]
                 if hasattr(price_item, 'price') and price_item.price and hasattr(price_item.price, 'id'):
                     price_id = price_item.price.id
+                    logger.info(f"[GET_SUBSCRIPTION] Price ID depuis Stripe: {price_id}")
+                    logger.info(f"[GET_SUBSCRIPTION] Price ID en base: {subscription.stripe_price_id}")
+                    
                     # Si le price_id a changé, mettre à jour le plan
                     if subscription.stripe_price_id != price_id:
                         subscription.stripe_price_id = price_id
-                        # Déterminer le plan depuis le price_id
-                        if price_id == settings.STRIPE_PRICE_STARTER_MONTHLY or price_id == settings.STRIPE_PRICE_STARTER_YEARLY:
+                        logger.info(f"[GET_SUBSCRIPTION] Price ID mis à jour: {price_id}")
+                    
+                    # Toujours vérifier et mettre à jour le plan depuis le price_id (au cas où il aurait changé)
+                    if price_id == settings.STRIPE_PRICE_STARTER_MONTHLY or price_id == settings.STRIPE_PRICE_STARTER_YEARLY:
+                        if subscription.plan != SubscriptionPlan.STARTER:
                             subscription.plan = SubscriptionPlan.STARTER
-                        elif price_id == settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY or price_id == settings.STRIPE_PRICE_PROFESSIONAL_YEARLY:
+                            logger.info(f"[GET_SUBSCRIPTION] ✅ Plan mis à jour: STARTER (Essentiel)")
+                    elif price_id == settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY or price_id == settings.STRIPE_PRICE_PROFESSIONAL_YEARLY:
+                        if subscription.plan != SubscriptionPlan.PROFESSIONAL:
                             subscription.plan = SubscriptionPlan.PROFESSIONAL
-                        logger.info(f"Plan synchronisé depuis Stripe: {subscription.plan.value}")
+                            logger.info(f"[GET_SUBSCRIPTION] ✅ Plan mis à jour: PROFESSIONAL (Pro)")
+                    else:
+                        logger.warning(f"[GET_SUBSCRIPTION] ⚠️ Price ID {price_id} ne correspond à aucun plan configuré")
             
             db.commit()
         except Exception as e:
