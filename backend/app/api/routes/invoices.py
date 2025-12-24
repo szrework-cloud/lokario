@@ -1677,12 +1677,21 @@ def get_invoice_pdf(
     ).first()
     
     company_info = {}
+    design_config = {}
     if company_settings and company_settings.settings:
         company_info_data = company_settings.settings.get("company_info", {})
         company_info = {
             "address": company_info_data.get("address"),
             "phone": company_info_data.get("phone"),
             "email": company_info_data.get("email")
+        }
+        
+        # Récupérer le logo et la signature depuis les settings
+        billing_settings = company_settings.settings.get("billing", {})
+        quote_design = billing_settings.get("quote_design", {})
+        design_config = {
+            "logo_path": company_info_data.get("logo_path"),  # Logo depuis company_info
+            "signature_path": quote_design.get("signature_path")  # Signature depuis quote_design
         }
     
     # Récupérer le devis d'origine si la facture provient d'un devis
@@ -1692,7 +1701,7 @@ def get_invoice_pdf(
         quote = db.query(Quote).filter(Quote.id == invoice.quote_id).first()
     
     try:
-        pdf_bytes = generate_invoice_pdf(invoice, client=client, company_info=company_info, quote=quote)
+        pdf_bytes = generate_invoice_pdf(invoice, client=client, company_info=company_info, quote=quote, design_config=design_config)
         # Adapter le nom du fichier selon le type (facture ou avoir)
         if invoice.invoice_type == InvoiceType.AVOIR:
             filename = f"avoir_{invoice.number}.pdf"

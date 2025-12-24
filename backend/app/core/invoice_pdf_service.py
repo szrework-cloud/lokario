@@ -6,6 +6,7 @@ from io import BytesIO
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
+from pathlib import Path
 
 try:
     from reportlab.lib.pagesizes import A4
@@ -13,13 +14,14 @@ try:
     from reportlab.pdfgen import canvas
     from reportlab.lib.colors import black, HexColor
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, Image
     from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
     REPORTLAB_AVAILABLE = True
 except ImportError:
     REPORTLAB_AVAILABLE = False
 
 from app.db.models.billing import Invoice
+from app.core.config import settings
 
 
 def format_amount(amount: Decimal) -> str:
@@ -34,7 +36,7 @@ def format_date(date: Optional[datetime]) -> str:
     return date.strftime("%d/%m/%Y")
 
 
-def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[dict] = None, quote=None) -> bytes:
+def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[dict] = None, quote=None, design_config: Optional[dict] = None) -> bytes:
     """
     Génère un PDF de facture conforme avec toutes les mentions légales.
     
@@ -43,6 +45,7 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
         client: Client de la facture (optionnel)
         company_info: Dict avec les infos de l'entreprise (address, phone, email) (optionnel)
         quote: Devis d'origine si la facture provient d'un devis (optionnel)
+        design_config: Configuration du design (logo_path, signature_path) (optionnel)
         
     Returns:
         Bytes du PDF généré
@@ -74,6 +77,30 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
     
     y = height - 20 * mm
     margin = 20 * mm
+    
+    # ========================================================================
+    # LOGO (en haut à droite)
+    # ========================================================================
+    logo_path = None
+    if design_config:
+        logo_path = design_config.get("logo_path")
+    
+    # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
+    if logo_path and not Path(logo_path).is_absolute():
+        upload_dir = Path(settings.UPLOAD_DIR)
+        logo_path = str(upload_dir / logo_path)
+    
+    logo_loaded = False
+    if logo_path and Path(logo_path).exists():
+        try:
+            logo = Image(logo_path, width=40*mm, height=40*mm, kind='proportional')
+            logo.drawOn(c, width - 60*mm, height - 50*mm)
+            logo_loaded = True
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Could not load logo for invoice: {e}")
+            logo_loaded = False
     
     # ========================================================================
     # EN-TÊTE : Titre et numéro
@@ -465,6 +492,38 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
         for line in notes_lines:
             c.drawString(margin, totals_y, line)
             totals_y -= 4 * mm
+    
+    # ========================================================================
+    # SIGNATURES
+    # ========================================================================
+    signature_y = max(totals_y, 60 * mm)  # S'assurer qu'on a assez d'espace
+    signature_y -= 15 * mm
+    
+    # Signature de l'entreprise (gauche)
+    signature_path = None
+    if design_config:
+        signature_path = design_config.get("signature_path")
+    
+    # Si signature_path est relatif, le rendre absolu depuis UPLOAD_DIR
+    if signature_path and not Path(signature_path).is_absolute():
+        upload_dir = Path(settings.UPLOAD_DIR)
+        signature_path = str(upload_dir / signature_path)
+    
+    if signature_path and Path(signature_path).exists():
+        try:
+            signature_img = Image(signature_path, width=70*mm, height=25*mm, kind='proportional')
+            signature_img.drawOn(c, margin, signature_y - 25*mm)
+            signature_y -= 30 * mm
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Could not load signature for invoice: {e}")
+    
+    # Label signature entreprise
+    c.setFont("Helvetica", 9)
+    c.setFillColor(light_gray)
+    c.drawString(margin, signature_y, "Signature de l'entreprise")
+    signature_y -= 10 * mm
     
     # ========================================================================
     # PIED DE PAGE
