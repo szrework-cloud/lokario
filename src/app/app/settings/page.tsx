@@ -3788,7 +3788,13 @@ function SubscriptionTab() {
                 <div className="border border-[#E5E7EB] rounded-lg p-4">
                   <p className="text-sm font-medium text-[#64748B] mb-1">Plan</p>
                   <p className="text-lg font-semibold text-[#0F172A]">
-                    {subscription.plan === "starter" ? "Essentiel" : subscription.plan === "professional" ? "Pro" : subscription.plan}
+                    {subscription.status === "trialing" && subscription.amount === 0 
+                      ? "Essai gratuit" 
+                      : subscription.plan === "starter" 
+                        ? "Essentiel" 
+                        : subscription.plan === "professional" 
+                          ? "Pro" 
+                          : subscription.plan}
                   </p>
                 </div>
                 <div className="border border-[#E5E7EB] rounded-lg p-4">

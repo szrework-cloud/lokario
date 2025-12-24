@@ -114,10 +114,17 @@ export default function PricingPage() {
                     Abonnement actif
                   </h3>
                   <p className="text-sm text-[#64748B]">
-                    Plan {subscriptionData.subscription.plan} - 
-                    {subscriptionData.subscription.status === "active" && " Actif"}
-                    {subscriptionData.subscription.status === "trialing" && " En période d'essai"}
-                    {subscriptionData.subscription.status === "past_due" && " Paiement en retard"}
+                    {subscriptionData.subscription.status === "trialing" && subscriptionData.subscription.amount === 0
+                      ? "Essai gratuit"
+                      : subscriptionData.subscription.plan === "starter"
+                        ? "Plan Essentiel"
+                        : subscriptionData.subscription.plan === "professional"
+                          ? "Plan Pro"
+                          : `Plan ${subscriptionData.subscription.plan}`}
+                    {" - "}
+                    {subscriptionData.subscription.status === "active" && "Actif"}
+                    {subscriptionData.subscription.status === "trialing" && "En période d'essai"}
+                    {subscriptionData.subscription.status === "past_due" && "Paiement en retard"}
                   </p>
                 </div>
                 <AnimatedButton
