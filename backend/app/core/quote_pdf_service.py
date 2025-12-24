@@ -414,11 +414,16 @@ def generate_quote_pdf(
     sorted_lines = sorted(quote.lines, key=lambda l: l.order if l.order is not None else 0)
     
     for idx, line in enumerate(sorted_lines, 1):
+        # Formater la quantité avec l'unité si disponible
+        quantity_display = str(line.quantity) if line.quantity else '0'
+        if line.unit:
+            quantity_display = f"{quantity_display} {line.unit}"
+        
         table_data.append([
             str(idx),
             line.description or '',
             f"{line.unit_price_ht:.2f} €" if line.unit_price_ht else "0.00 €",
-            str(line.quantity) if line.quantity else '0',
+            quantity_display,
             f"{line.total_ttc:.2f} €" if line.total_ttc else "0.00 €"
         ])
     

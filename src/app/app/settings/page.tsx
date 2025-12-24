@@ -311,8 +311,9 @@ export default function SettingsPage() {
   const [quoteEmailTemplate, setQuoteEmailTemplate] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("");
   const [invoiceDueDateDays, setInvoiceDueDateDays] = useState<number>(30);
-  const [editForm, setEditForm] = useState<{ description: string; unit_price_ht: string; tax_rate: string }>({
+  const [editForm, setEditForm] = useState<{ description: string; unit: string; unit_price_ht: string; tax_rate: string }>({
     description: "",
+    unit: "",
     unit_price_ht: "",
     tax_rate: "",
   });
@@ -1917,7 +1918,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => {
                       setEditingTemplate(null);
-                      setEditForm({ description: "", unit_price_ht: "", tax_rate: taxRates[0]?.toString() || "20" });
+                      setEditForm({ description: "", unit: "", unit_price_ht: "", tax_rate: taxRates[0]?.toString() || "20" });
                     }}
                     className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110"
                   >
@@ -1993,6 +1994,20 @@ export default function SettingsPage() {
                                   className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                                 />
                               </div>
+                              <div>
+                                <label className="block text-xs font-medium text-[#64748B] mb-1">
+                                  Unité (optionnel)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editForm.unit}
+                                  onChange={(e) =>
+                                    setEditForm({ ...editForm, unit: e.target.value })
+                                  }
+                                  placeholder="Ex: heure, pièce, kg"
+                                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                                />
+                              </div>
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
                                   <label className="block text-xs font-medium text-[#64748B] mb-1">
@@ -2033,7 +2048,7 @@ export default function SettingsPage() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setEditForm({ description: "", unit_price_ht: "", tax_rate: taxRates[0]?.toString() || "20" });
+                                    setEditForm({ description: "", unit: "", unit_price_ht: "", tax_rate: taxRates[0]?.toString() || "20" });
                                   }}
                                   className="px-4 py-2 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB]"
                                 >
@@ -2050,12 +2065,13 @@ export default function SettingsPage() {
                                     try {
                                       await createBillingLineTemplate(token, {
                                         description: editForm.description,
+                                        unit: editForm.unit.trim() || undefined,
                                         unit_price_ht: parseFloat(editForm.unit_price_ht) || 0,
                                         tax_rate: editForm.tax_rate ? parseFloat(editForm.tax_rate) : 0,
                                       });
                                       const templates = await getBillingLineTemplates(token);
                                       setBillingLineTemplates(templates);
-                                      setEditForm({ description: "", unit_price_ht: "", tax_rate: taxRates[0]?.toString() || "20" });
+                                      setEditForm({ description: "", unit: "", unit_price_ht: "", tax_rate: taxRates[0]?.toString() || "20" });
                                       showToast("Ligne créée avec succès", "success");
                                     } catch (err: any) {
                                       showToast(err.message || "Erreur lors de la création", "error");
@@ -2090,6 +2106,20 @@ export default function SettingsPage() {
                                     onChange={(e) =>
                                       setEditForm({ ...editForm, description: e.target.value })
                                     }
+                                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-[#64748B] mb-1">
+                                    Unité (optionnel)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={editForm.unit}
+                                    onChange={(e) =>
+                                      setEditForm({ ...editForm, unit: e.target.value })
+                                    }
+                                    placeholder="Ex: heure, pièce, kg"
                                     className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                                   />
                                 </div>
@@ -2133,7 +2163,7 @@ export default function SettingsPage() {
                                     type="button"
                                     onClick={() => {
                                       setEditingTemplate(null);
-                                      setEditForm({ description: "", unit_price_ht: "", tax_rate: "" });
+                                      setEditForm({ description: "", unit: "", unit_price_ht: "", tax_rate: "" });
                                     }}
                                     className="px-4 py-2 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#0F172A] hover:bg-[#F9FAFB]"
                                   >
@@ -2146,6 +2176,7 @@ export default function SettingsPage() {
                                       try {
                                         await updateBillingLineTemplate(token, template.id, {
                                           description: editForm.description,
+                                          unit: editForm.unit.trim() || undefined,
                                           unit_price_ht: parseFloat(editForm.unit_price_ht) || 0,
                                           tax_rate: editForm.tax_rate ? parseFloat(editForm.tax_rate) : 0,
                                         });
@@ -2157,7 +2188,7 @@ export default function SettingsPage() {
                                           setCurrentPage(maxPage);
                                         }
                                         setEditingTemplate(null);
-                                        setEditForm({ description: "", unit_price_ht: "", tax_rate: "" });
+                                        setEditForm({ description: "", unit: "", unit_price_ht: "", tax_rate: "" });
                                         showToast("Ligne mise à jour avec succès", "success");
                                       } catch (err: any) {
                                         showToast(err.message || "Erreur lors de la mise à jour", "error");
@@ -2180,7 +2211,7 @@ export default function SettingsPage() {
                                       minimumFractionDigits: 2,
                                       maximumFractionDigits: 2,
                                     })}{" "}
-                                    € HT • TVA {template.tax_rate}%
+                                    € HT {template.unit ? `• ${template.unit}` : ""} • TVA {template.tax_rate}%
                                   </p>
                                 </div>
                                 <div className="flex gap-2">
@@ -2190,6 +2221,7 @@ export default function SettingsPage() {
                                       setEditingTemplate(template);
                                       setEditForm({
                                         description: template.description,
+                                        unit: template.unit || "",
                                         unit_price_ht: template.unit_price_ht.toString(),
                                         tax_rate: template.tax_rate.toString(),
                                       });

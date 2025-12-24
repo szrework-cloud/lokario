@@ -185,7 +185,7 @@ export function DescriptionAutocomplete({
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}{" "}
-                      € • TVA {line.taxRate}%
+                      € {line.unit ? `• ${line.unit}` : ""} • TVA {line.taxRate}%
                     </span>
                   </div>
                 </button>

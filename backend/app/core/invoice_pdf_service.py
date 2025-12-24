@@ -350,8 +350,11 @@ def generate_invoice_pdf(invoice: Invoice, client=None, company_info: Optional[d
                 desc_line = desc_line[:57] + "..."
             c.drawString(col_x[0], table_y - i * 3 * mm, desc_line)
         
-        # Quantité
-        c.drawString(col_x[1], table_y, str(line.quantity))
+        # Quantité avec unité si disponible
+        quantity_display = str(line.quantity) if line.quantity else '0'
+        if line.unit:
+            quantity_display = f"{quantity_display} {line.unit}"
+        c.drawString(col_x[1], table_y, quantity_display)
         
         # Prix unitaire HT
         c.drawString(col_x[2], table_y, format_amount(Decimal(str(line.unit_price_ht))))
