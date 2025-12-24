@@ -243,10 +243,10 @@ async def get_subscription(
                 subscription.trial_end = datetime.fromtimestamp(stripe_sub.trial_end, tz=timezone.utc)
             
             # Synchroniser le plan depuis le price_id si nécessaire
-            if stripe_sub.get("items") and stripe_sub["items"].get("data"):
-                price_item = stripe_sub["items"]["data"][0]
-                if price_item.get("price") and price_item["price"].get("id"):
-                    price_id = price_item["price"]["id"]
+            if hasattr(stripe_sub, 'items') and stripe_sub.items and hasattr(stripe_sub.items, 'data') and stripe_sub.items.data:
+                price_item = stripe_sub.items.data[0]
+                if hasattr(price_item, 'price') and price_item.price and hasattr(price_item.price, 'id'):
+                    price_id = price_item.price.id
                     # Si le price_id a changé, mettre à jour le plan
                     if subscription.stripe_price_id != price_id:
                         subscription.stripe_price_id = price_id
