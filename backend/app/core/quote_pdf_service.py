@@ -25,28 +25,9 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
     """Dessine l'en-tête moderne avec les couleurs personnalisées."""
     canvas_obj.saveState()
     
-    # Bande diagonale principale (coin supérieur gauche, traverse la page)
-    canvas_obj.setFillColor(colors.HexColor(primary_color))
-    canvas_obj.setStrokeColor(colors.HexColor(primary_color))
-    
-    # Grande bande diagonale qui traverse le haut de la page
-    # Ratio largeur/hauteur pour avoir le même angle que le triangle du bas
-    triangle_width = 140*mm  # Largeur horizontale
-    triangle_height = 30*mm   # Hauteur verticale (réduite par 3 : 90mm / 3 = 30mm)
-    path = canvas_obj.beginPath()
-    path.moveTo(0, A4[1])  # Coin supérieur gauche
-    path.lineTo(triangle_width, A4[1])  # Vers la droite
-    path.lineTo(0, A4[1] - triangle_height)  # Vers le bas à gauche
-    path.close()
-    canvas_obj.drawPath(path, fill=1, stroke=0)
-    
-    # Titre "DEVIS" en blanc sur la bande rose (grand et en gras)
-    canvas_obj.setFillColor(colors.white)
-    canvas_obj.setFont("Helvetica-Bold", 48)
-    canvas_obj.drawString(20*mm, A4[1] - 50*mm, "DEVIS")
-    
-    # Logo si disponible (en haut à droite)
+    # Logo si disponible (en haut à droite) - DESSINER EN PREMIER pour être au-dessus
     logo_loaded = False
+    logo_image = None
     if logo_path:
         import logging
         logger = logging.getLogger(__name__)
@@ -92,8 +73,7 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
         # Essayer de charger depuis le système de fichiers local
         if logo_path_obj.exists():
             try:
-                logo = Image(logo_path, width=35*mm, height=35*mm, kind='proportional')
-                logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
+                logo_image = Image(logo_path, width=35*mm, height=35*mm, kind='proportional')
                 logo_loaded = True
                 logger.info(f"[LOGO] Logo loaded successfully from local filesystem: {logo_path}")
             except Exception as e:
@@ -115,13 +95,11 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
                         logo_bytes = io.BytesIO(file_content)
                         logo_bytes.seek(0)  # S'assurer que le pointeur est au début
                         try:
-                            logo = Image(logo_bytes, width=35*mm, height=35*mm, kind='proportional')
-                            logger.info(f"[LOGO] Image object created successfully, drawing at position ({A4[0] - 50*mm}, {A4[1] - 40*mm})")
-                            logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
+                            logo_image = Image(logo_bytes, width=35*mm, height=35*mm, kind='proportional')
                             logo_loaded = True
-                            logger.info(f"[LOGO] Logo drawn successfully on canvas from Supabase Storage: {normalized_path}")
+                            logger.info(f"[LOGO] Image object created successfully from Supabase Storage: {normalized_path}")
                         except Exception as img_error:
-                            logger.error(f"[LOGO] Error creating or drawing image from Supabase bytes: {img_error}", exc_info=True)
+                            logger.error(f"[LOGO] Error creating image from Supabase bytes: {img_error}", exc_info=True)
                             logo_loaded = False
                     else:
                         logger.warning(f"[LOGO] No file content received from Supabase Storage for: {normalized_path}")
@@ -135,8 +113,7 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
             logger.info(f"[LOGO] Trying alternative path: {alt_path_resolved} (exists: {alt_path_resolved.exists()})")
             if alt_path_resolved.exists():
                 try:
-                    logo = Image(str(alt_path_resolved), width=35*mm, height=35*mm, kind='proportional')
-                    logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
+                    logo_image = Image(str(alt_path_resolved), width=35*mm, height=35*mm, kind='proportional')
                     logo_loaded = True
                     logger.info(f"[LOGO] Logo loaded from alternative path: {alt_path_resolved}")
                 except Exception as e:
@@ -144,6 +121,35 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
         
         if not logo_loaded:
             logger.warning(f"Logo file not found: {logo_path} (tried local filesystem, Supabase Storage, and alternative paths)")
+    
+    # Bande diagonale principale (coin supérieur gauche, traverse la page)
+    canvas_obj.setFillColor(colors.HexColor(primary_color))
+    canvas_obj.setStrokeColor(colors.HexColor(primary_color))
+    
+    # Grande bande diagonale qui traverse le haut de la page
+    # Ratio largeur/hauteur pour avoir le même angle que le triangle du bas
+    triangle_width = 140*mm  # Largeur horizontale
+    triangle_height = 30*mm   # Hauteur verticale (réduite par 3 : 90mm / 3 = 30mm)
+    path = canvas_obj.beginPath()
+    path.moveTo(0, A4[1])  # Coin supérieur gauche
+    path.lineTo(triangle_width, A4[1])  # Vers la droite
+    path.lineTo(0, A4[1] - triangle_height)  # Vers le bas à gauche
+    path.close()
+    canvas_obj.drawPath(path, fill=1, stroke=0)
+    
+    # Titre "DEVIS" en blanc sur la bande rose (grand et en gras)
+    canvas_obj.setFillColor(colors.white)
+    canvas_obj.setFont("Helvetica-Bold", 48)
+    canvas_obj.drawString(20*mm, A4[1] - 50*mm, "DEVIS")
+    
+    # Dessiner le logo maintenant (après la bande et le texte, pour être au-dessus)
+    if logo_loaded and logo_image:
+        try:
+            logger.info(f"[LOGO] Drawing logo at position ({A4[0] - 50*mm}, {A4[1] - 40*mm})")
+            logo_image.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
+            logger.info(f"[LOGO] Logo drawn successfully on canvas")
+        except Exception as draw_error:
+            logger.error(f"[LOGO] Error drawing logo on canvas: {draw_error}", exc_info=True)
     
     # Nom de l'entreprise en haut à droite (uniquement si pas de logo)
     if company_name and not logo_loaded:

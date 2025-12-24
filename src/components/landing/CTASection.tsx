@@ -99,8 +99,8 @@ export const LandingCTASection = () => {
       {/* Content */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
         <h2 
-          className={`font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 transition-all duration-1000 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          className={`font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 transition-all duration-1200 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-32'
           }`}
         >
           Bienvenue dans l'ère de
@@ -109,8 +109,8 @@ export const LandingCTASection = () => {
         </h2>
         
         <p 
-          className={`text-lg text-white/60 mb-10 max-w-xl mx-auto transition-all duration-1000 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          className={`text-lg text-white/60 mb-10 max-w-xl mx-auto transition-all duration-1200 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-32'
           }`}
           style={{ transitionDelay: '0.1s' }}
         >
@@ -118,8 +118,8 @@ export const LandingCTASection = () => {
         </p>
         
         <div 
-          className={`transition-all duration-1000 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          className={`transition-all duration-1200 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-32'
           }`}
           style={{ transitionDelay: '0.2s' }}
         >

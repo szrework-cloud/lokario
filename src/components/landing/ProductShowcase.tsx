@@ -93,8 +93,8 @@ export const LandingProductShowcase = () => {
       
       <div className="container mx-auto px-4 lg:px-8 relative z-10">
         <div 
-          className={`text-center mb-16 lg:mb-24 transition-all duration-1000 ${
-            isVisible ? 'opacity-100 translate-y-0 translate-x-0' : 'opacity-0 translate-y-10 -translate-x-10'
+          className={`text-center mb-16 lg:mb-24 transition-all duration-1200 ${
+            isVisible ? 'opacity-100 translate-y-0 translate-x-0' : 'opacity-0 translate-y-32 -translate-x-32'
           }`}
         >
           <h2 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
@@ -221,7 +221,7 @@ export const LandingProductShowcase = () => {
                   className={`flex gap-4 transition-all duration-700 ${
                     visibleFeatures.includes(index) 
                       ? 'opacity-100 translate-x-0' 
-                      : `opacity-0 ${isEven ? 'translate-x-10' : '-translate-x-10'}`
+                      : `opacity-0 ${isEven ? 'translate-x-32' : '-translate-x-32'}`
                   }`}
                   style={{ 
                     transitionDelay: `${200 * (index + 1)}ms`,

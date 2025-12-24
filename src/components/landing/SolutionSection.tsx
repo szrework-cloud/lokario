@@ -82,7 +82,7 @@ export const LandingSolutionSection = () => {
                 style={{
                   transitionDelay: isVisible ? `${300 + index * 100}ms` : "0ms",
                   opacity: isVisible ? 1 : 0,
-                  transform: isVisible ? "translateY(0)" : "translateY(20px)",
+                  transform: isVisible ? "translateY(0)" : "translateY(40px)",
                 }}
               >
                 <pillar.icon className="w-5 h-5 text-[#F97316]" />
@@ -140,8 +140,8 @@ export const LandingSolutionSection = () => {
                 className="flex items-center gap-3 px-4 py-3 bg-[#1E293B]/80 backdrop-blur-sm border border-white/5 rounded-xl shadow-sm"
                 style={{
                   opacity: isVisible ? 1 : 0,
-                  transform: isVisible ? 'translateX(0)' : 'translateX(-20px)',
-                  transition: `opacity 0.5s ease-out ${0.8 + index * 0.15}s, transform 0.5s ease-out ${0.8 + index * 0.15}s`,
+                  transform: isVisible ? 'translateX(0)' : 'translateX(-32px)',
+                  transition: `opacity 0.7s ease-out ${0.8 + index * 0.15}s, transform 0.7s ease-out ${0.8 + index * 0.15}s`,
                 }}
               >
                 <div className="w-8 h-8 rounded-full bg-[#F97316]/20 flex items-center justify-center flex-shrink-0">
@@ -155,8 +155,8 @@ export const LandingSolutionSection = () => {
 
         {/* Tagline */}
         <div
-          className={`text-center max-w-xl mx-auto mb-10 transition-all duration-700 delay-[1100ms] ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+          className={`text-center max-w-xl mx-auto mb-10 transition-all duration-900 delay-[1100ms] ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
           }`}
         >
           <p className="text-white text-xl md:text-2xl font-semibold">
@@ -166,8 +166,8 @@ export const LandingSolutionSection = () => {
 
         {/* CTA */}
         <div
-          className={`text-center transition-all duration-700 delay-[1300ms] ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+          className={`text-center transition-all duration-900 delay-[1300ms] ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-24"
           }`}
         >
           <p className="text-white/70 mb-6">
