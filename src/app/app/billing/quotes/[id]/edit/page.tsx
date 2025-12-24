@@ -320,8 +320,14 @@ export default function EditQuotePage() {
                   + Ajouter une ligne
                 </button>
               </div>
-              <div className="space-y-4">
-                {quote.lines.map((line) => (
+              {quote.lines.length === 0 ? (
+                <div className="text-center py-8 text-[#64748B]">
+                  <p className="text-sm">Aucune ligne dans ce devis.</p>
+                  <p className="text-xs mt-2">Cliquez sur "+ Ajouter une ligne" pour en ajouter une.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {quote.lines.map((line) => (
                   <div
                     key={line.id}
                     className="p-4 rounded-lg border border-[#E5E7EB] bg-white"
