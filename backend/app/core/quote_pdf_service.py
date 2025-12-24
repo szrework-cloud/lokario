@@ -19,131 +19,47 @@ from app.db.models.billing import Quote, QuoteLine
 from app.db.models.client import Client
 from app.db.models.company import Company
 from app.core.config import settings
+from app.core.pdf_image_loader import load_image_for_pdf, cleanup_temp_images
 
 
 def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_path=None, company_name=None):
     """Dessine l'en-tête moderne avec les couleurs personnalisées."""
+    import logging
+    logger = logging.getLogger(__name__)
     canvas_obj.saveState()
     
-    # Logo si disponible (en haut à droite) - DESSINER EN PREMIER pour être au-dessus
-    logo_loaded = False
+    # Logo si disponible (en haut à droite)
     logo_image = None
+    logo_loaded = False
     if logo_path:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[LOGO] Original logo_path from config: {logo_path}")
+        # Extraire company_id du logo_path si possible (format: "company_id/filename")
+        # Note: company_id peut être passé via doc.company_id si disponible
+        company_id = None
+        try:
+            if "/" in logo_path:
+                company_id_str = logo_path.split("/")[0]
+                company_id = int(company_id_str)
+        except (ValueError, IndexError):
+            company_id = None
         
-        # Normaliser le chemin : enlever le préfixe "uploads" s'il existe déjà
-        normalized_path = logo_path
-        if normalized_path.startswith("uploads/"):
-            normalized_path = normalized_path[8:]  # Enlever "uploads/"
-            logger.info(f"[LOGO] Removed 'uploads/' prefix, normalized: {normalized_path}")
-        elif normalized_path.startswith("./uploads/"):
-            normalized_path = normalized_path[11:]  # Enlever "./uploads/"
-            logger.info(f"[LOGO] Removed './uploads/' prefix, normalized: {normalized_path}")
+        # Utiliser la fonction utilitaire centralisée pour charger le logo
+        upload_dir = Path(settings.UPLOAD_DIR).resolve()
+        logo_result = load_image_for_pdf(
+            image_path=logo_path,
+            width=35,
+            height=35,
+            upload_dir=upload_dir,
+            company_id=company_id,
+            temp_subdir="temp_logos",
+            kind='proportional'
+        )
         
-        # Si logo_path est relatif, le rendre absolu depuis UPLOAD_DIR
-        from app.core.config import settings
-        upload_dir = Path(settings.UPLOAD_DIR).resolve()  # Utiliser resolve() pour obtenir le chemin absolu
-        
-        # Toujours construire le chemin absolu pour vérifier l'existence locale
-        if not Path(normalized_path).is_absolute():
-            logo_path_absolute = upload_dir / normalized_path
-            logo_path = str(logo_path_absolute.resolve())  # Resolve pour normaliser le chemin
-            logger.info(f"[LOGO] UPLOAD_DIR: {upload_dir}, normalized_path: {normalized_path}, final path: {logo_path}")
+        if logo_result.loaded and logo_result.image:
+            logo_image = logo_result.image
+            logo_loaded = True
+            logger.info(f"[LOGO] ✅ Logo loaded successfully")
         else:
-            # Si c'est déjà absolu, extraire le chemin relatif pour Supabase
-            try:
-                # Essayer d'extraire le chemin relatif depuis UPLOAD_DIR
-                logo_path_obj = Path(logo_path)
-                if logo_path_obj.is_relative_to(upload_dir):
-                    normalized_path = str(logo_path_obj.relative_to(upload_dir))
-                else:
-                    # Si ce n'est pas relatif à UPLOAD_DIR, utiliser le nom du fichier
-                    normalized_path = logo_path_obj.name
-            except (ValueError, AttributeError):
-                # Si Python < 3.9, utiliser une méthode alternative
-                normalized_path = str(Path(logo_path).name)
-            logo_path = str(Path(logo_path).resolve())
-            logger.info(f"[LOGO] Path already absolute, resolved: {logo_path}, normalized for Supabase: {normalized_path}")
-        
-        logo_path_obj = Path(logo_path)
-        logger.info(f"[LOGO] Checking if file exists: {logo_path_obj} (exists: {logo_path_obj.exists()})")
-        
-        # Essayer de charger depuis le système de fichiers local
-        if logo_path_obj.exists():
-            try:
-                logo_image = Image(logo_path, width=35*mm, height=35*mm, kind='proportional')
-                logo_loaded = True
-                logger.info(f"[LOGO] Logo loaded successfully from local filesystem: {logo_path}")
-            except Exception as e:
-                logger.warning(f"Could not load logo from local filesystem: {e}")
-                logo_loaded = False
-        
-        # Si le fichier n'existe pas localement, essayer Supabase Storage
-        if not logo_loaded and normalized_path:
-            try:
-                from app.core.supabase_storage_service import download_file as download_from_supabase, is_supabase_storage_configured
-                import io
-                
-                if is_supabase_storage_configured():
-                    logger.info(f"[LOGO] Trying to download from Supabase Storage: {normalized_path}")
-                    file_content = download_from_supabase(normalized_path)
-                    if file_content:
-                        logger.info(f"[LOGO] Downloaded {len(file_content)} bytes from Supabase")
-                        # Sauvegarder temporairement le fichier pour ReportLab
-                        # ReportLab a parfois des problèmes avec BytesIO, donc on sauvegarde temporairement
-                        import tempfile
-                        import os
-                        import uuid
-                        temp_logo_path = None
-                        try:
-                            # Créer un fichier temporaire dans le répertoire d'upload pour qu'il persiste pendant la génération du PDF
-                            # Extraire company_id du normalized_path (format: "company_id/filename")
-                            company_id_from_path = normalized_path.split("/")[0] if "/" in normalized_path else "temp"
-                            temp_dir = upload_dir / company_id_from_path / "temp_logos"
-                            temp_dir.mkdir(parents=True, exist_ok=True)
-                            temp_logo_path = temp_dir / f"logo_{uuid.uuid4().hex[:8]}.png"
-                            
-                            with open(temp_logo_path, "wb") as temp_file:
-                                temp_file.write(file_content)
-                            
-                            logger.info(f"[LOGO] Saved temporary logo file: {temp_logo_path}")
-                            logo_image = Image(str(temp_logo_path), width=35*mm, height=35*mm, kind='proportional')
-                            logo_loaded = True
-                            logger.info(f"[LOGO] Image object created successfully from Supabase Storage: {normalized_path}")
-                            
-                            # Le fichier temporaire sera nettoyé après la génération complète du PDF
-                            # On ne le supprime pas immédiatement car ReportLab peut en avoir besoin
-                        except Exception as img_error:
-                            logger.error(f"[LOGO] Error creating image from Supabase bytes: {img_error}", exc_info=True)
-                            logo_loaded = False
-                            # Nettoyer le fichier temporaire en cas d'erreur
-                            if temp_logo_path and os.path.exists(temp_logo_path):
-                                try:
-                                    os.unlink(temp_logo_path)
-                                except:
-                                    pass
-                    else:
-                        logger.warning(f"[LOGO] No file content received from Supabase Storage for: {normalized_path}")
-            except Exception as e:
-                logger.error(f"Could not load logo from Supabase Storage: {e}", exc_info=True)
-        
-        # Dernier recours : essayer le chemin alternatif
-        if not logo_loaded and normalized_path and not Path(normalized_path).is_absolute():
-            alt_path = upload_dir / normalized_path
-            alt_path_resolved = alt_path.resolve()
-            logger.info(f"[LOGO] Trying alternative path: {alt_path_resolved} (exists: {alt_path_resolved.exists()})")
-            if alt_path_resolved.exists():
-                try:
-                    logo_image = Image(str(alt_path_resolved), width=35*mm, height=35*mm, kind='proportional')
-                    logo_loaded = True
-                    logger.info(f"[LOGO] Logo loaded from alternative path: {alt_path_resolved}")
-                except Exception as e:
-                    logger.warning(f"Could not load logo from alternative path: {e}")
-        
-        if not logo_loaded:
-            logger.warning(f"Logo file not found: {logo_path} (tried local filesystem, Supabase Storage, and alternative paths)")
+            logger.warning(f"[LOGO] ⚠️ Logo could not be loaded from: {logo_path}")
     
     # Bande diagonale principale (coin supérieur gauche, traverse la page)
     canvas_obj.setFillColor(colors.HexColor(primary_color))
@@ -807,58 +723,32 @@ def generate_quote_pdf(
     # Colonne gauche : Signature entreprise
     left_signature_elements = []
     if signature_path:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[QUOTE PDF] Original signature_path: {signature_path}")
+        # Extraire company_id du signature_path si possible, sinon utiliser company.id
+        company_id = company.id if company and company.id else None
+        if not company_id and "/" in signature_path:
+            try:
+                company_id = int(signature_path.split("/")[0])
+            except (ValueError, IndexError):
+                company_id = None
         
-        # Normaliser le chemin
-        normalized_sig_path = signature_path
-        if normalized_sig_path.startswith("uploads/"):
-            normalized_sig_path = normalized_sig_path[8:]
-        elif normalized_sig_path.startswith("./uploads/"):
-            normalized_sig_path = normalized_sig_path[11:]
-        
+        # Utiliser la fonction utilitaire centralisée pour charger la signature entreprise
         upload_dir = Path(settings.UPLOAD_DIR).resolve()
-        if not Path(normalized_sig_path).is_absolute():
-            signature_image_path = str((upload_dir / normalized_sig_path).resolve())
+        signature_result = load_image_for_pdf(
+            image_path=signature_path,
+            width=70,
+            height=25,
+            upload_dir=upload_dir,
+            company_id=company_id,
+            temp_subdir="temp_signatures",
+            kind='proportional'
+        )
+        
+        if signature_result.loaded and signature_result.image:
+            left_signature_elements.append(signature_result.image)
+            left_signature_elements.append(Spacer(1, 3*mm))
+            logger.info(f"[QUOTE PDF] ✅ Company signature loaded successfully")
         else:
-            signature_image_path = str(Path(normalized_sig_path).resolve())
-        
-        logger.info(f"[QUOTE PDF] Normalized signature_path: {signature_image_path}")
-        
-        # Essayer de charger depuis le système de fichiers local
-        signature_loaded = False
-        if Path(signature_image_path).exists():
-            try:
-                signature_img = Image(signature_image_path, width=70*mm, height=25*mm, kind='proportional')
-                left_signature_elements.append(signature_img)
-                left_signature_elements.append(Spacer(1, 3*mm))
-                signature_loaded = True
-                logger.info(f"[QUOTE PDF] Signature loaded from local filesystem: {signature_image_path}")
-            except Exception as e:
-                logger.warning(f"Could not load signature from local filesystem: {e}")
-        
-        # Si le fichier n'existe pas localement, essayer Supabase Storage
-        if not signature_loaded:
-            try:
-                from app.core.supabase_storage_service import download_file as download_from_supabase, is_supabase_storage_configured
-                import io
-                
-                if is_supabase_storage_configured():
-                    logger.info(f"[QUOTE PDF] Trying to download signature from Supabase Storage: {normalized_sig_path}")
-                    file_content = download_from_supabase(normalized_sig_path)
-                    if file_content:
-                        signature_bytes = io.BytesIO(file_content)
-                        signature_img = Image(signature_bytes, width=70*mm, height=25*mm, kind='proportional')
-                        left_signature_elements.append(signature_img)
-                        left_signature_elements.append(Spacer(1, 3*mm))
-                        signature_loaded = True
-                        logger.info(f"[QUOTE PDF] Signature loaded from Supabase Storage: {normalized_sig_path}")
-            except Exception as e:
-                logger.warning(f"Could not load signature from Supabase Storage: {e}")
-        
-        if not signature_loaded:
-            logger.warning(f"[QUOTE PDF] Signature file not found: {signature_image_path}")
+            logger.warning(f"[QUOTE PDF] ⚠️ Company signature could not be loaded from: {signature_path}")
     
     # Label signature entreprise
     left_signature_style = ParagraphStyle(
@@ -888,82 +778,31 @@ def generate_quote_pdf(
     
     # Utiliser la signature du client si fournie, sinon espace vide
     if client_signature_path:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[QUOTE PDF] Original client_signature_path: {client_signature_path}")
+        # Extraire company_id du client_signature_path si possible, sinon utiliser company.id
+        company_id = company.id if company and company.id else None
+        if not company_id and "/" in client_signature_path:
+            try:
+                company_id = int(client_signature_path.split("/")[0])
+            except (ValueError, IndexError):
+                company_id = None
         
-        # Normaliser le chemin : enlever le préfixe "uploads" s'il existe déjà
-        normalized_client_path = client_signature_path
-        if normalized_client_path.startswith("uploads/"):
-            normalized_client_path = normalized_client_path[8:]  # Enlever "uploads/"
-        elif normalized_client_path.startswith("./uploads/"):
-            normalized_client_path = normalized_client_path[11:]  # Enlever "./uploads/"
-        
-        # Chemin absolu pour la signature du client
+        # Utiliser la fonction utilitaire centralisée pour charger la signature client
         upload_dir = Path(settings.UPLOAD_DIR).resolve()
-        if not Path(normalized_client_path).is_absolute():
-            client_sig_path = str((upload_dir / normalized_client_path).resolve())
+        client_sig_result = load_image_for_pdf(
+            image_path=client_signature_path,
+            width=70,
+            height=25,
+            upload_dir=upload_dir,
+            company_id=company_id,
+            temp_subdir="temp_signatures",
+            kind='proportional'
+        )
+        
+        if client_sig_result.loaded and client_sig_result.image:
+            right_signature_elements.append(client_sig_result.image)
+            logger.info(f"[QUOTE PDF] ✅ Client signature loaded successfully")
         else:
-            client_sig_path = str(Path(normalized_client_path).resolve())
-        
-        logger.info(f"[QUOTE PDF] Normalized client_signature_path: {client_sig_path}")
-        
-        # Essayer de charger depuis le système de fichiers local
-        client_sig_loaded = False
-        if Path(client_sig_path).exists():
-            try:
-                client_signature_img = Image(client_sig_path, width=70*mm, height=25*mm, kind='proportional')
-                right_signature_elements.append(client_signature_img)
-                client_sig_loaded = True
-                logger.info(f"[QUOTE PDF] Client signature loaded from local filesystem: {client_sig_path}")
-            except Exception as e:
-                logger.warning(f"Could not load client signature from local filesystem: {e}")
-        
-        # Si le fichier n'existe pas localement, essayer Supabase Storage
-        if not client_sig_loaded:
-            try:
-                from app.core.supabase_storage_service import download_file as download_from_supabase, is_supabase_storage_configured
-                import io
-                import os
-                import uuid
-                
-                if is_supabase_storage_configured():
-                    logger.info(f"[QUOTE PDF] Trying to download client signature from Supabase Storage: {normalized_client_path}")
-                    try:
-                        file_content = download_from_supabase(normalized_client_path)
-                        if file_content:
-                            logger.info(f"[QUOTE PDF] Downloaded {len(file_content)} bytes for client signature from Supabase")
-                            
-                            # Sauvegarder temporairement le fichier pour ReportLab
-                            # ReportLab a parfois des problèmes avec BytesIO, donc on sauvegarde temporairement
-                            # Extraire company_id du normalized_client_path (format: "company_id/signatures/filename")
-                            company_id_from_path = normalized_client_path.split("/")[0] if "/" in normalized_client_path else "temp"
-                            temp_sig_dir = upload_dir / company_id_from_path / "temp_signatures"
-                            temp_sig_dir.mkdir(parents=True, exist_ok=True)
-                            temp_sig_path = temp_sig_dir / f"client_sig_{uuid.uuid4().hex[:8]}.png"
-                            
-                            with open(temp_sig_path, "wb") as temp_file:
-                                temp_file.write(file_content)
-                            
-                            logger.info(f"[QUOTE PDF] Saved temporary client signature file: {temp_sig_path}")
-                            client_signature_img = Image(str(temp_sig_path), width=70*mm, height=25*mm, kind='proportional')
-                            right_signature_elements.append(client_signature_img)
-                            client_sig_loaded = True
-                            logger.info(f"[QUOTE PDF] Client signature loaded from Supabase Storage: {normalized_client_path}")
-                            
-                            # Le fichier temporaire sera nettoyé après la génération complète du PDF
-                            # On ne le supprime pas immédiatement car ReportLab peut en avoir besoin
-                        else:
-                            logger.warning(f"[QUOTE PDF] No file content received from Supabase for client signature: {normalized_client_path}")
-                    except Exception as download_error:
-                        logger.error(f"[QUOTE PDF] Error downloading client signature from Supabase: {download_error}", exc_info=True)
-                        # L'erreur 400 peut signifier que le fichier n'existe pas ou que le chemin est incorrect
-                        # C'est normal si la signature n'a pas encore été sauvegardée dans Supabase
-            except Exception as e:
-                logger.warning(f"Could not load client signature from Supabase Storage: {e}", exc_info=True)
-        
-        if not client_sig_loaded:
-            logger.warning(f"[QUOTE PDF] Client signature file not found: {client_sig_path}")
+            logger.warning(f"[QUOTE PDF] ⚠️ Client signature could not be loaded from: {client_signature_path}")
             # Espace vide si signature non trouvée
             right_signature_elements.append(Spacer(1, 20*mm))
     else:
@@ -1010,46 +849,10 @@ def generate_quote_pdf(
     doc.build(story, onFirstPage=on_first_page, onLaterPages=on_later_pages)
     
     # Nettoyage des fichiers temporaires après génération du PDF
-    # En entreprise, on nettoie toujours les fichiers temporaires pour éviter l'accumulation
+    # Utiliser la fonction utilitaire centralisée pour le nettoyage
     try:
-        import os
-        import time
-        from app.core.config import settings
         upload_dir = Path(settings.UPLOAD_DIR).resolve()
-        
-        # Nettoyer les fichiers temporaires de logos et signatures
-        # On garde les fichiers pendant 1 heure au cas où ils seraient encore utilisés
-        # mais on nettoie les fichiers plus anciens
-        current_time = time.time()
-        max_age = 3600  # 1 heure
-        
-        # Nettoyer les logos temporaires
-        for company_id_dir in upload_dir.iterdir():
-            if company_id_dir.is_dir():
-                temp_logos_dir = company_id_dir / "temp_logos"
-                if temp_logos_dir.exists():
-                    for temp_file in temp_logos_dir.iterdir():
-                        if temp_file.is_file():
-                            file_age = current_time - temp_file.stat().st_mtime
-                            if file_age > max_age:
-                                try:
-                                    temp_file.unlink()
-                                    logger.info(f"[CLEANUP] Deleted old temp logo: {temp_file}")
-                                except Exception as e:
-                                    logger.warning(f"[CLEANUP] Could not delete temp logo {temp_file}: {e}")
-                
-                # Nettoyer les signatures temporaires
-                temp_signatures_dir = company_id_dir / "temp_signatures"
-                if temp_signatures_dir.exists():
-                    for temp_file in temp_signatures_dir.iterdir():
-                        if temp_file.is_file():
-                            file_age = current_time - temp_file.stat().st_mtime
-                            if file_age > max_age:
-                                try:
-                                    temp_file.unlink()
-                                    logger.info(f"[CLEANUP] Deleted old temp signature: {temp_file}")
-                                except Exception as e:
-                                    logger.warning(f"[CLEANUP] Could not delete temp signature {temp_file}: {e}")
+        cleanup_temp_images(upload_dir, max_age_seconds=3600)
     except Exception as cleanup_error:
         # Ne pas faire échouer la génération du PDF si le nettoyage échoue
         logger.warning(f"[CLEANUP] Error during temp files cleanup: {cleanup_error}")
