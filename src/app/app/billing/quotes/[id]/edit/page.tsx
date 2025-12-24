@@ -343,12 +343,13 @@ export default function EditQuotePage() {
                             handleLineChange(line.id, "description", value)
                           }
                           onSelectLine={(savedLine) => {
-                            // Pré-remplir le prix, l'unité et la TVA si une ligne est sélectionnée
+                            // Pré-remplir tous les champs si une ligne est sélectionnée
+                            handleLineChange(line.id, "description", savedLine.description);
                             handleLineChange(line.id, "unitPrice", savedLine.unitPrice);
+                            handleLineChange(line.id, "taxRate", savedLine.taxRate);
                             if (savedLine.unit) {
                               handleLineChange(line.id, "unit", savedLine.unit);
                             }
-                            handleLineChange(line.id, "taxRate", savedLine.taxRate);
                           }}
                           onSaveNewLine={(description, unit, unitPrice, taxRate) => {
                             // Sauvegarder la nouvelle ligne et mettre à jour la ligne actuelle
