@@ -570,17 +570,32 @@ async def stripe_webhook(
             logger.error(f"Erreur de parsing du payload: {e}")
             raise HTTPException(status_code=400, detail="Payload invalide")
     
-    # Logger l'événement
+    # Logger l'événement (ou récupérer l'existant si déjà traité - idempotence)
     event_id = event.get("id") or f"dev_{int(time.time())}"
     event_type = event.get("type") or "unknown"
     event_data_obj = event.get("data", {}).get("object", event)
     
-    event_record = SubscriptionEvent(
-        stripe_event_id=event_id,
-        event_type=event_type,
-        event_data=json.dumps(event_data_obj),
-    )
-    db.add(event_record)
+    # Vérifier si l'événement existe déjà (Stripe peut renvoyer le même événement plusieurs fois)
+    event_record = db.query(SubscriptionEvent).filter(
+        SubscriptionEvent.stripe_event_id == event_id
+    ).first()
+    
+    if event_record:
+        # L'événement existe déjà
+        if event_record.processed:
+            logger.info(f"Événement {event_id} déjà traité - ignoré (idempotence)")
+            return {"status": "success", "message": "Event already processed"}
+        else:
+            logger.info(f"Événement {event_id} existe mais pas encore traité - nouvelle tentative")
+    else:
+        # Créer un nouvel enregistrement d'événement
+        event_record = SubscriptionEvent(
+            stripe_event_id=event_id,
+            event_type=event_type,
+            event_data=json.dumps(event_data_obj),
+        )
+        db.add(event_record)
+        db.flush()  # Pour obtenir l'ID sans commit
     
     try:
         # Traiter l'événement
@@ -601,6 +616,7 @@ async def stripe_webhook(
             logger.info(f"Événement Stripe non traité: {event['type']}")
         
         event_record.processed = True
+        event_record.processed_at = datetime.now(timezone.utc)
         db.commit()
         
     except Exception as e:
@@ -761,12 +777,27 @@ async def handle_subscription_created(event, db: Session):
         # Mettre à jour l'abonnement existant (qui était en essai gratuit) avec les infos Stripe
         subscription.stripe_subscription_id = subscription_data["id"]
         subscription.status = SubscriptionStatus(subscription_data["status"])
-        subscription.current_period_start = datetime.fromtimestamp(subscription_data["current_period_start"])
-        subscription.current_period_end = datetime.fromtimestamp(subscription_data["current_period_end"])
+        
+        # Convertir les timestamps en datetime (gérer les cas où ils peuvent être None ou int)
+        if subscription_data.get("current_period_start"):
+            if isinstance(subscription_data["current_period_start"], (int, float)):
+                subscription.current_period_start = datetime.fromtimestamp(subscription_data["current_period_start"], tz=timezone.utc)
+            else:
+                logger.warning(f"current_period_start n'est pas un timestamp: {subscription_data.get('current_period_start')}")
+        
+        if subscription_data.get("current_period_end"):
+            if isinstance(subscription_data["current_period_end"], (int, float)):
+                subscription.current_period_end = datetime.fromtimestamp(subscription_data["current_period_end"], tz=timezone.utc)
+            else:
+                logger.warning(f"current_period_end n'est pas un timestamp: {subscription_data.get('current_period_end')}")
+        
         if subscription_data.get("trial_start"):
-            subscription.trial_start = datetime.fromtimestamp(subscription_data["trial_start"])
+            if isinstance(subscription_data["trial_start"], (int, float)):
+                subscription.trial_start = datetime.fromtimestamp(subscription_data["trial_start"], tz=timezone.utc)
+        
         if subscription_data.get("trial_end"):
-            subscription.trial_end = datetime.fromtimestamp(subscription_data["trial_end"])
+            if isinstance(subscription_data["trial_end"], (int, float)):
+                subscription.trial_end = datetime.fromtimestamp(subscription_data["trial_end"], tz=timezone.utc)
         # Mettre à jour le montant depuis les items de l'abonnement
         if subscription_data.get("items") and subscription_data["items"].get("data"):
             price_item = subscription_data["items"]["data"][0]
