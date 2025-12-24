@@ -1231,8 +1231,6 @@ def get_quote_pdf(
                 # Vérifier l'intégrité du PDF archivé
                 current_hash = hashlib.sha256(pdf_bytes).hexdigest()
                 if current_hash != existing_signature.signature_hash:
-                    import logging
-                    logger = logging.getLogger(__name__)
                     logger.error(
                         f"CRITICAL: PDF integrity mismatch for signed quote {quote_id}: "
                         f"expected={existing_signature.signature_hash}, got={current_hash}. "
@@ -1253,8 +1251,6 @@ def get_quote_pdf(
             else:
                 # PDF archivé manquant - servir le PDF généré à la place
                 # C'est un cas de fallback si le PDF archivé a été perdu
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.warning(
                     f"WARNING: Archived PDF missing for signed quote {quote_id}: "
                     f"{existing_signature.signed_pdf_path}. Serving regenerated PDF instead."
