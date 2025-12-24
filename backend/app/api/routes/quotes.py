@@ -1282,8 +1282,15 @@ def convert_quote_to_invoice(
         # Générer le numéro de facture
         number = generate_invoice_number(db, current_user.company_id, InvoiceType.FACTURE)
         
-        # Calculer la date d'échéance (30 jours par défaut)
-        due_date = datetime.now(timezone.utc) + timedelta(days=30)
+        # Calculer la date d'échéance depuis les settings
+        due_date_days = 30  # Valeur par défaut: 30 jours
+        if company_settings:
+            billing_settings = company_settings.get("billing", {})
+            due_date_days = billing_settings.get("invoice_due_date_days", 30)
+        
+        # Calculer la date d'échéance
+        issue_date = datetime.now(timezone.utc)
+        due_date = issue_date + timedelta(days=due_date_days)
         
         # Créer la facture depuis le devis
         invoice = Invoice(

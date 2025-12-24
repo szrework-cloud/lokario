@@ -423,16 +423,18 @@ def create_invoice(
     populate_client_info(invoice, client)
     
     # Calculer automatiquement la date d'échéance si elle n'est pas fournie
-    if not invoice.due_date and invoice.issue_date:
+    # OU si elle est fournie mais qu'on veut utiliser les settings (si due_date est None ou non fourni)
+    if invoice.issue_date:
         # Récupérer la durée d'échéance depuis les settings (en jours)
         due_date_days = 30  # Valeur par défaut: 30 jours
         if company_settings:
             billing_settings = company_settings.get("billing", {})
             due_date_days = billing_settings.get("invoice_due_date_days", 30)
         
-        # Calculer la date d'échéance
-        from datetime import timedelta
-        invoice.due_date = invoice.issue_date + timedelta(days=due_date_days)
+        # Calculer la date d'échéance si elle n'est pas fournie
+        if not invoice.due_date:
+            from datetime import timedelta
+            invoice.due_date = invoice.issue_date + timedelta(days=due_date_days)
     
     # Vérifier si l'ENTREPRISE est auto-entrepreneur ou exonérée de TVA
     # Si oui, appliquer automatiquement les règles TVA
