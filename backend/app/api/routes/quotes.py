@@ -1136,6 +1136,9 @@ def get_quote_pdf(
     """
     Génère et retourne le PDF d'un devis.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if current_user.company_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
