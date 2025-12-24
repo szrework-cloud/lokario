@@ -1,12 +1,32 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ArrowRight } from "lucide-react";
 
 export const LandingCTASection = () => {
+  const sectionRef = useRef<HTMLElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.2 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <section className="relative py-32 lg:py-48 overflow-hidden">
+    <section ref={sectionRef} className="relative py-32 lg:py-48 overflow-hidden">
       {/* Top gradient transition from FAQSection */}
       <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-[#F97316]/10 to-transparent pointer-events-none z-20" />
       {/* Perspective grid background */}
@@ -78,24 +98,40 @@ export const LandingCTASection = () => {
       
       {/* Content */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-        <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+        <h2 
+          className={`font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 transition-all duration-1000 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}
+        >
           Bienvenue dans l'ère de
           <br />
           <span className="text-[#F97316]">l'assistant</span> intelligent
         </h2>
         
-        <p className="text-lg text-white/60 mb-10 max-w-xl mx-auto">
+        <p 
+          className={`text-lg text-white/60 mb-10 max-w-xl mx-auto transition-all duration-1000 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}
+          style={{ transitionDelay: '0.1s' }}
+        >
           L'IA qui gère votre activité, pas vos tâches
         </p>
         
-        <Button
-          variant="outline"
-          size="lg"
-          className="bg-black/80 backdrop-blur-sm border-white/30 text-white hover:bg-black/90 hover:border-[#F97316]/40 rounded-full px-8"
+        <div 
+          className={`transition-all duration-1000 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}
+          style={{ transitionDelay: '0.2s' }}
         >
-          Parler à un expert
-          <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            className="bg-black/80 backdrop-blur-sm border-white/30 text-white hover:bg-black/90 hover:border-[#F97316]/40 rounded-full px-8"
+          >
+            Parler à un expert
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
       </div>
     </section>
   );

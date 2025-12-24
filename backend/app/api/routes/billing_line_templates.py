@@ -182,7 +182,8 @@ def update_billing_line_template(
     if template_data.description is not None:
         template.description = template_data.description
     if template_data.unit is not None:
-        template.unit = template_data.unit
+        # Permettre de supprimer l'unité en envoyant une chaîne vide
+        template.unit = template_data.unit.strip() if template_data.unit.strip() else None
     if template_data.unit_price_ht is not None:
         template.unit_price_ht = template_data.unit_price_ht
     if template_data.tax_rate is not None:

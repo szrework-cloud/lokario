@@ -2065,7 +2065,7 @@ export default function SettingsPage() {
                                     try {
                                       await createBillingLineTemplate(token, {
                                         description: editForm.description,
-                                        unit: editForm.unit.trim() || undefined,
+                                        unit: editForm.unit.trim() || null,
                                         unit_price_ht: parseFloat(editForm.unit_price_ht) || 0,
                                         tax_rate: editForm.tax_rate ? parseFloat(editForm.tax_rate) : 0,
                                       });
@@ -2176,7 +2176,7 @@ export default function SettingsPage() {
                                       try {
                                         await updateBillingLineTemplate(token, template.id, {
                                           description: editForm.description,
-                                          unit: editForm.unit.trim() || undefined,
+                                          unit: editForm.unit.trim() || null,
                                           unit_price_ht: parseFloat(editForm.unit_price_ht) || 0,
                                           tax_rate: editForm.tax_rate ? parseFloat(editForm.tax_rate) : 0,
                                         });
