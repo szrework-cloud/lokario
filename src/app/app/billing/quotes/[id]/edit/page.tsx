@@ -193,7 +193,6 @@ export default function EditQuotePage() {
           order: index,
         })),
         notes: quote.notes,
-        conditions: quote.conditions,
         valid_until: quote.valid_until,
         service_start_date: quote.service_start_date,
         execution_duration: quote.execution_duration,
@@ -722,36 +721,20 @@ export default function EditQuotePage() {
               </div>
             </div>
 
-            {/* Notes & Conditions */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                  Notes
-                </label>
-                <textarea
-                  value={quote.notes || ""}
-                  onChange={(e) =>
-                    setQuote({ ...quote, notes: e.target.value })
-                  }
-                  rows={4}
-                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                  placeholder="Notes internes..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                  Conditions
-                </label>
-                <textarea
-                  value={quote.conditions || ""}
-                  onChange={(e) =>
-                    setQuote({ ...quote, conditions: e.target.value })
-                  }
-                  rows={4}
-                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                  placeholder="Conditions de paiement, garantie..."
-                />
-              </div>
+            {/* Notes */}
+            <div>
+              <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                Notes
+              </label>
+              <textarea
+                value={quote.notes || ""}
+                onChange={(e) =>
+                  setQuote({ ...quote, notes: e.target.value })
+                }
+                rows={4}
+                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                placeholder="Notes internes..."
+              />
             </div>
 
             {/* Statut */}
