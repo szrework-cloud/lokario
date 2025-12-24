@@ -94,34 +94,33 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
                         # Sauvegarder temporairement le fichier pour ReportLab
                         # ReportLab a parfois des problèmes avec BytesIO, donc on sauvegarde temporairement
                         import tempfile
+                        import os
+                        import uuid
                         temp_logo_path = None
                         try:
-                            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+                            # Créer un fichier temporaire dans le répertoire d'upload pour qu'il persiste pendant la génération du PDF
+                            # Extraire company_id du normalized_path (format: "company_id/filename")
+                            company_id_from_path = normalized_path.split("/")[0] if "/" in normalized_path else "temp"
+                            temp_dir = upload_dir / company_id_from_path / "temp_logos"
+                            temp_dir.mkdir(parents=True, exist_ok=True)
+                            temp_logo_path = temp_dir / f"logo_{uuid.uuid4().hex[:8]}.png"
+                            
+                            with open(temp_logo_path, "wb") as temp_file:
                                 temp_file.write(file_content)
-                                temp_logo_path = temp_file.name
                             
                             logger.info(f"[LOGO] Saved temporary logo file: {temp_logo_path}")
-                            logo_image = Image(temp_logo_path, width=35*mm, height=35*mm, kind='proportional')
+                            logo_image = Image(str(temp_logo_path), width=35*mm, height=35*mm, kind='proportional')
                             logo_loaded = True
                             logger.info(f"[LOGO] Image object created successfully from Supabase Storage: {normalized_path}")
                             
-                            # Nettoyer le fichier temporaire après utilisation (mais on le garde jusqu'à la fin du dessin)
-                            import atexit
-                            import os
-                            def cleanup_temp_logo():
-                                if temp_logo_path and os.path.exists(temp_logo_path):
-                                    try:
-                                        os.unlink(temp_logo_path)
-                                    except:
-                                        pass
-                            atexit.register(cleanup_temp_logo)
+                            # Le fichier temporaire sera nettoyé après la génération complète du PDF
+                            # On ne le supprime pas immédiatement car ReportLab peut en avoir besoin
                         except Exception as img_error:
                             logger.error(f"[LOGO] Error creating image from Supabase bytes: {img_error}", exc_info=True)
                             logo_loaded = False
                             # Nettoyer le fichier temporaire en cas d'erreur
-                            if temp_logo_path:
+                            if temp_logo_path and os.path.exists(temp_logo_path):
                                 try:
-                                    import os
                                     os.unlink(temp_logo_path)
                                 except:
                                     pass
