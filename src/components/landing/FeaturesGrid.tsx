@@ -8,7 +8,7 @@ const InboxAnimation = ({ isActive }: { isActive: boolean }) => (
   <div className="relative w-full h-full flex items-center justify-center p-6">
     {/* Mini inbox interface */}
     <div 
-      className="w-full max-w-sm rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 overflow-hidden shadow-2xl"
+      className="w-full max-w-sm rounded-2xl bg-[#1E293B]/60 border border-white/5 overflow-hidden shadow-2xl backdrop-blur-sm"
       style={{
         opacity: isActive ? 1 : 0,
         transform: isActive ? 'translateY(0) scale(1)' : 'translateY(30px) scale(0.95)',
@@ -16,7 +16,7 @@ const InboxAnimation = ({ isActive }: { isActive: boolean }) => (
       }}
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-white/5">
+      <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between bg-[#1E293B]/30">
         <span className="text-sm font-medium text-white">Messages</span>
         <div className="flex items-center gap-2">
           <div 
@@ -33,7 +33,7 @@ const InboxAnimation = ({ isActive }: { isActive: boolean }) => (
       </div>
       
       {/* Message list */}
-      <div className="divide-y divide-white/10">
+      <div className="divide-y divide-white/5">
         {[
           { from: "Client A", subject: "Nouveau devis demandé", time: "2m", unread: true, color: "bg-blue-500" },
           { from: "Fournisseur", subject: "Confirmation commande", time: "15m", unread: true, color: "bg-green-500" },
@@ -89,7 +89,7 @@ const InvoiceAnimation = ({ isActive }: { isActive: boolean }) => (
     {[0, 1, 2].map((i) => (
       <div
         key={i}
-        className="absolute w-48 h-64 rounded-2xl bg-white/10 backdrop-blur-sm border border-[#F97316]/20 shadow-2xl"
+        className="absolute w-48 h-64 rounded-2xl bg-[#1E293B]/80 border border-[#F97316]/20 shadow-2xl backdrop-blur-sm"
         style={{
           right: `${20 + i * 30}px`,
           top: `${20 + i * 20}px`,
@@ -109,13 +109,13 @@ const InvoiceAnimation = ({ isActive }: { isActive: boolean }) => (
           </div>
           {/* Lines */}
           <div className="space-y-2 flex-1">
-            <div className="w-full h-2 bg-white/20 rounded" />
-            <div className="w-3/4 h-2 bg-white/20 rounded" />
-            <div className="w-1/2 h-2 bg-white/20 rounded" />
-            <div className="w-2/3 h-2 bg-white/20 rounded" />
+            <div className="w-full h-2 bg-white/10 rounded" />
+            <div className="w-3/4 h-2 bg-white/10 rounded" />
+            <div className="w-1/2 h-2 bg-white/10 rounded" />
+            <div className="w-2/3 h-2 bg-white/10 rounded" />
           </div>
           {/* Amount */}
-          <div className="pt-4 border-t border-white/10 flex justify-between items-center">
+          <div className="pt-4 border-t border-white/5 flex justify-between items-center">
             <span className="text-sm text-white/60">Total</span>
             <div className="w-20 h-4 bg-[#F97316]/50 rounded" />
           </div>
@@ -154,7 +154,7 @@ const AIAnimation = ({ isActive }: { isActive: boolean }) => (
         <line 
           key={i}
           x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
-          stroke="#F97316"
+          stroke="hsl(var(--primary))"
           strokeWidth="2"
           strokeOpacity={isActive ? 0.4 : 0}
           style={{
@@ -170,7 +170,7 @@ const AIAnimation = ({ isActive }: { isActive: boolean }) => (
         <circle 
           key={`pulse-${i}`}
           r="4"
-          fill="#F97316"
+          fill="hsl(var(--primary))"
           style={{
             animation: `pulse 2s ease-in-out ${i * 0.5}s infinite`,
           }}
@@ -194,7 +194,7 @@ const AIAnimation = ({ isActive }: { isActive: boolean }) => (
             cy={node.y}
             r={i === 3 ? 20 : 12}
             fill={i === 3 ? "#F97316" : "rgba(249, 115, 22, 0.3)"}
-            stroke="#F97316"
+            stroke="hsl(var(--primary))"
             strokeWidth="2"
             style={{
               opacity: isActive ? 1 : 0,
@@ -229,7 +229,7 @@ const TaskAnimation = ({ isActive }: { isActive: boolean }) => (
     ].map((task, i) => (
       <div
         key={i}
-        className="flex items-center gap-4 p-3 rounded-xl bg-white/5 border border-white/10"
+        className="flex items-center gap-4 p-3 rounded-xl bg-[#1E293B]/50 border border-white/5"
         style={{
           opacity: isActive ? 1 : 0,
           transform: isActive ? 'translateX(0)' : 'translateX(40px)',
@@ -280,7 +280,7 @@ const TaskAnimation = ({ isActive }: { isActive: boolean }) => (
 const CalendarAnimation = ({ isActive }: { isActive: boolean }) => (
   <div className="relative w-full h-full flex items-center justify-center p-4">
     <div 
-      className="w-full max-w-xs rounded-2xl bg-white/10 backdrop-blur-sm border border-[#F97316]/20 overflow-hidden shadow-2xl"
+      className="w-full max-w-xs rounded-2xl bg-[#1E293B]/70 border border-[#F97316]/20 overflow-hidden shadow-2xl backdrop-blur-sm"
       style={{
         opacity: isActive ? 1 : 0,
         transform: isActive ? 'scale(1) translateY(0)' : 'scale(0.9) translateY(20px)',
@@ -296,7 +296,7 @@ const CalendarAnimation = ({ isActive }: { isActive: boolean }) => (
         </div>
       </div>
       {/* Days header */}
-      <div className="grid grid-cols-7 gap-1 px-3 py-2 border-b border-white/10">
+      <div className="grid grid-cols-7 gap-1 px-3 py-2 border-b border-white/5">
         {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
           <span key={i} className="text-xs text-white/60 text-center">{d}</span>
         ))}
@@ -312,7 +312,7 @@ const CalendarAnimation = ({ isActive }: { isActive: boolean }) => (
               className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs ${
                 isToday ? 'bg-[#F97316] text-white font-bold' :
                 isHighlighted ? 'bg-[#F97316]/30 text-white' : 
-                'text-white/60 hover:bg-white/10'
+                'text-white/60 hover:bg-[#1E293B]/30'
               }`}
               style={{
                 opacity: isActive ? 1 : 0,
@@ -440,17 +440,23 @@ export const LandingFeaturesGrid = () => {
   return (
     <section 
       ref={containerRef}
-      className="min-h-[450vh] bg-black relative"
+      className="min-h-[450vh] relative"
       id="features"
     >
+      {/* Top gradient transition - seamless blend from previous section */}
+      <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-black via-black/80 to-transparent pointer-events-none z-20" />
+      
+      {/* Bottom gradient transition - seamless blend to next section */}
+      <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none z-20" />
+      
       {/* Background effects */}
-      <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
+      <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden bg-black">
         <div className="absolute inset-0 bg-gradient-to-b from-[#F97316]/5 via-transparent to-black" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#F97316]/5 rounded-full blur-3xl" />
         
         <div className="container mx-auto px-4 lg:px-8 relative z-10">
           {/* Cards container */}
-          <div className="relative h-[500px] flex items-center justify-center">
+          <div className="relative h-[550px] flex items-center justify-center">
             {modules.map((module, index) => {
               const Icon = module.icon;
               const isActive = index === activeIndex;
@@ -473,37 +479,35 @@ export const LandingFeaturesGrid = () => {
                   }}
                 >
                   {/* Card */}
-                  <div className="relative rounded-3xl bg-white/5 backdrop-blur-sm border border-white/10 overflow-hidden">
+                  <div className="relative rounded-3xl bg-[#1E293B]/30 backdrop-blur-sm border border-white/5 overflow-hidden">
                     {/* Glow effect */}
                     <div className="absolute inset-0 bg-gradient-to-br from-[#F97316]/10 to-transparent" />
                     
                     {/* Two-column layout */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 min-h-[400px]">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 min-h-[500px]">
                       {/* Left: Text content */}
-                      <div className="relative p-10 lg:p-14 flex flex-col justify-center">
+                      <div className="relative p-12 lg:p-16 flex flex-col justify-center">
                         {/* Icon container */}
                         <div 
-                          className="mb-8 inline-flex items-center justify-center w-16 h-16 rounded-xl bg-[#F97316]/10 border border-[#F97316]/20"
+                          className="mb-10 inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-[#F97316]/10 border border-[#F97316]/20"
                           style={{
                             animation: isActive ? 'pulse 3s ease-in-out infinite' : 'none',
                           }}
                         >
-                          <Icon className="w-8 h-8 text-[#F97316]" />
-                          {/* Icon glow */}
-                          <div className="absolute inset-0 rounded-xl bg-[#F97316]/30 blur-xl opacity-50" />
+                          <Icon className="w-10 h-10 text-[#F97316]" />
                         </div>
                         
                         {/* Content */}
-                        <h3 className="relative text-3xl lg:text-4xl font-semibold text-white mb-4">
+                        <h3 className="relative text-4xl lg:text-5xl font-semibold text-white mb-6">
                           {module.title}
                         </h3>
-                        <p className="relative text-lg text-white/70 leading-relaxed">
+                        <p className="relative text-xl text-white/70 leading-relaxed">
                           {module.description}
                         </p>
                       </div>
                       
                       {/* Right: Animation */}
-                      <div className="relative hidden lg:block">
+                      <div className="relative hidden lg:block border-l border-white/5">
                         {ContextAnimation && <ContextAnimation isActive={isActive} />}
                       </div>
                     </div>

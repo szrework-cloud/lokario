@@ -25,29 +25,29 @@ export const LandingHero = () => {
       </div>
       
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-24 lg:pt-32 pb-16 lg:pb-24">
-        <div className="max-w-3xl">
-          {/* Badge - Masqué car bloque la landing page */}
-          {/* <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white border border-white/20 mb-8 animate-fade-up" style={{ animationDelay: '0ms' }}>
-            <Sparkles className="w-4 h-4 text-[#F97316]" />
-            <span className="text-sm font-medium">Propulsé par l'IA</span>
-          </div> */}
-
-          {/* Headline - No animation delay to improve LCP */}
-          <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl xl:text-8xl leading-[0.95] tracking-wide mb-6 text-white">
-            Pilotez votre entreprise sans chaos
+        <div className="max-w-3xl mx-auto text-center">
+          {/* Headline */}
+          <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl xl:text-8xl leading-[0.95] tracking-wide mb-6">
+            <span className="text-white/90">L'outil qui </span>
+            <span className="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">organise</span>
+            <span className="text-white/90"> votre entreprise</span>
+            <br className="hidden sm:block" />
+            <span className="text-white/60"> sans vous </span>
+            <span className="bg-gradient-to-r from-[#F97316]/80 via-[#F97316] to-[#F97316]/60 bg-clip-text text-transparent font-semibold">surcharger</span>
           </h1>
 
-          {/* Subheadline - No delay for faster Speed Index */}
-          <p className="text-lg sm:text-xl text-white/70 max-w-xl mb-10 animate-fade-up" style={{ animationDelay: '0ms' }}>
-            Une seule interface simple et fiable pour centraliser vos messages, tâches, relances et rendez-vous.
+          {/* Subheadline */}
+          <p className="text-lg sm:text-xl text-white/70 max-w-xl mx-auto mb-10 animate-fade-up">
+            Lokario centralise tâches, messages, relances, devis, factures et suivi client pour que votre entreprise reste
+            organisée sans effort.
           </p>
 
-          {/* CTA Button - No delay for faster Speed Index */}
-          <div className="flex flex-col sm:flex-row items-start gap-4 animate-fade-up" style={{ animationDelay: '0ms' }}>
+          {/* CTA Button */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up">
             <Link href="/register">
-              <Button variant="ghost" size="lg" className="bg-transparent border border-white/20 text-white hover:bg-white/5 hover:border-white/30 font-medium px-8 inline-flex items-center gap-2">
-                <span>Démarrer un projet</span>
-                <ArrowRight className="w-5 h-5" />
+              <Button variant="ghost" size="xl" className="bg-transparent border border-white/20 text-white hover:bg-white/5 hover:border-white/30 font-medium px-8">
+                Découvrir Lokario
+                <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </Link>
           </div>

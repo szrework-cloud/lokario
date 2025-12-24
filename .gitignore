@@ -49,3 +49,4 @@ schema_public_only.sql
 
 # JWT Keys (ne pas commiter les clés secrètes)
 JWT_KEYS_STAGING.md
+nouvelle-landing-page/

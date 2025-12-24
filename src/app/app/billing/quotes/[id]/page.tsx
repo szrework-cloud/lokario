@@ -492,17 +492,67 @@ export default function QuoteDetailPage() {
                       {formatAmount(quote.subtotal)}
                     </td>
                   </tr>
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]"
-                    >
-                      TVA
-                    </td>
-                    <td className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]">
-                      {formatAmount(quote.tax)}
-                    </td>
-                  </tr>
+                  {/* Calculer le détail de la TVA par taux */}
+                  {(() => {
+                    // Grouper les lignes par taux de TVA
+                    const taxDetails: { [key: number]: { subtotal: number; tax: number } } = {};
+                    quote.lines.forEach((line) => {
+                      const taxRate = line.taxRate || 0;
+                      if (!taxDetails[taxRate]) {
+                        taxDetails[taxRate] = { subtotal: 0, tax: 0 };
+                      }
+                      const lineSubtotal = line.quantity * line.unitPrice;
+                      const lineTax = lineSubtotal * (taxRate / 100);
+                      taxDetails[taxRate].subtotal += lineSubtotal;
+                      taxDetails[taxRate].tax += lineTax;
+                    });
+
+                    // Trier les taux par ordre décroissant
+                    const sortedTaxRates = Object.keys(taxDetails)
+                      .map(Number)
+                      .filter(rate => rate > 0)
+                      .sort((a, b) => b - a);
+
+                    // Si un seul taux, afficher simplement "TVA"
+                    if (sortedTaxRates.length === 1) {
+                      return (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]"
+                          >
+                            TVA
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]">
+                            {formatAmount(quote.tax)}
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    // Plusieurs taux : afficher le détail
+                    return sortedTaxRates.map((taxRate) => {
+                      const taxInfo = taxDetails[taxRate];
+                      // Formater le taux (enlever les décimales si .00)
+                      const taxRateLabel = taxRate % 1 === 0 
+                        ? `TVA ${taxRate}%` 
+                        : `TVA ${taxRate.toFixed(2)}%`;
+                      
+                      return (
+                        <tr key={taxRate}>
+                          <td
+                            colSpan={5}
+                            className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]"
+                          >
+                            {taxRateLabel}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]">
+                            {formatAmount(taxInfo.tax)}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
                   {quote.discount_type && quote.discount_value && (
                     <>
                       <tr>

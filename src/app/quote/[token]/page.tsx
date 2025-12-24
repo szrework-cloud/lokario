@@ -266,10 +266,53 @@ export default function PublicQuotePage() {
                   <span className="text-[#64748B]">Sous-total HT</span>
                   <span className="text-[#0F172A]">{formatAmount(quote.subtotal_ht || 0)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#64748B]">TVA</span>
-                  <span className="text-[#0F172A]">{formatAmount(quote.total_tax || 0)}</span>
-                </div>
+                {/* Calculer le détail de la TVA par taux */}
+                {(() => {
+                  // Grouper les lignes par taux de TVA
+                  const taxDetails: { [key: number]: { subtotal: number; tax: number } } = {};
+                  (quote.lines || []).forEach((line) => {
+                    const taxRate = line.tax_rate || 0;
+                    if (!taxDetails[taxRate]) {
+                      taxDetails[taxRate] = { subtotal: 0, tax: 0 };
+                    }
+                    const lineSubtotal = (line.quantity || 0) * (line.unit_price_ht || 0);
+                    const lineTax = lineSubtotal * (taxRate / 100);
+                    taxDetails[taxRate].subtotal += lineSubtotal;
+                    taxDetails[taxRate].tax += lineTax;
+                  });
+
+                  // Trier les taux par ordre décroissant
+                  const sortedTaxRates = Object.keys(taxDetails)
+                    .map(Number)
+                    .filter(rate => rate > 0)
+                    .sort((a, b) => b - a);
+
+                  // Si un seul taux, afficher simplement "TVA"
+                  if (sortedTaxRates.length === 1) {
+                    return (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-[#64748B]">TVA</span>
+                        <span className="text-[#0F172A]">{formatAmount(quote.total_tax || 0)}</span>
+                      </div>
+                    );
+                  }
+
+                  // Plusieurs taux : afficher le détail
+                  return sortedTaxRates.map((taxRate) => {
+                    const taxInfo = taxDetails[taxRate];
+                    // Formater le taux (enlever les décimales si .00)
+                    const taxRateLabel = taxRate % 1 === 0 
+                      ? `TVA ${taxRate}%` 
+                      : `TVA ${taxRate.toFixed(2)}%`;
+                    
+                    return (
+                      <div key={taxRate} className="flex justify-between text-sm">
+                        <span className="text-[#64748B]">{taxRateLabel}</span>
+                        <span className="text-[#0F172A]">{formatAmount(taxInfo.tax)}</span>
+                      </div>
+                    );
+                  });
+                })()}
                 <div className="flex justify-between text-lg font-semibold pt-2 border-t border-[#E5E7EB]">
                   <span className="text-[#0F172A]">Total TTC</span>
                   <span className="text-[#F97316]">{formatAmount(quote.total_ttc || quote.amount)}</span>

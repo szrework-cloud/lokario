@@ -10,17 +10,17 @@ export const LandingHeader = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm border-b border-white/10">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 lg:h-20">
+        <div className="flex items-center justify-center h-16 lg:h-20">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="absolute left-4 sm:left-6 lg:left-8 flex items-center gap-2">
             <Image 
               src="/assets/lokario-logo.png" 
               alt="Lokario" 
               width={40} 
               height={40}
-              className="h-10 w-auto" 
+              className="h-11 w-auto" 
             />
             <span className="font-display font-bold text-xl text-white">Lokario</span>
           </Link>
@@ -42,7 +42,7 @@ export const LandingHeader = () => {
           </nav>
 
           {/* Desktop CTA */}
-          <div className="hidden md:flex items-center gap-4">
+          <div className="absolute right-4 sm:right-6 lg:right-8 hidden md:flex items-center gap-4">
             <Link href="/login" className="text-white/70 hover:text-white transition-colors">
               Se connecter
             </Link>
@@ -55,15 +55,11 @@ export const LandingHeader = () => {
 
           {/* Mobile Menu Button */}
           <button
-            className="md:hidden p-2 text-white"
+            className="absolute right-4 sm:right-6 md:hidden p-2"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             aria-label="Toggle menu"
           >
-            {isMenuOpen ? (
-              <X className="w-6 h-6" />
-            ) : (
-              <Menu className="w-6 h-6" />
-            )}
+            {isMenuOpen ? <X className="w-6 h-6 text-white" /> : <Menu className="w-6 h-6 text-white" />}
           </button>
         </div>
 
