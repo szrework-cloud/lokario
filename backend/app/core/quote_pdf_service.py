@@ -628,20 +628,6 @@ def generate_quote_pdf(
     )
     story.append(Paragraph("Devis faisant office de contrat après signature", contract_mention_style))
     
-    # Zone "Bon pour accord" avant les signatures - UNIQUEMENT si le client a signé électroniquement
-    if client_signature_path:
-        story.append(Spacer(1, 10*mm))
-        approval_zone_style = ParagraphStyle(
-            'ApprovalZone',
-            parent=styles['Normal'],
-            fontSize=11,
-            textColor=colors.HexColor('#0F172A'),
-            fontName='Helvetica-Bold',
-            alignment=TA_CENTER,
-            spaceAfter=20
-        )
-        story.append(Paragraph("Bon pour accord", approval_zone_style))
-    
     # Section signatures (entreprise et client)
     story.append(Spacer(1, 10*mm))
     
@@ -676,6 +662,19 @@ def generate_quote_pdf(
     
     # Colonne droite : Signature client (électronique ou espace vide)
     right_signature_elements = []
+    
+    # Zone "Bon pour accord" juste au-dessus de la signature du client - UNIQUEMENT si le client a signé électroniquement
+    if client_signature_path:
+        approval_zone_style = ParagraphStyle(
+            'ApprovalZone',
+            parent=styles['Normal'],
+            fontSize=11,
+            textColor=colors.HexColor('#0F172A'),
+            fontName='Helvetica-Bold',
+            alignment=TA_RIGHT,
+            spaceAfter=8
+        )
+        right_signature_elements.append(Paragraph("Bon pour accord", approval_zone_style))
     
     # Utiliser la signature du client si fournie, sinon espace vide
     if client_signature_path:
