@@ -268,9 +268,20 @@ export default function PublicQuotePage() {
                 </div>
                 {/* Calculer le détail de la TVA par taux */}
                 {(() => {
+                  // Vérifier que quote et quote.lines existent
+                  if (!quote || !quote.lines || quote.lines.length === 0) {
+                    return (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-[#64748B]">TVA</span>
+                        <span className="text-[#0F172A]">{formatAmount(quote?.total_tax || 0)}</span>
+                      </div>
+                    );
+                  }
+
                   // Grouper les lignes par taux de TVA
                   const taxDetails: { [key: number]: { subtotal: number; tax: number } } = {};
-                  (quote.lines || []).forEach((line) => {
+                  quote.lines.forEach((line) => {
+                    if (!line) return;
                     const taxRate = line.tax_rate || 0;
                     if (!taxDetails[taxRate]) {
                       taxDetails[taxRate] = { subtotal: 0, tax: 0 };
@@ -300,6 +311,7 @@ export default function PublicQuotePage() {
                   // Plusieurs taux : afficher le détail
                   return sortedTaxRates.map((taxRate) => {
                     const taxInfo = taxDetails[taxRate];
+                    if (!taxInfo) return null;
                     // Formater le taux (enlever les décimales si .00)
                     const taxRateLabel = taxRate % 1 === 0 
                       ? `TVA ${taxRate}%` 
@@ -308,10 +320,10 @@ export default function PublicQuotePage() {
                     return (
                       <div key={taxRate} className="flex justify-between text-sm">
                         <span className="text-[#64748B]">{taxRateLabel}</span>
-                        <span className="text-[#0F172A]">{formatAmount(taxInfo.tax)}</span>
+                        <span className="text-[#0F172A]">{formatAmount(taxInfo.tax || 0)}</span>
                       </div>
                     );
-                  });
+                  }).filter(Boolean);
                 })()}
                 <div className="flex justify-between text-lg font-semibold pt-2 border-t border-[#E5E7EB]">
                   <span className="text-[#0F172A]">Total TTC</span>

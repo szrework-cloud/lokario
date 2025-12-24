@@ -494,14 +494,32 @@ export default function QuoteDetailPage() {
                   </tr>
                   {/* Calculer le détail de la TVA par taux */}
                   {(() => {
+                    // Vérifier que quote et quote.lines existent
+                    if (!quote || !quote.lines || quote.lines.length === 0) {
+                      return (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]"
+                          >
+                            TVA
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]">
+                            {formatAmount(quote?.tax || 0)}
+                          </td>
+                        </tr>
+                      );
+                    }
+
                     // Grouper les lignes par taux de TVA
                     const taxDetails: { [key: number]: { subtotal: number; tax: number } } = {};
                     quote.lines.forEach((line) => {
+                      if (!line) return;
                       const taxRate = line.taxRate || 0;
                       if (!taxDetails[taxRate]) {
                         taxDetails[taxRate] = { subtotal: 0, tax: 0 };
                       }
-                      const lineSubtotal = line.quantity * line.unitPrice;
+                      const lineSubtotal = (line.quantity || 0) * (line.unitPrice || 0);
                       const lineTax = lineSubtotal * (taxRate / 100);
                       taxDetails[taxRate].subtotal += lineSubtotal;
                       taxDetails[taxRate].tax += lineTax;
@@ -524,7 +542,7 @@ export default function QuoteDetailPage() {
                             TVA
                           </td>
                           <td className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]">
-                            {formatAmount(quote.tax)}
+                            {formatAmount(quote.tax || 0)}
                           </td>
                         </tr>
                       );
@@ -533,6 +551,7 @@ export default function QuoteDetailPage() {
                     // Plusieurs taux : afficher le détail
                     return sortedTaxRates.map((taxRate) => {
                       const taxInfo = taxDetails[taxRate];
+                      if (!taxInfo) return null;
                       // Formater le taux (enlever les décimales si .00)
                       const taxRateLabel = taxRate % 1 === 0 
                         ? `TVA ${taxRate}%` 
@@ -547,11 +566,11 @@ export default function QuoteDetailPage() {
                             {taxRateLabel}
                           </td>
                           <td className="px-4 py-3 text-sm font-medium text-right text-[#0F172A]">
-                            {formatAmount(taxInfo.tax)}
+                            {formatAmount(taxInfo.tax || 0)}
                           </td>
                         </tr>
                       );
-                    });
+                    }).filter(Boolean);
                   })()}
                   {quote.discount_type && quote.discount_value && (
                     <>

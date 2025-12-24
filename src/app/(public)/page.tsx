@@ -2,8 +2,11 @@
 
 import { LandingHeader } from "@/components/landing/Header";
 import { LandingHero } from "@/components/landing/Hero";
-import { LandingProductShowcase } from "@/components/landing/ProductShowcase";
+import { LandingPainPointsSection } from "@/components/landing/PainPointsSection";
+import { LandingSolutionSection } from "@/components/landing/SolutionSection";
+import { LandingValueSection } from "@/components/landing/ValueSection";
 import { LandingFeaturesGrid } from "@/components/landing/FeaturesGrid";
+import { LandingFAQSection } from "@/components/landing/FAQSection";
 import { LandingCTASection } from "@/components/landing/CTASection";
 import { LandingFooter } from "@/components/landing/Footer";
 import { useEffect } from "react";
@@ -24,8 +27,11 @@ export default function LandingPage() {
       <LandingHeader />
       <main className="bg-black w-full">
         <LandingHero />
-        <LandingProductShowcase />
+        <LandingPainPointsSection />
+        <LandingSolutionSection />
+        <LandingValueSection />
         <LandingFeaturesGrid />
+        <LandingFAQSection />
         <LandingCTASection />
       </main>
       <LandingFooter />
