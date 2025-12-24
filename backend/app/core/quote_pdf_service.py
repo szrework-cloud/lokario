@@ -177,8 +177,12 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
             logger.info(f"[LOGO] A4 dimensions: width={A4[0]}, height={A4[1]}")
             logger.info(f"[LOGO] Logo will be drawn at: x={logo_x} (from left), y={logo_y} (from bottom)")
             
-            # Dessiner le logo
+            # S'assurer que le logo est dessiné après tous les autres éléments
+            # En ReportLab, l'ordre de dessin détermine ce qui est au-dessus
+            # On dessine le logo en dernier pour qu'il soit visible
+            canvas_obj.saveState()
             logo_image.drawOn(canvas_obj, logo_x, logo_y)
+            canvas_obj.restoreState()
             logger.info(f"[LOGO] ✅ Logo drawn successfully on canvas at ({logo_x}, {logo_y})")
         except Exception as draw_error:
             logger.error(f"[LOGO] ❌ Error drawing logo on canvas: {draw_error}", exc_info=True)
