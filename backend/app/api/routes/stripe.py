@@ -62,12 +62,29 @@ async def get_plans(
     """Récupère les plans d'abonnement disponibles (mensuels et annuels)"""
     plans = []
     
+    # Fonction helper pour récupérer le prix depuis Stripe
+    def get_price_from_stripe(price_id: str) -> Optional[float]:
+        """Récupère le prix depuis Stripe pour vérifier qu'il correspond"""
+        if not settings.STRIPE_SECRET_KEY:
+            return None
+        try:
+            price_obj = stripe.Price.retrieve(price_id)
+            # Stripe stocke les prix en centimes
+            return price_obj.unit_amount / 100 if price_obj.unit_amount else None
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération du prix Stripe {price_id}: {e}")
+            return None
+    
     # Plan Essentiel - Mensuel
     if settings.STRIPE_PRICE_STARTER_MONTHLY:
+        stripe_price = get_price_from_stripe(settings.STRIPE_PRICE_STARTER_MONTHLY)
+        # Utiliser le prix depuis Stripe si disponible, sinon le prix par défaut
+        price = stripe_price if stripe_price is not None else 19.99
+        
         plans.append({
             "id": "starter_monthly",
             "name": "Essentiel",
-            "price": 19.99,
+            "price": price,
             "currency": "eur",
             "interval": "month",
             "trial_days": 14,
@@ -81,10 +98,19 @@ async def get_plans(
     
     # Plan Essentiel - Annuel
     if settings.STRIPE_PRICE_STARTER_YEARLY:
+        stripe_price = get_price_from_stripe(settings.STRIPE_PRICE_STARTER_YEARLY)
+        # Pour annuel, on calcule le prix mensuel équivalent
+        if stripe_price is not None:
+            yearly_price = stripe_price
+            monthly_equivalent = yearly_price / 12
+        else:
+            yearly_price = 191.88
+            monthly_equivalent = 15.99
+        
         plans.append({
             "id": "starter_yearly",
             "name": "Essentiel",
-            "price": 15.99,  # Prix mensuel équivalent (191.88€/an)
+            "price": monthly_equivalent,  # Prix mensuel équivalent
             "currency": "eur",
             "interval": "year",
             "trial_days": 14,
@@ -94,16 +120,20 @@ async def get_plans(
                 "Gestion des clients",
             ],
             "stripe_price_id": settings.STRIPE_PRICE_STARTER_YEARLY,
-            "yearly_price": 191.88,  # Prix total annuel
-            "monthly_equivalent": 15.99,  # Prix mensuel équivalent
+            "yearly_price": yearly_price,  # Prix total annuel
+            "monthly_equivalent": monthly_equivalent,  # Prix mensuel équivalent
         })
     
     # Plan Pro - Mensuel
     if settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY:
+        stripe_price = get_price_from_stripe(settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY)
+        # Utiliser le prix depuis Stripe si disponible, sinon le prix par défaut
+        price = stripe_price if stripe_price is not None else 59.99
+        
         plans.append({
             "id": "professional_monthly",
             "name": "Pro",
-            "price": 59.99,
+            "price": price,
             "currency": "eur",
             "interval": "month",
             "trial_days": 14,
@@ -121,10 +151,19 @@ async def get_plans(
     
     # Plan Pro - Annuel
     if settings.STRIPE_PRICE_PROFESSIONAL_YEARLY:
+        stripe_price = get_price_from_stripe(settings.STRIPE_PRICE_PROFESSIONAL_YEARLY)
+        # Pour annuel, on calcule le prix mensuel équivalent
+        if stripe_price is not None:
+            yearly_price = stripe_price
+            monthly_equivalent = yearly_price / 12
+        else:
+            yearly_price = 575.88
+            monthly_equivalent = 47.99
+        
         plans.append({
             "id": "professional_yearly",
             "name": "Pro",
-            "price": 47.99,  # Prix mensuel équivalent (575.88€/an)
+            "price": monthly_equivalent,  # Prix mensuel équivalent
             "currency": "eur",
             "interval": "year",
             "trial_days": 14,
@@ -138,8 +177,8 @@ async def get_plans(
                 "Support prioritaire",
             ],
             "stripe_price_id": settings.STRIPE_PRICE_PROFESSIONAL_YEARLY,
-            "yearly_price": 575.88,  # Prix total annuel
-            "monthly_equivalent": 47.99,  # Prix mensuel équivalent
+            "yearly_price": yearly_price,  # Prix total annuel
+            "monthly_equivalent": monthly_equivalent,  # Prix mensuel équivalent
         })
     
     return {"plans": plans}
