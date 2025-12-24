@@ -117,10 +117,10 @@ export const LandingSolutionSection = () => {
                   style={{
                     left: `calc(50% + ${x}px)`,
                     top: `calc(50% + ${y}px)`,
-                    transform: 'translate(-50%, -50%)',
-                    animation: `float-word 3s ease-in-out infinite ${index * 0.4}s`,
+                    transform: isVisible ? 'translate(-50%, -50%) translateY(0)' : 'translate(-50%, -50%) translateY(20px)',
+                    animation: isVisible ? `float-word 3s ease-in-out infinite ${index * 0.4}s` : 'none',
                     opacity: isVisible ? 1 : 0,
-                    transition: `opacity 0.6s ease-out ${1.2 + index * 0.2}s`,
+                    transition: `opacity 0.6s ease-out ${1.2 + index * 0.2}s, transform 0.6s ease-out ${1.2 + index * 0.2}s`,
                   }}
                 >
                   <div className="w-5 h-5 rounded-full bg-[#F97316]/20 flex items-center justify-center flex-shrink-0">

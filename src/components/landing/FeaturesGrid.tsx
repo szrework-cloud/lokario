@@ -211,7 +211,8 @@ const AIAnimation = ({ isActive }: { isActive: boolean }) => (
       className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
       style={{
         opacity: isActive ? 1 : 0,
-        transition: 'opacity 0.5s ease-out 0.3s',
+        transform: isActive ? 'translate(-50%, -50%) scale(1)' : 'translate(-50%, -50%) scale(0.8)',
+        transition: 'opacity 0.5s ease-out 0.3s, transform 0.5s ease-out 0.3s',
       }}
     >
       <Brain className="w-8 h-8 text-white" />

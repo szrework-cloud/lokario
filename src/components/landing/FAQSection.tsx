@@ -40,10 +40,10 @@ export const LandingFAQSection = () => {
       <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-b from-transparent to-[#F97316]/10 pointer-events-none z-10" />
       <div className="container mx-auto px-4 relative z-20">
         <div className="max-w-4xl mx-auto text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6 animate-fade-up">
             Questions fréquentes
           </h2>
-          <p className="text-lg text-white/70">
+          <p className="text-lg text-white/70 animate-fade-up" style={{ animationDelay: '0.1s' }}>
             Tout ce que vous devez savoir avant de commencer
           </p>
         </div>
