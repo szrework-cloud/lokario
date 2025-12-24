@@ -835,11 +835,7 @@ def generate_quote_pdf(
         
         if not client_sig_loaded:
             logger.warning(f"[QUOTE PDF] Client signature file not found: {client_sig_path}")
-                right_signature_elements.append(Spacer(1, 3*mm))
-            except Exception:
-                # Si erreur, utiliser l'espace vide
-                right_signature_elements.append(Spacer(1, 20*mm))
-        else:
+            # Espace vide si signature non trouvée
             right_signature_elements.append(Spacer(1, 20*mm))
     else:
         # Espace vide pour signature manuelle
