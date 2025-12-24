@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Loader } from "@/components/ui/Loader";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { useRouter, useSearchParams } from "next/navigation";
+import { SubscriptionPlan } from "@/services/stripeService";
 
 export default function PricingPage() {
   const router = useRouter();
@@ -19,15 +20,22 @@ export default function PricingPage() {
   const createCheckout = useCreateCheckoutSession();
 
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [selectedInterval, setSelectedInterval] = useState<"month" | "year">("month");
 
-  const handleSelectPlan = async (planId: string) => {
-    setSelectedPlan(planId);
+  const handleSelectPlan = async (plan: SubscriptionPlan) => {
+    setSelectedPlan(plan.id);
     
     const successUrl = `${window.location.origin}/app/settings?success=true`;
     const cancelUrl = `${window.location.origin}/app/pricing?canceled=true`;
 
+    // Extraire le plan et l'interval depuis l'ID (format: "starter_monthly" ou "professional_yearly")
+    const planParts = plan.id.split("_");
+    const planName = planParts[0] as "starter" | "professional";
+    const interval = plan.interval as "month" | "year";
+
     createCheckout.mutate({
-      plan: "starter", // Un seul plan disponible
+      plan: planName,
+      interval,
       successUrl,
       cancelUrl,
     });
@@ -51,6 +59,9 @@ export default function PricingPage() {
   const plans = plansData?.plans || [];
   const currentPlan = subscriptionData?.subscription?.plan || null;
   const hasSubscription = subscriptionData?.has_subscription || false;
+  
+  // Filtrer les plans par interval sélectionné
+  const filteredPlans = plans.filter(plan => plan.interval === selectedInterval);
 
   return (
     <PageTransition>
@@ -118,15 +129,38 @@ export default function PricingPage() {
           </Card>
         )}
 
-        {/* Plan unique */}
-        <div className="max-w-md mx-auto">
-          {plans.map((plan) => (
+        {/* Toggle mensuel/annuel */}
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <span className={`text-sm transition-colors ${selectedInterval === "month" ? 'text-[#0F172A] font-medium' : 'text-[#64748B]'}`}>
+            Mensuel
+          </span>
+          <button
+            onClick={() => setSelectedInterval(selectedInterval === "month" ? "year" : "month")}
+            className={`relative w-14 h-7 rounded-full transition-colors ${selectedInterval === "year" ? 'bg-[#F97316]' : 'bg-[#E5E7EB]'}`}
+          >
+            <span 
+              className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${selectedInterval === "year" ? 'left-8' : 'left-1'}`}
+            />
+          </button>
+          <span className={`text-sm transition-colors ${selectedInterval === "year" ? 'text-[#0F172A] font-medium' : 'text-[#64748B]'}`}>
+            Annuel
+          </span>
+          {selectedInterval === "year" && (
+            <span className="bg-[#F97316]/10 text-[#F97316] text-xs font-medium px-2 py-1 rounded-full">
+              -20%
+            </span>
+          )}
+        </div>
+
+        {/* Plans disponibles (filtrés par interval) */}
+        <div className={`grid gap-6 ${filteredPlans.length === 1 ? 'max-w-md mx-auto' : 'md:grid-cols-2 max-w-4xl mx-auto'}`}>
+          {filteredPlans.map((plan) => (
             <PricingCard
               key={plan.id}
               plan={plan}
-              isPopular={true}
+              isPopular={plan.id.includes("professional")} // Marquer le plan Pro comme populaire
               currentPlan={currentPlan}
-              onSelect={handleSelectPlan}
+              onSelect={() => handleSelectPlan(plan)}
               isLoading={selectedPlan === plan.id && createCheckout.isPending}
             />
           ))}

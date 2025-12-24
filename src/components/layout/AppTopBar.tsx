@@ -1,6 +1,7 @@
 "use client";
 
 import { NotificationsDropdown } from "@/components/notifications/NotificationsDropdown";
+import { SubscriptionStatusBadge } from "@/components/subscription/SubscriptionStatusBadge";
 
 interface AppTopBarProps {
   subtitle?: string;
@@ -21,6 +22,7 @@ export function AppTopBar({
           <h2 className="text-2xl font-semibold text-[#0F172A]">{title}</h2>
         </div>
         <div className="flex items-center gap-4">
+          <SubscriptionStatusBadge />
           <NotificationsDropdown />
           {rightContent && <div>{rightContent}</div>}
         </div>

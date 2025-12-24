@@ -54,8 +54,13 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: Optional[str] = None  # Clé secrète Stripe
     STRIPE_PUBLISHABLE_KEY: Optional[str] = None  # Clé publique Stripe (pour le frontend)
     STRIPE_WEBHOOK_SECRET: Optional[str] = None  # Secret pour vérifier les webhooks Stripe
-    STRIPE_PRICE_STARTER: Optional[str] = None  # Price ID Stripe pour le plan Starter
-    STRIPE_PRICE_PROFESSIONAL: Optional[str] = None  # Price ID Stripe pour le plan Professional
+    # Plan Essentiel (Starter)
+    STRIPE_PRICE_STARTER_MONTHLY: Optional[str] = None  # Price ID Stripe pour le plan Essentiel mensuel
+    STRIPE_PRICE_STARTER_YEARLY: Optional[str] = None  # Price ID Stripe pour le plan Essentiel annuel
+    # Plan Pro (Professional)
+    STRIPE_PRICE_PROFESSIONAL_MONTHLY: Optional[str] = None  # Price ID Stripe pour le plan Pro mensuel
+    STRIPE_PRICE_PROFESSIONAL_YEARLY: Optional[str] = None  # Price ID Stripe pour le plan Pro annuel
+    # Plan Enterprise (pour compatibilité future)
     STRIPE_PRICE_ENTERPRISE: Optional[str] = None  # Price ID Stripe pour le plan Enterprise
     
     # Configuration Supabase Storage

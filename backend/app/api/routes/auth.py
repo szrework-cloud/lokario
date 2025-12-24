@@ -227,6 +227,26 @@ def register(
         )
         db.add(company_settings)
         logger.info(f"   Settings par défaut créés pour l'entreprise {company_id}")
+        
+        # Créer un abonnement d'essai gratuit de 14 jours (sans Stripe)
+        from app.db.models.subscription import Subscription, SubscriptionStatus, SubscriptionPlan
+        from datetime import timedelta
+        trial_start = datetime.now(timezone.utc)
+        trial_end = trial_start + timedelta(days=14)
+        
+        trial_subscription = Subscription(
+            company_id=company.id,
+            plan=SubscriptionPlan.STARTER,  # Plan par défaut
+            status=SubscriptionStatus.TRIALING,
+            trial_start=trial_start,
+            trial_end=trial_end,
+            current_period_start=trial_start,
+            current_period_end=trial_end,
+            amount=0,  # Gratuit pendant l'essai
+            currency="eur"
+        )
+        db.add(trial_subscription)
+        logger.info(f"   Abonnement d'essai gratuit créé pour l'entreprise {company_id} (expire le {trial_end})")
     
     # Si user et company_id fourni directement, vérifier que l'entreprise existe
     if user_data.role == "user" and user_data.company_id and not user_data.company_code:

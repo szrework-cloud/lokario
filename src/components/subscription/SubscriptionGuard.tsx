@@ -101,16 +101,19 @@ function SubscriptionRequiredScreen({ status }: { status?: string }) {
   const router = useRouter();
 
   const getStatusMessage = () => {
+    if (status === "incomplete_expired") {
+      return "Votre période d'essai gratuit de 14 jours est terminée. Abonnez-vous pour continuer à utiliser l'application.";
+    }
     if (status === "past_due") {
       return "Votre paiement est en retard. Veuillez mettre à jour votre méthode de paiement pour continuer à utiliser l'application.";
     }
     if (status === "canceled") {
       return "Votre abonnement a été annulé. Réabonnez-vous pour continuer à utiliser l'application.";
     }
-    if (status === "incomplete" || status === "incomplete_expired") {
+    if (status === "incomplete") {
       return "Votre abonnement n'est pas complet. Veuillez finaliser votre paiement pour continuer.";
     }
-    return "Un abonnement actif est requis pour accéder à l'application.";
+    return "Un abonnement actif est requis pour accéder à l'application. Votre période d'essai gratuit de 14 jours est terminée.";
   };
 
   return (

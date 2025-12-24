@@ -5,7 +5,7 @@ Gestion des abonnements, checkout, webhooks
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import stripe
 import json
 import logging
@@ -38,6 +38,7 @@ if settings.STRIPE_SECRET_KEY:
 
 class CreateCheckoutSessionRequest(BaseModel):
     plan: SubscriptionPlan
+    interval: str = "month"  # "month" ou "year" pour mensuel ou annuel
     success_url: Optional[str] = None
     cancel_url: Optional[str] = None
 
@@ -58,26 +59,89 @@ async def get_plans(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Récupère les plans d'abonnement disponibles"""
-    plans = [
-        {
-            "id": "starter",
-            "name": "Offre de démarrage",
+    """Récupère les plans d'abonnement disponibles (mensuels et annuels)"""
+    plans = []
+    
+    # Plan Essentiel - Mensuel
+    if settings.STRIPE_PRICE_STARTER_MONTHLY:
+        plans.append({
+            "id": "starter_monthly",
+            "name": "Essentiel",
+            "price": 19.99,
+            "currency": "eur",
+            "interval": "month",
+            "trial_days": 14,
+            "features": [
+                "Devis & Factures illimités",
+                "Relances automatiques",
+                "Gestion des clients",
+            ],
+            "stripe_price_id": settings.STRIPE_PRICE_STARTER_MONTHLY,
+        })
+    
+    # Plan Essentiel - Annuel
+    if settings.STRIPE_PRICE_STARTER_YEARLY:
+        plans.append({
+            "id": "starter_yearly",
+            "name": "Essentiel",
+            "price": 15.99,  # Prix mensuel équivalent (191.88€/an)
+            "currency": "eur",
+            "interval": "year",
+            "trial_days": 14,
+            "features": [
+                "Devis & Factures illimités",
+                "Relances automatiques",
+                "Gestion des clients",
+            ],
+            "stripe_price_id": settings.STRIPE_PRICE_STARTER_YEARLY,
+            "yearly_price": 191.88,  # Prix total annuel
+            "monthly_equivalent": 15.99,  # Prix mensuel équivalent
+        })
+    
+    # Plan Pro - Mensuel
+    if settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY:
+        plans.append({
+            "id": "professional_monthly",
+            "name": "Pro",
             "price": 59.99,
             "currency": "eur",
             "interval": "month",
+            "trial_days": 14,
             "features": [
-                "Gestion complète de votre activité",
-                "Clients et factures illimités",
-                "Tous les modules inclus",
-                "Inbox automatisé",
-                "Gestion des tâches et projets",
-                "Relances automatiques",
-                "Support par email",
+                "Devis & Factures illimités",
+                "Relance IA automatique",
+                "Import & Export",
+                "Gestion des tâches",
+                "Boîte de réception centralisée",
+                "Calendrier & Rendez-vous",
+                "Support prioritaire",
             ],
-            "stripe_price_id": settings.STRIPE_PRICE_STARTER,
-        },
-    ]
+            "stripe_price_id": settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY,
+        })
+    
+    # Plan Pro - Annuel
+    if settings.STRIPE_PRICE_PROFESSIONAL_YEARLY:
+        plans.append({
+            "id": "professional_yearly",
+            "name": "Pro",
+            "price": 47.99,  # Prix mensuel équivalent (575.88€/an)
+            "currency": "eur",
+            "interval": "year",
+            "trial_days": 14,
+            "features": [
+                "Devis & Factures illimités",
+                "Relance IA automatique",
+                "Import & Export",
+                "Gestion des tâches",
+                "Boîte de réception centralisée",
+                "Calendrier & Rendez-vous",
+                "Support prioritaire",
+            ],
+            "stripe_price_id": settings.STRIPE_PRICE_PROFESSIONAL_YEARLY,
+            "yearly_price": 575.88,  # Prix total annuel
+            "monthly_equivalent": 47.99,  # Prix mensuel équivalent
+        })
+    
     return {"plans": plans}
 
 
@@ -101,6 +165,15 @@ async def get_subscription(
             "subscription": None
         }
     
+    # Vérifier si l'essai gratuit est expiré (pour les abonnements sans Stripe)
+    now = datetime.now(timezone.utc)
+    if subscription.status == SubscriptionStatus.TRIALING and not subscription.stripe_subscription_id:
+        if subscription.trial_end and subscription.trial_end < now:
+            # L'essai est expiré, mettre à jour le statut
+            subscription.status = SubscriptionStatus.INCOMPLETE_EXPIRED
+            db.commit()
+            logger.info(f"Essai gratuit expiré pour l'entreprise {company.id}")
+    
     # Récupérer les informations à jour depuis Stripe si disponible
     if subscription.stripe_subscription_id:
         try:
@@ -109,6 +182,10 @@ async def get_subscription(
             subscription.status = SubscriptionStatus(stripe_sub.status)
             subscription.current_period_start = datetime.fromtimestamp(stripe_sub.current_period_start)
             subscription.current_period_end = datetime.fromtimestamp(stripe_sub.current_period_end)
+            if stripe_sub.get("trial_start"):
+                subscription.trial_start = datetime.fromtimestamp(stripe_sub["trial_start"])
+            if stripe_sub.get("trial_end"):
+                subscription.trial_end = datetime.fromtimestamp(stripe_sub["trial_end"])
             db.commit()
         except Exception as e:
             logger.error(f"Erreur lors de la récupération de l'abonnement Stripe: {e}")
@@ -123,6 +200,7 @@ async def get_subscription(
             "currency": subscription.currency,
             "current_period_start": subscription.current_period_start.isoformat() if subscription.current_period_start else None,
             "current_period_end": subscription.current_period_end.isoformat() if subscription.current_period_end else None,
+            "trial_start": subscription.trial_start.isoformat() if subscription.trial_start else None,
             "trial_end": subscription.trial_end.isoformat() if subscription.trial_end else None,
         }
     }
@@ -309,22 +387,43 @@ async def create_checkout_session(
     if not company:
         raise HTTPException(status_code=404, detail="Entreprise non trouvée")
     
-    # Pour l'instant, un seul plan disponible
-    price_id = settings.STRIPE_PRICE_STARTER
+    # Valider l'intervalle
+    if request.interval not in ["month", "year"]:
+        raise HTTPException(status_code=400, detail="Interval doit être 'month' ou 'year'")
+    
+    # Mapper le plan et l'intervalle à son price ID Stripe
+    plan_to_price = {
+        (SubscriptionPlan.STARTER, "month"): settings.STRIPE_PRICE_STARTER_MONTHLY,
+        (SubscriptionPlan.STARTER, "year"): settings.STRIPE_PRICE_STARTER_YEARLY,
+        (SubscriptionPlan.PROFESSIONAL, "month"): settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY,
+        (SubscriptionPlan.PROFESSIONAL, "year"): settings.STRIPE_PRICE_PROFESSIONAL_YEARLY,
+    }
+    
+    price_id = plan_to_price.get((request.plan, request.interval))
     if not price_id:
-        raise HTTPException(status_code=400, detail="Plan non configuré")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Plan {request.plan.value} ({request.interval}) non configuré (price ID manquant). Vérifiez vos variables d'environnement Stripe."
+        )
     
     try:
-        # Créer ou récupérer le customer Stripe
+        # Récupérer l'abonnement existant (peut être un essai gratuit)
         subscription = db.query(Subscription).filter(
             Subscription.company_id == company.id
         ).first()
         
+        if not subscription:
+            raise HTTPException(
+                status_code=404,
+                detail="Aucun abonnement trouvé pour cette entreprise"
+            )
+        
+        # Créer ou récupérer le customer Stripe
         customer_id = None
-        if subscription and subscription.stripe_customer_id:
+        if subscription.stripe_customer_id:
             customer_id = subscription.stripe_customer_id
         else:
-            # Créer un nouveau customer
+            # Créer un nouveau customer Stripe
             customer = stripe.Customer.create(
                 email=current_user.email,
                 name=company.name,
@@ -334,19 +433,11 @@ async def create_checkout_session(
                 }
             )
             customer_id = customer.id
-            
-            # Créer ou mettre à jour l'abonnement en base
-            if not subscription:
-                subscription = Subscription(
-                    company_id=company.id,
-                    stripe_customer_id=customer_id,
-                    plan=request.plan,
-                    status=SubscriptionStatus.INCOMPLETE,
-                )
-                db.add(subscription)
-            else:
-                subscription.stripe_customer_id = customer_id
+            subscription.stripe_customer_id = customer_id
             db.commit()
+        
+        # Mettre à jour le plan de l'abonnement
+        subscription.plan = request.plan
         
         # Créer la session de checkout
         success_url = request.success_url or f"{settings.FRONTEND_URL}/app/settings?success=true"
@@ -372,7 +463,7 @@ async def create_checkout_session(
                 "metadata": {
                     "company_id": str(company.id),
                     "plan": request.plan.value,
-                }
+                },
             },
         )
         
@@ -505,7 +596,7 @@ async def stripe_webhook(
 # ==================== HANDLERS WEBHOOK ====================
 
 async def handle_subscription_created(event, db: Session):
-    """Gère la création d'un abonnement"""
+    """Gère la création d'un abonnement Stripe (après paiement)"""
     # Gérer le format Stripe webhook ou format direct
     if isinstance(event, dict) and "data" in event:
         subscription_data = event["data"]["object"]
@@ -525,13 +616,28 @@ async def handle_subscription_created(event, db: Session):
     ).first()
     
     if subscription:
+        # Mettre à jour l'abonnement existant (qui était en essai gratuit) avec les infos Stripe
         subscription.stripe_subscription_id = subscription_data["id"]
         subscription.status = SubscriptionStatus(subscription_data["status"])
         subscription.current_period_start = datetime.fromtimestamp(subscription_data["current_period_start"])
         subscription.current_period_end = datetime.fromtimestamp(subscription_data["current_period_end"])
+        if subscription_data.get("trial_start"):
+            subscription.trial_start = datetime.fromtimestamp(subscription_data["trial_start"])
         if subscription_data.get("trial_end"):
             subscription.trial_end = datetime.fromtimestamp(subscription_data["trial_end"])
+        # Mettre à jour le montant depuis les items de l'abonnement
+        if subscription_data.get("items") and subscription_data["items"].get("data"):
+            price_item = subscription_data["items"]["data"][0]
+            if price_item.get("price") and price_item["price"].get("id"):
+                subscription.stripe_price_id = price_item["price"]["id"]
+                # Récupérer le montant depuis le price
+                try:
+                    price_obj = stripe.Price.retrieve(price_item["price"]["id"])
+                    subscription.amount = price_obj.unit_amount / 100 if price_obj.unit_amount else 0
+                except Exception as e:
+                    logger.error(f"Erreur lors de la récupération du prix: {e}")
         db.commit()
+        logger.info(f"Abonnement Stripe créé et lié pour l'entreprise {company_id}")
 
 
 async def handle_subscription_updated(event, db: Session):

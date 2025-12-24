@@ -215,9 +215,11 @@ def create_automatic_followup_for_quote(db: Session, quote: Quote, user_id: int)
                 billing_settings = company_settings.settings.get("billing", {})
                 auto_followups = billing_settings.get("auto_followups", {})
                 quotes_enabled = auto_followups.get("quotes_enabled")
-                if quotes_enabled is False:
+                # Si quotes_enabled n'est pas explicitement True, considérer comme désactivé
+                # Cela inclut les cas où quotes_enabled est False, None, ou non défini
+                if quotes_enabled is not True:
                     should_create = False
-                    logger.info(f"[FOLLOWUP AUTO] Relances automatiques pour les devis désactivées (paramètre billing.auto_followups.quotes_enabled = False)")
+                    logger.info(f"[FOLLOWUP AUTO] Relances automatiques pour les devis désactivées (paramètre billing.auto_followups.quotes_enabled = {quotes_enabled}, doit être explicitement True)")
         
         if not should_create:
             return
@@ -2270,9 +2272,10 @@ async def send_quote_email(
                     billing_settings = company_settings_obj.settings.get("billing", {})
                     auto_followups = billing_settings.get("auto_followups", {})
                     quotes_enabled = auto_followups.get("quotes_enabled")
-                    if quotes_enabled is False:
+                    # Si quotes_enabled n'est pas explicitement True, considérer comme désactivé
+                    if quotes_enabled is not True:
                         should_create_followup = False
-                        logger.info(f"[SEND EMAIL] ⏭️ Relances automatiques pour les devis désactivées (paramètre billing.auto_followups.quotes_enabled = False)")
+                        logger.info(f"[SEND EMAIL] ⏭️ Relances automatiques pour les devis désactivées (paramètre billing.auto_followups.quotes_enabled = {quotes_enabled}, doit être explicitement True)")
             
             if should_create_followup:
                 create_automatic_followup_for_quote(db, quote, current_user.id)

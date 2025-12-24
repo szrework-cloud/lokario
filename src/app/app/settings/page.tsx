@@ -1851,6 +1851,41 @@ export default function SettingsPage() {
                     </div>
                   </label>
                 </div>
+
+                {/* Bouton sauvegarder */}
+                <div className="pt-4 border-t border-[#E5E7EB]">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!settings) return;
+                      setIsSaving(true);
+                      try {
+                        const updatedSettings = {
+                          ...settings.settings,
+                          billing: {
+                            ...((settings.settings as any).billing || {}),
+                            auto_followups: {
+                              ...(((settings.settings as any).billing || {}).auto_followups || {}),
+                              quotes_enabled: (settings.settings as any)?.billing?.auto_followups?.quotes_enabled ?? false,
+                              invoices_enabled: (settings.settings as any)?.billing?.auto_followups?.invoices_enabled ?? false,
+                            },
+                          },
+                        };
+                        await saveSettings(updatedSettings);
+                        showToast("Paramètres de relances automatiques sauvegardés avec succès", "success");
+                      } catch (error: any) {
+                        console.error("Error saving auto followups settings:", error);
+                        showToast(error.message || "Erreur lors de la sauvegarde", "error");
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    disabled={isSaving || user?.role === "user"}
+                    className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-6 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? "Sauvegarde..." : "Sauvegarder les paramètres de relances"}
+                  </button>
+                </div>
               </CardContent>
             </Card>
 

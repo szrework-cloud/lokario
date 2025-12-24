@@ -5,9 +5,12 @@ export interface SubscriptionPlan {
   name: string;
   price: number;
   currency: string;
-  interval: string;
+  interval: string; // "month" ou "year"
   features: string[];
   stripe_price_id?: string;
+  trial_days?: number; // Nombre de jours d'essai gratuit
+  yearly_price?: number; // Prix total annuel (pour les plans annuels)
+  monthly_equivalent?: number; // Prix mensuel équivalent (pour les plans annuels)
 }
 
 export interface Subscription {
@@ -18,6 +21,7 @@ export interface Subscription {
   currency: string;
   current_period_start?: string;
   current_period_end?: string;
+  trial_start?: string;
   trial_end?: string;
 }
 
@@ -93,6 +97,7 @@ export async function getCompanySubscriptionHistory(
 export async function createCheckoutSession(
   plan: "starter" | "professional" | "enterprise" = "starter",
   token: string | null,
+  interval: "month" | "year" = "month",
   successUrl?: string,
   cancelUrl?: string
 ): Promise<CheckoutSessionResponse> {
@@ -100,6 +105,7 @@ export async function createCheckoutSession(
     "/stripe/create-checkout-session",
     {
       plan,
+      interval,
       success_url: successUrl,
       cancel_url: cancelUrl,
     },

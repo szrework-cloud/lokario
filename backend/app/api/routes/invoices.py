@@ -98,11 +98,11 @@ def create_automatic_followup_for_invoice(db: Session, invoice: Invoice, user_id
                 
                 logger.info(f"[FOLLOWUP AUTO] billing.auto_followups.invoices_enabled: {invoices_enabled}")
                 
-                # Si le paramètre est explicitement défini à False, ne pas créer
-                if invoices_enabled is False:
+                # Si invoices_enabled n'est pas explicitement True, considérer comme désactivé
+                # Cela inclut les cas où invoices_enabled est False, None, ou non défini
+                if invoices_enabled is not True:
                     should_create = False
-                    logger.info(f"[FOLLOWUP AUTO] Relances automatiques pour les factures désactivées (paramètre billing.auto_followups.invoices_enabled = False)")
-                # Si le paramètre n'est pas défini (None) ou est True, créer la relance
+                    logger.info(f"[FOLLOWUP AUTO] Relances automatiques pour les factures désactivées (paramètre billing.auto_followups.invoices_enabled = {invoices_enabled}, doit être explicitement True)")
                 else:
                     logger.info(f"[FOLLOWUP AUTO] Relances automatiques activées pour les factures (paramètre: {invoices_enabled})")
         

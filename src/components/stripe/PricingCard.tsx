@@ -48,11 +48,36 @@ export function PricingCard({
 
         <CardHeader className="text-center pb-4">
           <h3 className="text-2xl font-bold text-[#0F172A]">{plan.name}</h3>
+          {/* Badge essai gratuit */}
+          {plan.trial_days && (
+            <div className="mt-2 mb-3">
+              <span className="inline-block bg-[#F97316]/10 text-[#F97316] px-3 py-1 rounded-full text-xs font-semibold">
+                {plan.trial_days} jours gratuits
+              </span>
+            </div>
+          )}
           <div className="mt-4">
             <span className="text-4xl font-bold text-[#0F172A]">
-              {plan.price}€
+              {plan.price.toFixed(2).replace('.', ',')}€
             </span>
             <span className="text-[#64748B]">/{plan.interval === "month" ? "mois" : "an"}</span>
+            {plan.interval === "year" && plan.yearly_price && (
+              <div className="mt-2">
+                <p className="text-sm text-[#64748B]">
+                  Soit <span className="font-semibold text-[#0F172A]">{plan.yearly_price.toFixed(2).replace('.', ',')}€</span> par an
+                </p>
+                {plan.name === "Essentiel" && (
+                  <p className="text-xs text-[#F97316] mt-1 font-medium">
+                    Économisez {((19.99 - plan.price) * 12).toFixed(2).replace('.', ',')}€/an
+                  </p>
+                )}
+                {plan.name === "Pro" && (
+                  <p className="text-xs text-[#F97316] mt-1 font-medium">
+                    Économisez {((59.99 - plan.price) * 12).toFixed(2).replace('.', ',')}€/an
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </CardHeader>
 

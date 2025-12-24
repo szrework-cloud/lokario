@@ -52,6 +52,10 @@ def get_default_settings() -> Dict[str, Any]:
         },
         "billing": {
             "tax_rates": [0, 2.1, 5.5, 10, 20],  # Taux de TVA autorisés (en pourcentage)
+            "auto_followups": {
+                "quotes_enabled": False,  # Relances automatiques pour les devis non signés (désactivé par défaut)
+                "invoices_enabled": False,  # Relances automatiques pour les factures impayées (désactivé par défaut)
+            },
             "quote_design": {
                 "primary_color": "#F97316",  # Couleur principale (orange par défaut)
                 "secondary_color": "#F0F0F0",  # Couleur secondaire (gris clair)
