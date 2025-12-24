@@ -230,12 +230,17 @@ async def get_subscription(
             stripe_sub = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
             # Synchroniser les données
             subscription.status = SubscriptionStatus(stripe_sub.status)
-            subscription.current_period_start = datetime.fromtimestamp(stripe_sub.current_period_start)
-            subscription.current_period_end = datetime.fromtimestamp(stripe_sub.current_period_end)
-            if stripe_sub.get("trial_start"):
-                subscription.trial_start = datetime.fromtimestamp(stripe_sub["trial_start"])
-            if stripe_sub.get("trial_end"):
-                subscription.trial_end = datetime.fromtimestamp(stripe_sub["trial_end"])
+            
+            # Convertir les timestamps (les objets Stripe ont des attributs, pas des dict)
+            if hasattr(stripe_sub, 'current_period_start') and stripe_sub.current_period_start:
+                subscription.current_period_start = datetime.fromtimestamp(stripe_sub.current_period_start, tz=timezone.utc)
+            if hasattr(stripe_sub, 'current_period_end') and stripe_sub.current_period_end:
+                subscription.current_period_end = datetime.fromtimestamp(stripe_sub.current_period_end, tz=timezone.utc)
+            
+            if hasattr(stripe_sub, 'trial_start') and stripe_sub.trial_start:
+                subscription.trial_start = datetime.fromtimestamp(stripe_sub.trial_start, tz=timezone.utc)
+            if hasattr(stripe_sub, 'trial_end') and stripe_sub.trial_end:
+                subscription.trial_end = datetime.fromtimestamp(stripe_sub.trial_end, tz=timezone.utc)
             
             # Synchroniser le plan depuis le price_id si nécessaire
             if stripe_sub.get("items") and stripe_sub["items"].get("data"):
