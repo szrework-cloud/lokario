@@ -72,7 +72,7 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
             logo_y = A4[1] - 45*mm  # 45mm depuis le haut
             logger.info(f"[LOGO] Drawing logo at position ({logo_x}, {logo_y}), size: {35*mm}x{35*mm}")
             logger.info(f"[LOGO] A4 dimensions: width={A4[0]}, height={A4[1]}")
-            logger.info(f"[LOGO] Logo will be drawn at: x={logo_x} (from left), y={logo_y} (from bottom, {25*mm} from top)")
+            logger.info(f"[LOGO] Logo will be drawn at: x={logo_x} (from left), y={logo_y} (from bottom, {45*mm} from top)")
             
             # S'assurer que le logo est dessiné après tous les autres éléments
             # En ReportLab, l'ordre de dessin détermine ce qui est au-dessus
