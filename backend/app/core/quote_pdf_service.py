@@ -117,10 +117,7 @@ def draw_header_on_canvas(canvas_obj, doc, primary_color, secondary_color, logo_
                         try:
                             logo = Image(logo_bytes, width=35*mm, height=35*mm, kind='proportional')
                             logger.info(f"[LOGO] Image object created successfully, drawing at position ({A4[0] - 50*mm}, {A4[1] - 40*mm})")
-                            # S'assurer que le canvas est dans le bon état avant de dessiner
-                            canvas_obj.saveState()
                             logo.drawOn(canvas_obj, A4[0] - 50*mm, A4[1] - 40*mm)
-                            canvas_obj.restoreState()
                             logo_loaded = True
                             logger.info(f"[LOGO] Logo drawn successfully on canvas from Supabase Storage: {normalized_path}")
                         except Exception as img_error:
