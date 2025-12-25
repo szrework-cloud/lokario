@@ -339,6 +339,27 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
 
     // Si l'étape a une action "click", cliquer sur l'élément cible
     if (currentStepData?.action === "click") {
+      // Si on cible le contenu d'une section des paramètres, cliquer d'abord sur l'onglet correspondant
+      if (currentStepData.target.includes("settings-content-")) {
+        const tabId = currentStepData.target.replace("[data-tutorial='settings-content-", "").replace("']", "");
+        const tabButton = document.querySelector(`[data-tutorial='settings-tab-${tabId}']`) as HTMLElement;
+        if (tabButton) {
+          tabButton.click();
+          // Attendre que l'onglet s'ouvre avant de passer à l'étape suivante
+          setTimeout(() => {
+            if (tutorialState.currentStep < tutorialState.steps.length - 1) {
+              setTutorialState((prev) => ({
+                ...prev,
+                currentStep: prev.currentStep + 1,
+              }));
+            } else {
+              handleFinish();
+            }
+          }, 500);
+          return;
+        }
+      }
+      
       const element = document.querySelector(currentStepData.target) as HTMLElement;
       if (element) {
         element.click();
