@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.chatbot_context_service import build_company_context
+from app.core.openai_throttle import throttle_openai_request
 from app.db.models.chatbot import ChatbotConversation, ChatbotMessage
 
 logger = logging.getLogger(__name__)

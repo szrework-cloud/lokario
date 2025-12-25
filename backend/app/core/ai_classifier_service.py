@@ -7,6 +7,7 @@ import re
 import logging
 from typing import Dict, List, Optional, Tuple
 from app.core.config import settings
+from app.core.openai_throttle import throttle_openai_request
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,9 @@ class AIClassifierService:
                 folders=auto_classify_folders,
                 company_context=company_context
             )
+            
+            # Throttle pour éviter les rate limits
+            throttle_openai_request()
             
             # Un seul appel IA pour tous les messages
             response = self.client.chat.completions.create(
@@ -507,6 +511,9 @@ class AIClassifierService:
                 company_context=company_context
             )
             
+            # Throttle pour éviter les rate limits
+            throttle_openai_request()
+            
             # Appeler ChatGPT
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",  # Utiliser gpt-4o-mini pour réduire les coûts
@@ -671,6 +678,9 @@ Indicateurs VRAI CLIENT: email personnel, message personnalisé, demande spécif
 
 Réponds UNIQUEMENT: "client" ou "notification" """
             
+            # Throttle pour éviter les rate limits
+            throttle_openai_request()
+            
             # Appeler ChatGPT
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -802,6 +812,9 @@ Réponds UNIQUEMENT: "client" ou "notification" """
             prompt_parts.append("Exemple: {\"email1\": \"notification\", \"email2\": \"client\", \"email3\": \"notification\"}")
             
             prompt = "\n".join(prompt_parts)
+            
+            # Throttle pour éviter les rate limits
+            throttle_openai_request()
             
             # Appeler ChatGPT
             response = self.client.chat.completions.create(
@@ -959,6 +972,9 @@ Indicateurs AUTRE TYPE DE CONTACT:
 
 Réponds UNIQUEMENT: "client" ou "autre"
 """
+            
+            # Throttle pour éviter les rate limits
+            throttle_openai_request()
             
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",

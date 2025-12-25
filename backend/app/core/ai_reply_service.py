@@ -5,6 +5,7 @@ import os
 import logging
 from typing import Optional, Dict, Any
 from app.core.config import settings
+from app.core.openai_throttle import throttle_openai_request
 
 logger = logging.getLogger(__name__)
 
