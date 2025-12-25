@@ -266,10 +266,15 @@ def update_my_company_settings(
         print(f"[SETTINGS UPDATE] Settings après merge - ia.inbox: {merged_settings.get('ia', {}).get('inbox')}")
         print("=" * 80)
         
-        settings.settings = merged_settings
-        # L'objet settings est déjà dans la session db, pas besoin de db.add()
-        db.commit()
-        db.refresh(settings)
+        # Sauvegarder les modifications avec retry pour gérer les erreurs SSL
+        def _save_settings():
+            settings.settings = merged_settings
+            # L'objet settings est déjà dans la session db, pas besoin de db.add()
+            db.commit()
+            db.refresh(settings)
+            return settings
+        
+        settings = execute_with_retry(db, _save_settings)
         
         print(f"[SETTINGS UPDATE] ✅ Settings sauvegardés avec succès pour company_id={current_user.company_id}")
         return settings
