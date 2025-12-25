@@ -443,7 +443,10 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         break;
       case "top":
         top = rect.top - 10;
-        left = rect.right - 400; // Positionner à droite avec une largeur de ~400px (max-w-sm)
+        // Positionner à droite de l'élément, mais s'assurer de ne pas dépasser de l'écran
+        const tooltipWidth = 400; // max-w-sm = 384px, on prend 400px pour la marge
+        left = Math.min(rect.right - tooltipWidth, window.innerWidth - tooltipWidth - 20);
+        left = Math.max(20, left); // Au moins 20px de marge à gauche
         transformY = "-100%";
         break;
       case "right":
