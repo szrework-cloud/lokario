@@ -240,6 +240,7 @@ def get_invoices(
         if client:
             invoice.client_name = client.name
             invoice.client_address = client.address
+            invoice.client_email = client.email  # Ajouter l'email du client
         
         # Calculer le montant payé et restant
         total_invoice = invoice.total_ttc or invoice.amount
@@ -302,6 +303,7 @@ def get_invoice(
     if client:
         invoice.client_name = client.name
         invoice.client_address = client.address
+        invoice.client_email = client.email  # Ajouter l'email du client pour le formulaire d'envoi
     
     # Calculer le montant payé et restant
     total_invoice = invoice.total_ttc or invoice.amount

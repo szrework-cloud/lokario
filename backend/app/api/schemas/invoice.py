@@ -204,6 +204,7 @@ class InvoiceRead(BaseModel):
     client_address: Optional[str]
     client_siren: Optional[str]
     client_delivery_address: Optional[str]
+    client_email: Optional[str] = None  # Email du client pour le formulaire d'envoi
     
     # Dates
     issue_date: Optional[datetime]
