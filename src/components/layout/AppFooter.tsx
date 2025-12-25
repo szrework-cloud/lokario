@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 
 export function AppFooter() {
   return (
@@ -18,20 +17,6 @@ export function AppFooter() {
             />
             <span>© 2025 LOKARIO</span>
           </div>
-          <span className="text-[#E5E7EB]">|</span>
-          <Link
-            href="/contact"
-            className="hover:text-[#0F172A] transition-colors"
-          >
-            Support
-          </Link>
-          <span className="text-[#E5E7EB]">|</span>
-          <Link
-            href="/documentation"
-            className="hover:text-[#0F172A] transition-colors"
-          >
-            Documentation
-          </Link>
           <span className="text-[#E5E7EB]">|</span>
           <a
             href="https://wa.me/33770034283"
