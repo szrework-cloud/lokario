@@ -105,6 +105,45 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     });
   }, []);
 
+  // Vérifier si le tutoriel doit être lancé
+  useEffect(() => {
+    const checkAndStartTutorial = () => {
+      const shouldStartTutorial = localStorage.getItem("should_start_tutorial") === "true";
+      const tutorialCompleted = localStorage.getItem("tutorial_completed") === "true";
+
+      if (shouldStartTutorial && !tutorialCompleted && pathname === "/app/dashboard") {
+        // Attendre un peu que la page soit chargée
+        setTimeout(() => {
+          initializeTutorial();
+          localStorage.removeItem("should_start_tutorial");
+        }, 1500);
+      }
+    };
+
+    // Vérifier immédiatement
+    checkAndStartTutorial();
+
+    // Écouter les changements de storage au cas où il serait défini après le montage
+    const handleStorageChange = () => {
+      checkAndStartTutorial();
+    };
+
+    // Écouter les événements storage (entre onglets) et un événement personnalisé (même onglet)
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("shouldStartTutorial", handleStorageChange);
+
+    // Vérifier aussi après un court délai pour gérer les cas où localStorage est défini juste avant la navigation
+    const timeoutId = setTimeout(() => {
+      checkAndStartTutorial();
+    }, 500);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("shouldStartTutorial", handleStorageChange);
+      clearTimeout(timeoutId);
+    };
+  }, [pathname, initializeTutorial]);
+
   const handleNext = () => {
     if (tutorialState.currentStep < tutorialState.steps.length - 1) {
       setTutorialState((prev) => ({
