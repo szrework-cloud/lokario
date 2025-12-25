@@ -1310,7 +1310,13 @@ def get_onboarding_status(
     if not current_user.company_id:
         raise HTTPException(status_code=404, detail="User has no company")
     
-    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    from app.db.retry import execute_with_retry
+    
+    # Utiliser execute_with_retry pour gérer les erreurs SSL
+    def _get_company():
+        return db.query(Company).filter(Company.id == current_user.company_id).first()
+    
+    company = execute_with_retry(db, _get_company)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     

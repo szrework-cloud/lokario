@@ -382,13 +382,19 @@ def get_task_stats(
     try:
         _check_company_access(current_user)
         
+        from app.db.retry import execute_with_retry
+        
         query = db.query(Task).filter(Task.company_id == current_user.company_id)
         
         # Les users ne voient que leurs tâches
         if current_user.role == "user":
             query = query.filter(Task.assigned_to_id == current_user.id)
         
-        all_tasks = query.all()
+        # Utiliser execute_with_retry pour gérer les erreurs SSL
+        def _get_all_tasks():
+            return query.all()
+        
+        all_tasks = execute_with_retry(db, _get_all_tasks)
         
         # Calculer le statut "En retard" pour toutes les tâches - Batch commit pour optimiser les performances
         tasks_to_update = []
