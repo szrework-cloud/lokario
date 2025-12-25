@@ -578,6 +578,23 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
 
   const currentStep = tutorialState.steps[tutorialState.currentStep];
 
+  // Injecter les styles d'animation
+  useEffect(() => {
+    const styleId = "tutorial-animations";
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement("style");
+      style.id = styleId;
+      style.textContent = animationStyles;
+      document.head.appendChild(style);
+    }
+    return () => {
+      const style = document.getElementById(styleId);
+      if (style) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
+
   return (
     <>
       {children}
