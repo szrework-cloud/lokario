@@ -115,10 +115,10 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
 
   // Calculer la position du tooltip
   const getTooltipPosition = (target: string) => {
-    if (typeof window === "undefined") return { top: 0, left: 0 };
+    if (typeof window === "undefined") return null;
     
     const element = document.querySelector(target);
-    if (!element) return { top: 0, left: 0 };
+    if (!element) return null;
 
     const rect = element.getBoundingClientRect();
     const step = tutorialState.steps[tutorialState.currentStep];
@@ -126,27 +126,35 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
 
     let top = 0;
     let left = 0;
+    let transformX = "0";
+    let transformY = "0";
 
     switch (placement) {
       case "bottom":
-        top = rect.bottom + window.scrollY + 16;
-        left = rect.left + window.scrollX + rect.width / 2;
+        top = rect.bottom + 16;
+        left = rect.left + rect.width / 2;
+        transformX = "-50%";
         break;
       case "top":
-        top = rect.top + window.scrollY - 16;
-        left = rect.left + window.scrollX + rect.width / 2;
+        top = rect.top - 16;
+        left = rect.left + rect.width / 2;
+        transformX = "-50%";
+        transformY = "-100%";
         break;
       case "right":
-        top = rect.top + window.scrollY + rect.height / 2;
-        left = rect.right + window.scrollX + 16;
+        top = rect.top + rect.height / 2;
+        left = rect.right + 16;
+        transformY = "-50%";
         break;
       case "left":
-        top = rect.top + window.scrollY + rect.height / 2;
-        left = rect.left + window.scrollX - 16;
+        top = rect.top + rect.height / 2;
+        left = rect.left - 16;
+        transformX = "-100%";
+        transformY = "-50%";
         break;
     }
 
-    return { top, left, elementRect: rect };
+    return { top, left, transformX, transformY, elementRect: rect };
   };
 
   const currentStep = tutorialState.steps[tutorialState.currentStep];
