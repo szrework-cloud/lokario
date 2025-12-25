@@ -3374,14 +3374,16 @@ export default function SettingsPage() {
 
         {/* Section Intégrations - Toujours monté pour éviter la perte d'état */}
         {activeTab === "subscription" && (
-          <SubscriptionTab />
+          <div data-tutorial="settings-content-subscription">
+            <SubscriptionTab />
+          </div>
         )}
 
         {activeTab === "privacy" && (
           <DataPrivacySection />
         )}
 
-        <div className={activeTab === "integrations" ? "space-y-6" : "hidden"}>
+        <div className={activeTab === "integrations" ? "space-y-6" : "hidden"} data-tutorial="settings-content-integrations">
           {/* Section Boîtes mail */}
           <InboxIntegrationsTab key="inbox-integrations-tab" />
 
