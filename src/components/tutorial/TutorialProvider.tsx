@@ -442,12 +442,14 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         transformX = "-50%";
         break;
       case "top":
-        top = rect.top - 10;
+        // Positionner en haut de l'élément, mais s'assurer de ne pas dépasser du haut de l'écran
+        const tooltipHeight = 300; // Estimation de la hauteur du tooltip
+        top = Math.max(20, rect.top - tooltipHeight - 10); // Au moins 20px de marge en haut
         // Positionner à droite de l'élément, mais s'assurer de ne pas dépasser de l'écran
         const tooltipWidth = 400; // max-w-sm = 384px, on prend 400px pour la marge
         left = Math.min(rect.right - tooltipWidth, window.innerWidth - tooltipWidth - 20);
         left = Math.max(20, left); // Au moins 20px de marge à gauche
-        transformY = "-100%";
+        transformY = top === 20 ? "0%" : "-100%"; // Si on est collé en haut, ne pas décaler vers le haut
         break;
       case "right":
         top = rect.top + rect.height / 2;
