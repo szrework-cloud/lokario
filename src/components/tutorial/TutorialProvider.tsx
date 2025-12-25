@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import React from "react";
 
 interface Step {
   target: string;
   title: string;
-  content: string;
+  content: string | React.ReactNode;
   placement?: "top" | "bottom" | "left" | "right" | "center";
   action?: "navigate" | "click";
   navigateTo?: string;
@@ -531,9 +532,13 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
           </h3>
 
           {/* Contenu */}
-          <p className="text-sm text-[#64748B] mb-6">
-            {currentStep.content}
-          </p>
+          <div className="text-sm text-[#64748B] mb-6">
+            {typeof currentStep.content === "string" ? (
+              <p className="whitespace-pre-line">{currentStep.content}</p>
+            ) : (
+              currentStep.content
+            )}
+          </div>
 
           {/* Boutons de navigation */}
           <div className="flex items-center justify-between gap-3">
