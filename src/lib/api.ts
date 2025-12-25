@@ -79,7 +79,10 @@ export async function apiPost<T>(
       }
     }
     
-    throw new Error(message);
+    // Créer une erreur avec le statut pour permettre la gestion des erreurs spécifiques (ex: 403 pour quotas)
+    const error = new Error(message);
+    (error as any).status = res.status;
+    throw error;
   }
 
   return res.json();
