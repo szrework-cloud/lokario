@@ -5,6 +5,38 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import React from "react";
 
+// Styles pour les animations
+const animationStyles = `
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes tooltipSlideIn {
+    from {
+      opacity: 0;
+      transform: translate(var(--transform-x, 0), var(--transform-y, -10px)) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translate(var(--transform-x, 0), var(--transform-y, 0)) scale(1);
+    }
+  }
+
+  @keyframes highlightPulse {
+    0%, 100% {
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 0 4px #F97316;
+    }
+    50% {
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 0 6px #F97316;
+    }
+  }
+`;
+
 interface Step {
   target: string;
   title: string;
@@ -553,8 +585,11 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       {/* Overlay sombre */}
       {tutorialState.isRunning && (
         <div
-          className="fixed inset-0 bg-black/50 z-[9998] transition-opacity"
-          style={{ pointerEvents: "none" }}
+          className="fixed inset-0 bg-black/50 z-[9998] transition-opacity duration-300 ease-in-out"
+          style={{ 
+            pointerEvents: "none",
+            animation: "fadeIn 0.3s ease-in-out",
+          }}
         />
       )}
 
@@ -569,7 +604,8 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             height: `${position.elementRect.height}px`,
             boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 0 4px #F97316",
             borderRadius: "8px",
-            transition: "all 0.3s ease",
+            transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+            animation: "highlightPulse 2s ease-in-out infinite",
           }}
         />
       )}
@@ -582,7 +618,11 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             top: `${position.top}px`,
             left: `${position.left}px`,
             transform: `translate(${position.transformX}, ${position.transformY})`,
-          }}
+            transition: "top 0.4s cubic-bezier(0.4, 0, 0.2, 1), left 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+            animation: "tooltipSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+            "--transform-x": position.transformX,
+            "--transform-y": position.transformY,
+          } as React.CSSProperties}
         >
           {/* Indicateur de progression */}
           <div className="flex items-center justify-between mb-4">
@@ -591,7 +631,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             </span>
             <button
               onClick={handleSkip}
-              className="text-xs text-[#64748B] hover:text-[#0F172A] transition-colors"
+              className="text-xs text-[#64748B] hover:text-[#0F172A] transition-all duration-200 hover:scale-105 active:scale-95"
             >
               Passer
             </button>
@@ -616,7 +656,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             <button
               onClick={handlePrevious}
               disabled={tutorialState.currentStep === 0}
-              className="px-4 py-2 text-sm font-medium text-[#64748B] hover:text-[#0F172A] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 text-sm font-medium text-[#64748B] hover:text-[#0F172A] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95 disabled:hover:scale-100"
             >
               Précédent
             </button>
