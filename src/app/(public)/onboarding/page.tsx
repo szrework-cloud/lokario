@@ -129,15 +129,23 @@ export default function OnboardingPage() {
   };
 
   const handleVideoComplete = () => {
+    console.log("[ONBOARDING] Video completed, setting up tutorial...");
     // Marquer qu'on doit lancer le tutoriel après redirection
     // Utiliser setTimeout pour s'assurer que le localStorage est bien défini avant la navigation
     localStorage.setItem("should_start_tutorial", "true");
+    console.log("[ONBOARDING] localStorage set:", localStorage.getItem("should_start_tutorial"));
+    
     // Déclencher un événement personnalisé pour notifier les autres composants (même onglet)
     window.dispatchEvent(new Event("shouldStartTutorial"));
+    console.log("[ONBOARDING] Event 'shouldStartTutorial' dispatched");
+    
     // Déclencher aussi l'événement storage pour compatibilité
     window.dispatchEvent(new Event("storage"));
+    console.log("[ONBOARDING] Event 'storage' dispatched");
+    
     // Rediriger vers le dashboard après la vidéo
     setTimeout(() => {
+      console.log("[ONBOARDING] Redirecting to dashboard...");
       router.push("/app/dashboard");
     }, 100);
   };
