@@ -130,9 +130,14 @@ export default function OnboardingPage() {
 
   const handleVideoComplete = () => {
     // Marquer qu'on doit lancer le tutoriel après redirection
+    // Utiliser setTimeout pour s'assurer que le localStorage est bien défini avant la navigation
     localStorage.setItem("should_start_tutorial", "true");
+    // Déclencher un événement personnalisé pour notifier les autres composants
+    window.dispatchEvent(new Event("storage"));
     // Rediriger vers le dashboard après la vidéo
-    router.push("/app/dashboard");
+    setTimeout(() => {
+      router.push("/app/dashboard");
+    }, 100);
   };
 
   // Afficher un loader si le token est en cours de chargement
@@ -178,6 +183,7 @@ export default function OnboardingPage() {
                       controls
                       playsInline
                       preload="metadata"
+                      onEnded={handleVideoComplete}
                     >
                       Votre navigateur ne supporte pas la lecture de vidéos.
                     </video>
