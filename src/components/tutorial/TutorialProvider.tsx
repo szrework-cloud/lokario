@@ -68,7 +68,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       {
         target: "[data-tutorial='settings-link']",
         title: "⚙️ Paramètres",
-        content: "Personnalisez Lokario selon vos besoins : logo, signature, modules, etc. Cliquez sur 'Paramètres' dans la sidebar.",
+        content: "Dans les Paramètres, configurez votre entreprise :\n\n• Infos entreprise : Nom, logo, coordonnées, SIRET/SIREN - À remplir en priorité pour personnaliser vos documents\n• Facturation : Design des devis (couleurs, logo), numérotation personnalisée, taux de TVA, signature - Pour personnaliser vos devis et factures\n• Modules activés : Activez/désactivez les fonctionnalités (Rendez-vous, Inbox, Projets, etc.)\n• Intelligence artificielle : Configurez les réponses automatiques et la classification des messages\n\nCliquez sur 'Paramètres' dans la sidebar pour commencer.",
         placement: "right",
       },
     ];

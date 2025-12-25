@@ -137,9 +137,9 @@ export default function AppLayout({
             }
           }
           
-          // Vérifier le statut de suppression pour les utilisateurs normaux
-          // BLOQUER l'accès jusqu'à ce que la vérification soit terminée
-          checkDeletionStatus();
+        // Vérifier le statut de suppression pour les utilisateurs normaux
+        // BLOQUER l'accès jusqu'à ce que la vérification soit terminée
+        checkDeletionStatus();
         };
         
         checkOnboarding();

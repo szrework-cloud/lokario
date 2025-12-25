@@ -853,14 +853,17 @@ def forgot_password(
     
     # Envoyer l'email
     try:
-        send_password_reset_email(
+        email_sent = send_password_reset_email(
             email=user.email,
             token=reset_token,
             full_name=user.full_name
         )
-        print(f"✅ Email de réinitialisation envoyé à {user.email}")
+        if email_sent:
+            logger.info(f"✅ Email de réinitialisation envoyé avec succès à {user.email}")
+        else:
+            logger.warning(f"⚠️ Échec de l'envoi de l'email de réinitialisation à {user.email}")
     except Exception as e:
-        print(f"Erreur lors de l'envoi de l'email de réinitialisation: {e}")
+        logger.error(f"❌ Erreur lors de l'envoi de l'email de réinitialisation: {e}")
     
     return {"message": "Si cet email existe, un lien de réinitialisation a été envoyé"}
 
