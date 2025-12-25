@@ -332,7 +332,7 @@ export default function DashboardPage() {
       <PageTitle title="Dashboard" subtitle={`${formattedDate}`} />
       <div className="space-y-6">
         {/* Temps gagné - Section principale */}
-        <Card className="bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 border-2 border-[#F97316]/20">
+        <Card className="bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 border-2 border-[#F97316]/20" data-tutorial="dashboard-overview">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div>

@@ -73,11 +73,23 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       const tutorialCompleted = localStorage.getItem("tutorial_completed") === "true";
 
       if (shouldStartTutorial && !tutorialCompleted && pathname === "/app/dashboard") {
-        // Attendre un peu que la page soit chargée
-        setTimeout(() => {
-          initializeTutorial();
-          localStorage.removeItem("should_start_tutorial");
-        }, 1500);
+        // Vérifier que le premier élément cible existe avant de démarrer
+        const checkElementExists = () => {
+          const firstElement = document.querySelector("[data-tutorial='dashboard-overview']");
+          if (firstElement) {
+            // L'élément existe, démarrer le tutoriel
+            setTimeout(() => {
+              initializeTutorial();
+              localStorage.removeItem("should_start_tutorial");
+            }, 500);
+          } else {
+            // Réessayer après un court délai (max 5 secondes)
+            setTimeout(checkElementExists, 200);
+          }
+        };
+
+        // Commencer à vérifier après un délai initial
+        setTimeout(checkElementExists, 1000);
       }
     };
 
