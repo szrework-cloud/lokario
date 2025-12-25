@@ -435,32 +435,71 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     let transformX = "0";
     let transformY = "0";
 
+    // Constantes pour les dimensions du tooltip
+    const tooltipWidth = 400; // max-w-sm = 384px, on prend 400px pour la marge
+    const tooltipHeight = 300; // Estimation de la hauteur du tooltip
+    const margin = 20; // Marge minimale des bords de l'écran
+
     switch (placement) {
       case "bottom":
         top = rect.bottom + 16;
         left = rect.left + rect.width / 2;
         transformX = "-50%";
+        // Vérifier qu'on ne dépasse pas en bas de l'écran
+        if (top + tooltipHeight > window.innerHeight - margin) {
+          // Si on dépasse, positionner au-dessus de l'élément
+          top = rect.top - tooltipHeight - 16;
+          transformY = "-100%";
+        }
+        // Vérifier qu'on ne dépasse pas à gauche ou à droite
+        if (left - tooltipWidth / 2 < margin) {
+          left = margin + tooltipWidth / 2;
+        } else if (left + tooltipWidth / 2 > window.innerWidth - margin) {
+          left = window.innerWidth - margin - tooltipWidth / 2;
+        }
         break;
       case "top":
         // Positionner en haut de l'élément, mais s'assurer de ne pas dépasser du haut de l'écran
-        const tooltipHeight = 300; // Estimation de la hauteur du tooltip
-        top = Math.max(20, rect.top - tooltipHeight - 10); // Au moins 20px de marge en haut
+        top = Math.max(margin, rect.top - tooltipHeight - 10); // Au moins 20px de marge en haut
         // Positionner à droite de l'élément, mais s'assurer de ne pas dépasser de l'écran
-        const tooltipWidth = 400; // max-w-sm = 384px, on prend 400px pour la marge
-        left = Math.min(rect.right - tooltipWidth, window.innerWidth - tooltipWidth - 20);
-        left = Math.max(20, left); // Au moins 20px de marge à gauche
-        transformY = top === 20 ? "0%" : "-100%"; // Si on est collé en haut, ne pas décaler vers le haut
+        left = Math.min(rect.right - tooltipWidth, window.innerWidth - tooltipWidth - margin);
+        left = Math.max(margin, left); // Au moins 20px de marge à gauche
+        transformY = top === margin ? "0%" : "-100%"; // Si on est collé en haut, ne pas décaler vers le haut
         break;
       case "right":
         top = rect.top + rect.height / 2;
         left = rect.right + 16;
         transformY = "-50%";
+        // Vérifier qu'on ne dépasse pas à droite de l'écran
+        if (left + tooltipWidth > window.innerWidth - margin) {
+          // Si on dépasse, positionner à gauche de l'élément
+          left = rect.left - tooltipWidth - 16;
+          transformX = "-100%";
+        }
+        // Vérifier qu'on ne dépasse pas en haut ou en bas
+        if (top - tooltipHeight / 2 < margin) {
+          top = margin + tooltipHeight / 2;
+        } else if (top + tooltipHeight / 2 > window.innerHeight - margin) {
+          top = window.innerHeight - margin - tooltipHeight / 2;
+        }
         break;
       case "left":
         top = rect.top + rect.height / 2;
         left = rect.left - 16;
         transformX = "-100%";
         transformY = "-50%";
+        // Vérifier qu'on ne dépasse pas à gauche de l'écran
+        if (left - tooltipWidth < margin) {
+          // Si on dépasse, positionner à droite de l'élément
+          left = rect.right + 16;
+          transformX = "0%";
+        }
+        // Vérifier qu'on ne dépasse pas en haut ou en bas
+        if (top - tooltipHeight / 2 < margin) {
+          top = margin + tooltipHeight / 2;
+        } else if (top + tooltipHeight / 2 > window.innerHeight - margin) {
+          top = window.innerHeight - margin - tooltipHeight / 2;
+        }
         break;
     }
 
