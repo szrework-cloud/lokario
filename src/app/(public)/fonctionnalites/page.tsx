@@ -291,7 +291,7 @@ export default function FonctionnalitesPage() {
                                   alt={`Capture d'écran ${module.title}`}
                                   width={800}
                                   height={500}
-                                  className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105 brightness-[0.85]"
+                                  className="w-full h-auto object-cover brightness-[0.85]"
                                 />
                                 {/* Overlay gradient for polish */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
