@@ -9,6 +9,8 @@ interface Step {
   title: string;
   content: string;
   placement?: "top" | "bottom" | "left" | "right" | "center";
+  action?: "navigate" | "click";
+  navigateTo?: string;
 }
 
 interface TutorialState {
@@ -55,8 +57,59 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       {
         target: "[data-tutorial='settings-link']",
         title: "⚙️ Paramètres",
-        content: "Dans les Paramètres, configurez votre entreprise. Voici ce qu'il faut remplir dans chaque section :\n\n• Infos entreprise : Nom, logo, email, adresse, SIRET/SIREN - À remplir en priorité pour personnaliser vos documents\n• Facturation : Design des devis (couleurs, logo), numérotation personnalisée, taux de TVA, signature de l'entreprise - Pour personnaliser vos devis et factures\n• Modules activés : Activez/désactivez les fonctionnalités (Rendez-vous, Inbox, Projets, etc.) selon votre abonnement\n• Intelligence artificielle : Configurez les réponses automatiques et la classification des messages\n• Équipe : Gérez les membres et leurs permissions\n• Abonnement : Consultez votre plan et vos quotas d'utilisation\n• Intégrations : Connectez vos emails et SMS\n\nCliquez sur 'Paramètres' dans la sidebar pour commencer.",
+        content: "Cliquez sur 'Paramètres' dans la sidebar pour commencer la configuration de votre entreprise.",
         placement: "right",
+        action: "navigate",
+        navigateTo: "/app/settings",
+      },
+      {
+        target: "[data-tutorial='settings-tab-company']",
+        title: "📋 Infos entreprise",
+        content: "Remplissez les informations de base de votre entreprise :\n\n• Nom de l'entreprise\n• Logo (optionnel mais recommandé)\n• Email et téléphone\n• Adresse complète\n• SIRET/SIREN (important pour les factures)\n• Numéro de TVA si applicable\n\nCes informations apparaîtront sur vos devis et factures.",
+        placement: "right",
+        action: "click",
+      },
+      {
+        target: "[data-tutorial='settings-tab-billing']",
+        title: "💼 Facturation",
+        content: "Personnalisez vos devis et factures :\n\n• Design : Choisissez vos couleurs (couleur principale et secondaire)\n• Logo : Ajoutez ou modifiez le logo pour vos documents\n• Signature : Téléchargez votre signature pour les devis\n• Numérotation : Configurez le format de numérotation (ex: DEV-2025-0001)\n• Taux de TVA : Ajoutez les taux de TVA que vous utilisez (20%, 5.5%, etc.)\n• Textes : Personnalisez les mentions légales et conditions",
+        placement: "right",
+        action: "click",
+      },
+      {
+        target: "[data-tutorial='settings-tab-modules']",
+        title: "🔧 Modules activés",
+        content: "Activez ou désactivez les fonctionnalités selon vos besoins et votre abonnement :\n\n• Rendez-vous : Gérez vos rendez-vous clients\n• Inbox : Centralisez vos messages\n• Projets : Suivez vos projets\n• Relances : Activez les relances automatiques\n\nNote : Certains modules peuvent être limités selon votre plan d'abonnement.",
+        placement: "right",
+        action: "click",
+      },
+      {
+        target: "[data-tutorial='settings-tab-ia']",
+        title: "🤖 Intelligence artificielle",
+        content: "Configurez l'IA pour automatiser vos tâches :\n\n• Réponses automatiques : Personnalisez le prompt pour les réponses automatiques aux emails\n• Résumés : Configurez comment l'IA doit résumer vos conversations\n• Classification : L'IA classera automatiquement vos messages\n\nCes paramètres aideront l'IA à mieux comprendre votre entreprise.",
+        placement: "right",
+        action: "click",
+      },
+      {
+        target: "[data-tutorial='settings-tab-subscription']",
+        title: "💳 Abonnement",
+        content: "Consultez votre abonnement et vos quotas :\n\n• Plan actuel : Voir votre plan (Essentiel ou Pro)\n• Quotas : Vérifiez votre utilisation (devis, factures, clients, etc.)\n• Gérer : Cliquez sur 'Voir les abonnements' pour changer de plan\n\nPendant l'essai gratuit, vous avez accès à toutes les fonctionnalités.",
+        placement: "right",
+        action: "click",
+      },
+      {
+        target: "[data-tutorial='settings-tab-integrations']",
+        title: "🔗 Intégrations",
+        content: "Connectez vos outils externes :\n\n• Email : Connectez votre boîte email (Gmail, Outlook, etc.) pour centraliser vos messages\n• SMS : Intégrez un service SMS si disponible\n• Autres : D'autres intégrations peuvent être disponibles selon votre plan\n\nLes intégrations permettent de centraliser toutes vos communications dans Lokario.",
+        placement: "right",
+        action: "click",
+      },
+      {
+        target: "[data-tutorial='settings-tab-team']",
+        title: "👥 Équipe",
+        content: "Gérez les membres de votre équipe :\n\n• Inviter : Ajoutez des membres à votre entreprise\n• Permissions : Définissez qui peut faire quoi (créer des devis, voir les statistiques, etc.)\n• Supprimer : Retirez des membres si nécessaire\n\nTous les membres partagent le même abonnement et les mêmes quotas.",
+        placement: "right",
+        action: "click",
       },
     ];
 
@@ -195,6 +248,46 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
   }, [pathname, initializeTutorial]);
 
   const handleNext = () => {
+    const currentStepData = tutorialState.steps[tutorialState.currentStep];
+    
+    // Si l'étape a une action "navigate", naviguer d'abord
+    if (currentStepData?.action === "navigate" && currentStepData.navigateTo) {
+      router.push(currentStepData.navigateTo);
+      // Attendre un peu que la navigation se termine avant de passer à l'étape suivante
+      setTimeout(() => {
+        if (tutorialState.currentStep < tutorialState.steps.length - 1) {
+          setTutorialState((prev) => ({
+            ...prev,
+            currentStep: prev.currentStep + 1,
+          }));
+        } else {
+          handleFinish();
+        }
+      }, 500);
+      return;
+    }
+
+    // Si l'étape a une action "click", cliquer sur l'élément cible
+    if (currentStepData?.action === "click") {
+      const element = document.querySelector(currentStepData.target) as HTMLElement;
+      if (element) {
+        element.click();
+        // Attendre un peu que le clic se propage avant de passer à l'étape suivante
+        setTimeout(() => {
+          if (tutorialState.currentStep < tutorialState.steps.length - 1) {
+            setTutorialState((prev) => ({
+              ...prev,
+              currentStep: prev.currentStep + 1,
+            }));
+          } else {
+            handleFinish();
+          }
+        }, 300);
+        return;
+      }
+    }
+
+    // Comportement par défaut
     if (tutorialState.currentStep < tutorialState.steps.length - 1) {
       setTutorialState((prev) => ({
         ...prev,

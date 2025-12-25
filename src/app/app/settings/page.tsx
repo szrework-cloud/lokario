@@ -820,6 +820,7 @@ export default function SettingsPage() {
                 <button
                   key={tab.id}
                   type="button"
+                  data-tutorial={`settings-tab-${tab.id}`}
                   onClick={() => {
                     setActiveTab(tab.id);
                     setIsDropdownOpen(false);
