@@ -15,6 +15,8 @@ export const LandingHero = () => {
           muted
           playsInline
           className="w-full h-full object-cover"
+          preload="auto"
+          loading="eager"
         >
           <source src="/videos/hero-background.mp4" type="video/mp4" />
         </video>

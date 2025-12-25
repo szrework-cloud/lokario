@@ -81,7 +81,8 @@ export function VideoSection({
                 playsInline
                 loop={loop}
                 muted={muted}
-                preload="metadata"
+                preload="none"
+                loading="lazy"
               >
                 Votre navigateur ne supporte pas la lecture de vidéos.
               </video>

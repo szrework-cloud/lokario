@@ -205,7 +205,7 @@ export default function OnboardingPage() {
                       className="w-full h-full object-cover"
                       controls
                       playsInline
-                      preload="metadata"
+                      preload="auto"
                       onEnded={handleVideoComplete}
                     >
                       Votre navigateur ne supporte pas la lecture de vidéos.
