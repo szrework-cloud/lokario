@@ -86,7 +86,17 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         isDashboard: pathname === "/app/dashboard",
       });
 
-      if (shouldStartTutorial && !tutorialCompleted && pathname === "/app/dashboard") {
+      // Vérifier aussi le pathname depuis window.location au cas où usePathname n'est pas encore à jour
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : pathname;
+      const isOnDashboard = pathname === "/app/dashboard" || currentPath === "/app/dashboard";
+
+      console.log("[TUTORIAL] Path check:", {
+        pathname,
+        currentPath,
+        isOnDashboard,
+      });
+
+      if (shouldStartTutorial && !tutorialCompleted && isOnDashboard) {
         // Vérifier que le premier élément cible existe avant de démarrer
         const checkElementExists = () => {
           const firstElement = document.querySelector("[data-tutorial='dashboard-overview']");
@@ -94,6 +104,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             found: !!firstElement,
             retryCount,
             maxRetries: MAX_RETRIES,
+            selector: "[data-tutorial='dashboard-overview']",
           });
 
           if (firstElement) {
@@ -110,11 +121,27 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             timeoutId = setTimeout(checkElementExists, 200);
           } else {
             console.warn("[TUTORIAL] Max retries reached, element not found");
+            console.warn("[TUTORIAL] Available elements with data-tutorial:", 
+              Array.from(document.querySelectorAll("[data-tutorial]")).map(el => ({
+                attribute: el.getAttribute("data-tutorial"),
+                tagName: el.tagName,
+                className: el.className,
+              }))
+            );
           }
         };
 
         // Commencer à vérifier après un délai initial pour laisser le DOM se charger
         setTimeout(checkElementExists, 800);
+      } else {
+        console.log("[TUTORIAL] Conditions not met:", {
+          shouldStartTutorial,
+          tutorialCompleted,
+          isOnDashboard,
+          reason: !shouldStartTutorial ? "should_start_tutorial not set" :
+                  tutorialCompleted ? "tutorial already completed" :
+                  !isOnDashboard ? "not on dashboard" : "unknown"
+        });
       }
     };
 
