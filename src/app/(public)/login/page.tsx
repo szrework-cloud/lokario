@@ -241,16 +241,21 @@ function LoginForm() {
         window.location.href = "/app/dashboard";
       }
     } catch (err: any) {
-      // Vérifier si l'erreur est liée à l'email non vérifié
-      const errorMessage = err.message || "Erreur de connexion";
-      if (errorMessage.includes("Email not verified") || errorMessage.includes("email not verified")) {
-        setError("Votre email n'a pas été vérifié. Veuillez vérifier votre boîte de réception ou demander un nouveau lien.");
-        // Optionnel : rediriger vers la page de vérification
-        setTimeout(() => {
-          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
-        }, 3000);
+      // Vérifier si c'est une erreur de rate limit (429)
+      if (err?.status === 429) {
+        setError(err.message || "Trop de tentatives de connexion. Veuillez patienter quelques instants avant de réessayer.");
       } else {
-        setError(errorMessage);
+        // Vérifier si l'erreur est liée à l'email non vérifié
+        const errorMessage = err.message || "Erreur de connexion";
+        if (errorMessage.includes("Email not verified") || errorMessage.includes("email not verified")) {
+          setError("Votre email n'a pas été vérifié. Veuillez vérifier votre boîte de réception ou demander un nouveau lien.");
+          // Optionnel : rediriger vers la page de vérification
+          setTimeout(() => {
+            router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+          }, 3000);
+        } else {
+          setError(errorMessage);
+        }
       }
       setLoading(false);
     }

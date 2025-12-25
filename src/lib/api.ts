@@ -56,6 +56,18 @@ export async function apiPost<T>(
       }
     }
     
+    // Si erreur 429 (Too Many Requests), afficher un message spécifique
+    if (res.status === 429) {
+      const rateLimitMessage = message && message !== "Erreur serveur"
+        ? message.includes("ratelimit") 
+          ? "Trop de tentatives de connexion. Veuillez patienter quelques instants avant de réessayer."
+          : message
+        : "Trop de tentatives de connexion. Veuillez patienter quelques instants avant de réessayer.";
+      const rateLimitError = new Error(rateLimitMessage);
+      (rateLimitError as any).status = 429;
+      throw rateLimitError;
+    }
+
     // Si erreur 400 (Bad Request) ou 401 (Unauthorized), gérer différemment selon la route
     if (res.status === 400 || res.status === 401) {
       // Pour login/register, utiliser le message d'erreur du serveur
