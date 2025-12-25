@@ -61,7 +61,7 @@ export default function OnboardingPage() {
           setCurrentStep(4);
         }
       } catch (err: any) {
-        console.error("Erreur lors de la vérification du statut:", err);
+        logger.error("Erreur lors de la vérification du statut:", err);
         // Si l'erreur est 404 ou 500 (colonnes pas encore créées), c'est normal pour un nouveau compte
         // Ne pas afficher d'erreur, simplement continuer avec l'onboarding
         if (err.message && !err.message.includes("404") && !err.message.includes("500") && !err.message.includes("UndefinedColumn")) {
