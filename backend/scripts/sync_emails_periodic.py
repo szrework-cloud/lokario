@@ -89,6 +89,18 @@ async def sync_integration(integration: InboxIntegration, db):
         encryption_service = get_encryption_service()
         decrypted_password = encryption_service.decrypt(integration.email_password) if integration.email_password else None
         
+        # Déterminer la période de recherche
+        # Première fois (pas de last_sync_at) : 14 jours
+        # Ensuite : 6 heures
+        since_hours = None
+        if integration.last_sync_at:
+            # Ce n'est pas la première sync, utiliser 6 heures
+            since_hours = 6
+            logger.info(f"[SYNC PERIODIC] Sync précédente le {integration.last_sync_at}, récupération des 6 dernières heures")
+        else:
+            # Première sync, récupérer les 14 derniers jours
+            logger.info(f"[SYNC PERIODIC] Première sync, récupération des 14 derniers jours")
+        
         # Récupérer les emails depuis IMAP
         emails = await fetch_emails_async(
             imap_server=integration.imap_server,
@@ -96,7 +108,8 @@ async def sync_integration(integration: InboxIntegration, db):
             email_address=integration.email_address,
             password=decrypted_password,
             company_code=company.code,
-            use_ssl=integration.use_ssl if integration.use_ssl is not None else True
+            use_ssl=integration.use_ssl if integration.use_ssl is not None else True,
+            since_hours=since_hours
         )
         
         logger.info(f"[SYNC PERIODIC] {len(emails)} email(s) récupéré(s)")
@@ -275,6 +288,10 @@ async def sync_integration(integration: InboxIntegration, db):
                 db.rollback()
                 stats["errors"] += 1
                 logger.error(f"[SYNC PERIODIC] Erreur lors du traitement d'un email: {e}", exc_info=True)
+        
+        # Mettre à jour last_sync_at après une sync réussie
+        integration.last_sync_at = datetime.utcnow()
+        db.commit()
         
         logger.info(f"[SYNC PERIODIC] ✅ Synchronisation terminée: {stats['created']} créé(s), {stats['skipped']} ignoré(s), {stats['errors']} erreur(s)")
         return stats

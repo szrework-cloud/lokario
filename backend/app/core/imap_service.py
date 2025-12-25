@@ -220,7 +220,8 @@ def fetch_emails_imap(
     email_address: str,
     password: str,
     company_code: str,
-    use_ssl: bool = True
+    use_ssl: bool = True,
+    since_hours: Optional[int] = None
 ) -> List[Dict]:
     """
     Récupère les nouveaux emails depuis un serveur IMAP.
@@ -269,13 +270,17 @@ def fetch_emails_imap(
         select_result = mail.select("INBOX")
         print(f"[IMAP] INBOX sélectionné: {select_result}")
         
-        # Calculer la date d'il y a 14 jours
-        fourteen_days_ago = datetime.utcnow() - timedelta(days=14)
+        # Calculer la date depuis laquelle récupérer les emails
+        # Par défaut: 14 jours (pour la première sync), mais peut être ajusté
+        since_date = datetime.utcnow() - timedelta(days=14)
         # Formater la date au format IMAP (DD-MMM-YYYY) - format: "01-Jan-2024"
-        date_str = fourteen_days_ago.strftime("%d-%b-%Y")
+        date_str = since_date.strftime("%d-%b-%Y")
         
-        # Chercher tous les emails (lus et non lus) des 14 derniers jours
-        print(f"[IMAP] Recherche des emails depuis le {date_str} (14 derniers jours)")
+        # Chercher tous les emails (lus et non lus) depuis la date calculée
+        days_ago = (datetime.utcnow() - since_date).days
+        hours_ago = (datetime.utcnow() - since_date).total_seconds() / 3600
+        period_str = f"{days_ago} jours" if days_ago >= 1 else f"{int(hours_ago)} heures"
+        print(f"[IMAP] Recherche des emails depuis le {date_str} ({period_str})")
         search_criteria = f'(SINCE {date_str})'
         status, messages = mail.search(None, search_criteria)
         email_ids = messages[0].split() if messages[0] else []
@@ -798,7 +803,8 @@ async def fetch_emails_async(
     email_address: str,
     password: str,
     company_code: str,
-    use_ssl: bool = True
+    use_ssl: bool = True,
+    since_hours: Optional[int] = None
 ) -> List[Dict]:
     """Version asynchrone de fetch_emails_imap."""
     loop = asyncio.get_event_loop()
@@ -810,7 +816,8 @@ async def fetch_emails_async(
         email_address,
         password,
         company_code,
-        use_ssl
+        use_ssl,
+        since_hours
     )
 
 
