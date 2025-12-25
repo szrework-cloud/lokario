@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import os
-from app.api.routes import auth, users, companies, clients, inbox, inbox_webhooks, inbox_integrations, tasks, checklists, projects, appointments, followups, invoices, quotes, billing_line_templates, notifications, chatbot, dashboard, stripe, contact
+from app.api.routes import auth, users, companies, clients, inbox, inbox_webhooks, inbox_integrations, tasks, checklists, projects, appointments, followups, invoices, quotes, billing_line_templates, notifications, chatbot, dashboard, stripe, contact, subscription
 from app.db.session import init_db
 from app.core.log_sanitizer import setup_sanitized_logging
 from app.core.config import settings
