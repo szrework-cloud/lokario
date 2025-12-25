@@ -204,12 +204,17 @@ def update_my_company_settings(
         # Récupérer les settings depuis la session actuelle pour éviter les conflits de session
         from app.db.models.company_settings import CompanySettings
         from app.core.defaults import get_default_settings
+        from app.db.retry import execute_with_retry
         
-        settings = (
-            db.query(CompanySettings)
-            .filter(CompanySettings.company_id == current_user.company_id)
-            .first()
-        )
+        # Utiliser execute_with_retry pour gérer les erreurs de connexion SSL
+        def _get_settings():
+            return (
+                db.query(CompanySettings)
+                .filter(CompanySettings.company_id == current_user.company_id)
+                .first()
+            )
+        
+        settings = execute_with_retry(db, _get_settings)
         
         if not settings:
             # Créer des settings par défaut si manquants
