@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
+import { useSubscriptionFeatures } from "@/hooks/queries/useSubscriptionFeatures";
 
 interface NavItem {
   label: string;
@@ -40,14 +41,24 @@ const navItems: NavItem[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { settings } = useSettings(false); // Ne pas auto-load ici, déjà chargé ailleurs
+  const { data: features } = useSubscriptionFeatures();
 
   const activeModules = settings?.settings.modules;
 
-  // Filtrer les items selon les modules activés
+  // Filtrer les items selon les modules activés ET les fonctionnalités du plan
   const visibleItems = navItems.filter((item) => {
     // Si pas de moduleKey, toujours visible (ex: Paramètres)
     if (!item.moduleKey) return true;
     
+    // Vérifier d'abord les fonctionnalités du plan d'abonnement
+    if (item.moduleKey === "appointments" && features && !features.appointments) {
+      return false; // Masquer rendez-vous si pas disponible dans le plan
+    }
+    if (item.moduleKey === "inbox" && features && !features.inbox) {
+      return false; // Masquer inbox si pas disponible dans le plan
+    }
+    
+    // Ensuite vérifier les modules activés dans les settings
     // Si settings pas encore chargés, afficher tout (fallback)
     if (!activeModules) return true;
     

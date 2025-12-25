@@ -373,19 +373,23 @@ function Step4Component({
           <ul className="space-y-2 mb-6">
             <li className="flex items-start gap-2 text-sm text-[#64748B]">
               <span className="text-[#16A34A]">✓</span>
-              <span>20 devis/mois</span>
+              <span><strong>20 devis/mois</strong> (limite mensuelle)</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-[#64748B]">
               <span className="text-[#16A34A]">✓</span>
-              <span>20 factures/mois</span>
+              <span><strong>20 factures/mois</strong> (limite mensuelle)</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-[#64748B]">
               <span className="text-[#16A34A]">✓</span>
-              <span>50 clients</span>
+              <span><strong>50 clients</strong> (limite totale)</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-[#64748B]">
               <span className="text-[#16A34A]">✓</span>
-              <span>20 relances/mois</span>
+              <span><strong>20 relances/mois</strong> (limite mensuelle)</span>
+            </li>
+            <li className="flex items-start gap-2 text-sm text-[#64748B] mt-3 pt-3 border-t border-[#E5E7EB]">
+              <span className="text-[#F97316]">⚠</span>
+              <span>Modules non inclus : Rendez-vous, Inbox visible</span>
             </li>
           </ul>
           <AnimatedButton
@@ -414,23 +418,23 @@ function Step4Component({
           <ul className="space-y-2 mb-6">
             <li className="flex items-start gap-2 text-sm text-[#64748B]">
               <span className="text-[#16A34A]">✓</span>
-              <span>Devis illimités</span>
+              <span><strong>Devis illimités</strong> (aucune limite)</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-[#64748B]">
               <span className="text-[#16A34A]">✓</span>
-              <span>Factures illimitées</span>
+              <span><strong>Factures illimitées</strong> (aucune limite)</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-[#64748B]">
               <span className="text-[#16A34A]">✓</span>
-              <span>Clients illimités</span>
+              <span><strong>Clients illimités</strong> (aucune limite)</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-[#64748B]">
               <span className="text-[#16A34A]">✓</span>
-              <span>Relances illimitées</span>
+              <span><strong>Relances illimitées</strong> (aucune limite)</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-[#64748B]">
               <span className="text-[#16A34A]">✓</span>
-              <span>Toutes les fonctionnalités</span>
+              <span><strong>Toutes les fonctionnalités</strong> : Rendez-vous, Inbox, Export Excel, API, etc.</span>
             </li>
           </ul>
           <AnimatedButton

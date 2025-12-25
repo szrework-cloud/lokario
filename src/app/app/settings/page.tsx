@@ -11,6 +11,8 @@ import { Loader } from "@/components/ui/Loader";
 import { InboxIntegrationsTab } from "@/components/settings/InboxIntegrationsTab";
 import { getCompanyUsers, updateUserPermissions, deleteUser, User, UserPermissions } from "@/services/usersService";
 import { useSubscription, useCreatePortalSession } from "@/hooks/queries/useStripe";
+import { useSubscriptionUsage } from "@/hooks/queries/useSubscriptionUsage";
+import { QuotaDisplay } from "@/components/subscription/QuotaDisplay";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { DataPrivacySection } from "@/components/settings/DataPrivacySection";
 import { ImportExportSection } from "@/components/settings/ImportExportSection";

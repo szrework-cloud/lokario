@@ -359,6 +359,7 @@ app.include_router(notifications.router)
 app.include_router(chatbot.router)
 app.include_router(dashboard.router)
 app.include_router(stripe.router)
+app.include_router(subscription.router)
 app.include_router(contact.router)
 
 
