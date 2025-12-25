@@ -69,8 +69,10 @@ async def sync_integration(integration: InboxIntegration, db):
     try:
         logger.info(f"[SYNC PERIODIC] Synchronisation de {integration.email_address} (ID: {integration.id})")
         
-        # Récupérer la company
-        company = db.query(Company).filter(Company.id == integration.company_id).first()
+        # Récupérer la company avec retry pour gérer les erreurs SSL
+        def _get_company():
+            return db.query(Company).filter(Company.id == integration.company_id).first()
+        company = execute_with_retry(db, _get_company, max_retries=3, initial_delay=0.5, max_delay=2.0)
         if not company:
             logger.error(f"[SYNC PERIODIC] Company {integration.company_id} non trouvée")
             return {"processed": 0, "created": 0, "errors": 0, "skipped": 0}
@@ -150,10 +152,12 @@ async def sync_integration(integration: InboxIntegration, db):
                 # Identifier ou créer le client
                 client = None
                 if from_email:
-                    client = db.query(Client).filter(
-                        Client.company_id == company.id,
-                        Client.email == from_email
-                    ).first()
+                    def _get_client():
+                        return db.query(Client).filter(
+                            Client.company_id == company.id,
+                            Client.email == from_email
+                        ).first()
+                    client = execute_with_retry(db, _get_client, max_retries=3, initial_delay=0.5, max_delay=2.0)
                     
                     if not client:
                         client = Client(
@@ -183,18 +187,22 @@ async def sync_integration(integration: InboxIntegration, db):
                 # Sinon chercher par sujet
                 if not conversation:
                     if normalized_subject:
-                        conversation = db.query(Conversation).filter(
-                            Conversation.company_id == company.id,
-                            Conversation.source == "email",
-                            Conversation.subject == normalized_subject
-                        ).first()
+                        def _get_conversation_by_normalized_subject():
+                            return db.query(Conversation).filter(
+                                Conversation.company_id == company.id,
+                                Conversation.source == "email",
+                                Conversation.subject == normalized_subject
+                            ).first()
+                        conversation = execute_with_retry(db, _get_conversation_by_normalized_subject, max_retries=3, initial_delay=0.5, max_delay=2.0)
                     
                     if not conversation and subject:
-                        conversation = db.query(Conversation).filter(
-                            Conversation.company_id == company.id,
-                            Conversation.source == "email",
-                            Conversation.subject == subject
-                        ).first()
+                        def _get_conversation_by_subject():
+                            return db.query(Conversation).filter(
+                                Conversation.company_id == company.id,
+                                Conversation.source == "email",
+                                Conversation.subject == subject
+                            ).first()
+                        conversation = execute_with_retry(db, _get_conversation_by_subject, max_retries=3, initial_delay=0.5, max_delay=2.0)
                 
                 # Créer une nouvelle conversation si nécessaire
                 conversation_subject = normalized_subject if normalized_subject else subject
@@ -374,10 +382,12 @@ async def sync_all_integrations():
                     )
                     
                     for conv in recently_classified:
-                        last_message = db.query(InboxMessage).filter(
-                            InboxMessage.conversation_id == conv.id,
-                            InboxMessage.is_from_client == True
-                        ).order_by(InboxMessage.created_at.desc()).first()
+                        def _get_last_message():
+                            return db.query(InboxMessage).filter(
+                                InboxMessage.conversation_id == conv.id,
+                                InboxMessage.is_from_client == True
+                            ).order_by(InboxMessage.created_at.desc()).first()
+                        last_message = execute_with_retry(db, _get_last_message, max_retries=3, initial_delay=0.5, max_delay=2.0)
                         
                         if last_message:
                             trigger_auto_reply_if_needed(db, conv, last_message)
