@@ -266,8 +266,7 @@ export default function SettingsPage() {
           workStartTime: settingsData.workStartTime || "09:00",
           workEndTime: settingsData.workEndTime || "18:00",
           breaksEnabled: settingsData.breaksEnabled || false,
-          breakCount: settingsData.breakCount || 1,
-          breakDuration: settingsData.breakDuration || 15,
+          breaks: settingsData.breaks || [],
         });
       } catch (err) {
         console.error("Erreur lors du chargement des paramètres de rendez-vous:", err);
