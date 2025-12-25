@@ -529,9 +529,15 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         <div
           className="fixed z-[10000] bg-white rounded-lg shadow-2xl max-w-sm p-6"
           style={{
-            top: `${position.top}px`,
-            left: `${position.left}px`,
-            transform: `translate(${position.transformX}, ${position.transformY})`,
+            top: currentStep.placement === "top" 
+              ? `${Math.max(20, position.elementRect.top - 10)}px` 
+              : `${position.top}px`,
+            left: currentStep.placement === "top"
+              ? `${Math.min(window.innerWidth - 420, position.elementRect.right - 400)}px`
+              : `${position.left}px`,
+            transform: currentStep.placement === "top" 
+              ? "translate(0, -100%)" 
+              : `translate(${position.transformX}, ${position.transformY})`,
           }}
         >
           {/* Indicateur de progression */}
