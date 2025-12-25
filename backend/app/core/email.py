@@ -286,8 +286,85 @@ def send_password_reset_email(
     Returns:
         True si l'email a été envoyé avec succès, False sinon
     """
-    # Si pas de configuration SMTP, simuler l'envoi (mode développement)
-    if not hasattr(settings, 'SMTP_HOST') or not settings.SMTP_HOST:
+    logger.info(f"📧 [EMAIL] Début de l'envoi d'email de réinitialisation à {email}")
+    
+    # URL de réinitialisation
+    reset_url = f"{settings.FRONTEND_URL}/reset-password/{token}"
+    
+    # Priorité 1 : Utiliser SendGrid API REST si configuré
+    if hasattr(settings, 'SENDGRID_API_KEY') and settings.SENDGRID_API_KEY and SENDGRID_AVAILABLE:
+        logger.info(f"📧 [EMAIL] Utilisation de l'API REST SendGrid")
+        try:
+            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+            
+            text_content = f"""Bonjour {full_name or 'Utilisateur'},
+
+Vous avez demandé à réinitialiser votre mot de passe sur Lokario.
+
+Pour créer un nouveau mot de passe, veuillez cliquer sur le lien suivant :
+{reset_url}
+
+Ce lien est valide pendant 1 heure.
+
+Si vous n'avez pas demandé cette réinitialisation, vous pouvez ignorer cet email. Votre mot de passe ne sera pas modifié.
+
+Cordialement,
+L'équipe Lokario"""
+            
+            html_content = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background-color: #F97316; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1>Réinitialisation de mot de passe</h1>
+        </div>
+        <div style="background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
+            <p>Bonjour {full_name or 'Utilisateur'},</p>
+            <p>Vous avez demandé à réinitialiser votre mot de passe sur Lokario.</p>
+            <p style="text-align: center;">
+                <a href="{reset_url}" style="display: inline-block; padding: 12px 24px; background-color: #F97316; color: white; text-decoration: none; border-radius: 6px;">Réinitialiser mon mot de passe</a>
+            </p>
+            <p>Ou copiez-collez ce lien dans votre navigateur :</p>
+            <p style="word-break: break-all; color: #64748B; font-size: 12px;">{reset_url}</p>
+            <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px; margin: 20px 0;">
+                <p><strong>Ce lien est valide pendant 1 heure.</strong></p>
+            </div>
+            <p>Si vous n'avez pas demandé cette réinitialisation, vous pouvez ignorer cet email. Votre mot de passe ne sera pas modifié.</p>
+        </div>
+    </div>
+</body>
+</html>"""
+            
+            message = Mail(
+                from_email=Email(settings.SMTP_FROM_EMAIL, "Lokario"),
+                to_emails=email,
+                subject="Réinitialisation de votre mot de passe - Lokario",
+                plain_text_content=Content("text/plain", text_content),
+                html_content=Content("text/html", html_content)
+            )
+            
+            logger.info(f"📧 [SENDGRID API] Envoi du message...")
+            response = sg.send(message)
+            
+            if response.status_code == 202:
+                logger.info(f"✅ [SENDGRID API] Email envoyé avec succès (status: {response.status_code})")
+                return True
+            else:
+                logger.error(f"❌ [SENDGRID API] Erreur (status: {response.status_code}): {response.body}")
+                return False
+        except Exception as e:
+            logger.error(f"❌ [SENDGRID API] Erreur: {e}")
+            import traceback
+            logger.error(f"   Traceback: {traceback.format_exc()}")
+            return False
+    
+    # Priorité 2 : Utiliser SMTP si configuré
+    if hasattr(settings, 'SMTP_HOST') and settings.SMTP_HOST:
+        # Continuer avec le code SMTP existant
+        pass
+    else:
+        # Priorité 3 : Mode développement (mock)
         logger.warning("="*80)
         logger.warning("📧 [MOCK EMAIL] Email de réinitialisation de mot de passe")
         logger.warning("="*80)
@@ -295,7 +372,7 @@ def send_password_reset_email(
         if full_name:
             logger.warning(f"Nom: {full_name}")
         logger.warning(f"Token de réinitialisation: {token}")
-        logger.warning(f"Lien de réinitialisation: {settings.FRONTEND_URL}/reset-password/{token}")
+        logger.warning(f"Lien de réinitialisation: {reset_url}")
         logger.warning("="*80)
         return True
     
@@ -305,9 +382,6 @@ def send_password_reset_email(
         msg['Subject'] = "Réinitialisation de votre mot de passe - Lokario"
         msg['From'] = settings.SMTP_FROM_EMAIL
         msg['To'] = email
-        
-        # URL de réinitialisation
-        reset_url = f"{settings.FRONTEND_URL}/reset-password/{token}"
         
         # Corps du message en texte brut
         text_content = f"""
@@ -374,30 +448,64 @@ L'équipe Lokario
         msg.attach(MIMEText(html_content, 'html', 'utf-8'))
         
         # Envoyer l'email
+        logger.info(f"📧 [EMAIL] Connexion à {settings.SMTP_HOST}:{settings.SMTP_PORT}...")
         # Utiliser SMTP_SSL pour le port 465 (SSL direct) ou SMTP pour le port 587 (TLS)
         if settings.SMTP_PORT == 465:
             # Port 465 : utiliser SSL directement
+            logger.info(f"📧 [EMAIL] Utilisation du port 465 (SSL direct)")
             with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
                 if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+                    logger.info(f"📧 [EMAIL] Authentification avec {settings.SMTP_USERNAME}...")
+                    # Supprimer les espaces du mot de passe (Gmail génère avec espaces)
                     password_clean = settings.SMTP_PASSWORD.replace(" ", "")
                     server.login(settings.SMTP_USERNAME, password_clean)
+                    logger.info(f"📧 [EMAIL] Authentification réussie")
+                logger.info(f"📧 [EMAIL] Envoi du message...")
                 server.send_message(msg)
+                logger.info(f"📧 [EMAIL] Message envoyé avec succès")
         else:
             # Port 587 ou autres : utiliser STARTTLS
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
+            logger.info(f"📧 [EMAIL] Utilisation du port {settings.SMTP_PORT} (STARTTLS)")
+            logger.info(f"📧 [EMAIL] Tentative de connexion SMTP (timeout: 30s)...")
+            try:
+                server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30)
+                logger.info(f"📧 [EMAIL] Connexion SMTP établie avec succès")
+            except Exception as conn_error:
+                logger.error(f"❌ [EMAIL] Erreur lors de la connexion SMTP: {conn_error}")
+                logger.error(f"   Type: {type(conn_error).__name__}")
+                raise
+            
+            try:
                 if settings.SMTP_USE_TLS:
+                    logger.info(f"📧 [EMAIL] Activation de STARTTLS...")
                     server.starttls()
+                    logger.info(f"📧 [EMAIL] STARTTLS activé")
                 if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+                    logger.info(f"📧 [EMAIL] Authentification avec {settings.SMTP_USERNAME}...")
+                    # Supprimer les espaces du mot de passe (Gmail génère avec espaces)
                     password_clean = settings.SMTP_PASSWORD.replace(" ", "")
                     server.login(settings.SMTP_USERNAME, password_clean)
+                    logger.info(f"📧 [EMAIL] Authentification réussie")
+                logger.info(f"📧 [EMAIL] Envoi du message...")
                 server.send_message(msg)
+                logger.info(f"📧 [EMAIL] Message envoyé avec succès")
+            except Exception as send_error:
+                logger.error(f"❌ [EMAIL] Erreur lors de l'envoi/authentification: {send_error}")
+                logger.error(f"   Type: {type(send_error).__name__}")
+                raise
+            finally:
+                server.quit()
         
         logger.info(f"✅ Email de réinitialisation envoyé avec succès à {email}")
         return True
     except smtplib.SMTPAuthenticationError as e:
-        error_msg = f"❌ Erreur d'authentification SMTP lors de l'envoi de réinitialisation: {e}"
+        error_msg = f"❌ Erreur d'authentification SMTP: {e}"
         logger.error(error_msg)
-        logger.error("💡 Vérifiez la configuration SMTP dans Railway Variables")
+        logger.error("💡 Vérifiez:")
+        logger.error("   - Que vous utilisez un 'Mot de passe d'application' Gmail (pas votre mot de passe normal)")
+        logger.error("   - Que l'authentification à 2 facteurs est activée sur le compte Gmail")
+        logger.error("   - Que le mot de passe dans Railway Variables est correct (sans espaces)")
+        logger.error("   - Allez sur https://myaccount.google.com/apppasswords pour générer un nouveau mot de passe")
         return False
     except Exception as e:
         error_msg = f"❌ Erreur lors de l'envoi de l'email de réinitialisation: {e}"
