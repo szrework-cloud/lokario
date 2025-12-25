@@ -334,6 +334,7 @@ export default function SettingsPage() {
   const [editingTemplate, setEditingTemplate] = useState<BillingLineTemplate | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+  const [deleteTemplateModal, setDeleteTemplateModal] = useState<{ isOpen: boolean; templateId: number | null; templateDescription: string }>({ isOpen: false, templateId: null, templateDescription: "" });
   
   // État pour la personnalisation du design des devis
   const [quotePrimaryColor, setQuotePrimaryColor] = useState("#F97316");
@@ -2785,26 +2786,8 @@ export default function SettingsPage() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={async () => {
-                                      if (!token) return;
-                                      // TODO: Remplacer par ConfirmModal
-                                      if (confirm("Êtes-vous sûr de vouloir supprimer cette ligne ?")) {
-                                        try {
-                                          await deleteBillingLineTemplate(token, template.id);
-                                          const templates = await getBillingLineTemplates(token);
-                                          setBillingLineTemplates(templates);
-                                          // Ajuster la page si nécessaire
-                                          const maxPage = Math.ceil(templates.length / itemsPerPage);
-                                          if (currentPage > maxPage && maxPage > 0) {
-                                            setCurrentPage(maxPage);
-                                          } else if (templates.length === 0) {
-                                            setCurrentPage(1);
-                                          }
-                                          showToast("Ligne supprimée avec succès", "success");
-                                        } catch (err: any) {
-                                          showToast(err.message || "Erreur lors de la suppression", "error");
-                                        }
-                                      }
+                                    onClick={() => {
+                                      setDeleteTemplateModal({ isOpen: true, templateId: template.id, templateDescription: template.description });
                                     }}
                                     className="px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded border border-red-200"
                                   >
