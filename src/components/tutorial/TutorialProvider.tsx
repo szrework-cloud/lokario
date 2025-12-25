@@ -50,13 +50,13 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     checkAndStartTutorial();
 
     // Écouter les changements de storage au cas où il serait défini après le montage
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "should_start_tutorial" && e.newValue === "true") {
-        checkAndStartTutorial();
-      }
+    const handleStorageChange = () => {
+      checkAndStartTutorial();
     };
 
+    // Écouter les événements storage (entre onglets) et un événement personnalisé (même onglet)
     window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("shouldStartTutorial", handleStorageChange);
 
     // Vérifier aussi après un court délai pour gérer les cas où localStorage est défini juste avant la navigation
     const timeoutId = setTimeout(() => {
@@ -65,6 +65,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("shouldStartTutorial", handleStorageChange);
       clearTimeout(timeoutId);
     };
   }, [pathname, initializeTutorial]);

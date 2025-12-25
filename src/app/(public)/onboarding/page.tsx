@@ -132,7 +132,9 @@ export default function OnboardingPage() {
     // Marquer qu'on doit lancer le tutoriel après redirection
     // Utiliser setTimeout pour s'assurer que le localStorage est bien défini avant la navigation
     localStorage.setItem("should_start_tutorial", "true");
-    // Déclencher un événement personnalisé pour notifier les autres composants
+    // Déclencher un événement personnalisé pour notifier les autres composants (même onglet)
+    window.dispatchEvent(new Event("shouldStartTutorial"));
+    // Déclencher aussi l'événement storage pour compatibilité
     window.dispatchEvent(new Event("storage"));
     // Rediriger vers le dashboard après la vidéo
     setTimeout(() => {
