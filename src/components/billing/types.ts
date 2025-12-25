@@ -133,6 +133,7 @@ export interface Invoice {
   updated_at?: string;
   sent_at?: string;
   paid_at?: string;
+  client_email?: string; // Email du client pour le formulaire d'envoi
   timeline: BillingTimelineEvent[];
   history: BillingHistoryEvent[];
   linked_followups?: number[]; // IDs des relances associées

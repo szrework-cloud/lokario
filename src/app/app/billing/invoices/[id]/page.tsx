@@ -96,6 +96,7 @@ export default function InvoiceDetailPage() {
           timeline: [], // TODO: Récupérer depuis l'API
           history: [], // TODO: Récupérer depuis l'API
           payments: [], // TODO: Récupérer depuis l'API
+          client_email: (data as any).client_email, // Email du client pour le formulaire d'envoi
         };
         
         setInvoice(adaptedInvoice);
@@ -140,21 +141,8 @@ export default function InvoiceDetailPage() {
           setSenderEmail(primaryIntegration.email_address);
         }
         
-        // Charger le template d'email depuis les settings
-        const billingSettings = (settings?.settings as any)?.billing || {};
-        let emailTemplate = billingSettings.invoice_email_template;
-        
-        // Si pas de template personnalisé, utiliser le template par défaut
-        if (!emailTemplate) {
-          emailTemplate = "Bonjour,\n\nVeuillez trouver ci-joint la facture {invoice_number}.\n\nMontant total : {total_amount}€\nDate d'échéance : {due_date}\n\n{notes}\n\nCordialement";
-        }
-        
-        // Remplacer les variables du template
-        let defaultContent = emailTemplate
-          .replace(/{invoice_number}/g, invoice.number)
-          .replace(/{total_amount}/g, invoice.total.toFixed(2))
-          .replace(/{due_date}/g, invoice.due_date ? new Date(invoice.due_date).toLocaleDateString("fr-FR") : "Non définie")
-          .replace(/{notes}/g, invoice.notes ? `Notes: ${invoice.notes}` : "");
+        // Message simple par défaut
+        const defaultContent = `Voici votre facture n°${invoice.number}.`;
         
         setEmailForm({
           subject: `Facture ${invoice.number}`,
@@ -169,7 +157,7 @@ export default function InvoiceDetailPage() {
     };
     
     loadEmailData();
-  }, [showSendModal, token, invoice, settings]);
+  }, [showSendModal, token, invoice]);
 
   if (isLoading) {
     return (
@@ -1154,19 +1142,27 @@ export default function InvoiceDetailPage() {
                 <div className="relative">
                   <input
                     type="text"
-                    value={invoice?.client_name || "Chargement..."}
+                    value={invoice?.client_email || (invoice?.client_name ? `${invoice.client_name} (email non configuré)` : "Chargement...")}
                     readOnly
-                    className="w-full rounded-lg border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 text-amber-700 px-3 py-2 text-sm font-medium"
+                    className={`w-full rounded-lg border px-3 py-2 text-sm font-medium ${
+                      invoice?.client_email 
+                        ? "border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 text-green-700" 
+                        : "border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 text-amber-700"
+                    }`}
                   />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                    <span className="text-xs text-amber-600 bg-white px-1.5 py-0.5 rounded border border-amber-200">Email à configurer</span>
+                  {invoice?.client_email && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <span className="text-xs text-green-600 bg-white px-1.5 py-0.5 rounded border border-green-200">✓ Configuré</span>
+                    </div>
+                  )}
+                </div>
+                {!invoice?.client_email && (
+                  <div className="p-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-700">
+                      Le client n'a pas d'email configuré. Ajoutez un email dans les destinataires supplémentaires.
+                    </p>
                   </div>
-                </div>
-                <div className="p-1.5 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-xs text-amber-700">
-                    Ajoutez un email dans les destinataires supplémentaires.
-                  </p>
-                </div>
+                )}
               </div>
             </div>
 
@@ -1265,6 +1261,9 @@ export default function InvoiceDetailPage() {
                 required
                 placeholder="Contenu de l'email..."
               />
+              <p className="text-xs text-[#94A3B8]">
+                Vous pouvez modifier le contenu. Le lien de la signature sera inclus automatiquement si disponible.
+              </p>
             </div>
 
             {/* Pièces jointes supplémentaires */}
@@ -1383,6 +1382,7 @@ export default function InvoiceDetailPage() {
                       timeline: [],
                       history: [],
                       payments: invoice.payments || [],
+                      client_email: (updatedInvoice as any).client_email,
                     } as Invoice);
                     
                     setShowSendModal(false);
