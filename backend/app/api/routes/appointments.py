@@ -738,31 +738,24 @@ def get_appointment_settings(
             elif isinstance(val, (int, float)):
                 cleaned_settings["breaks_enabled"] = bool(val)
         
-        # Convertir break_count
-        if "break_count" in appointment_settings:
-            val = appointment_settings["break_count"]
-            try:
-                if isinstance(val, int):
-                    cleaned_settings["break_count"] = max(0, min(5, val))
-                elif isinstance(val, str):
-                    cleaned_settings["break_count"] = max(0, min(5, int(float(val))))
-                elif isinstance(val, float):
-                    cleaned_settings["break_count"] = max(0, min(5, int(val)))
-            except (ValueError, TypeError):
-                pass
-        
-        # Convertir break_duration
-        if "break_duration" in appointment_settings:
-            val = appointment_settings["break_duration"]
-            try:
-                if isinstance(val, int):
-                    cleaned_settings["break_duration"] = max(5, min(120, val))
-                elif isinstance(val, str):
-                    cleaned_settings["break_duration"] = max(5, min(120, int(float(val))))
-                elif isinstance(val, float):
-                    cleaned_settings["break_duration"] = max(5, min(120, int(val)))
-            except (ValueError, TypeError):
-                pass
+        # Convertir breaks (liste de pauses avec start_time et end_time)
+        if "breaks" in appointment_settings:
+            val = appointment_settings["breaks"]
+            if isinstance(val, list):
+                # Valider et nettoyer chaque pause
+                cleaned_breaks = []
+                for break_item in val:
+                    if isinstance(break_item, dict) and "start_time" in break_item and "end_time" in break_item:
+                        cleaned_breaks.append({
+                            "start_time": str(break_item["start_time"]),
+                            "end_time": str(break_item["end_time"]),
+                        })
+                cleaned_settings["breaks"] = cleaned_breaks
+            else:
+                cleaned_settings["breaks"] = []
+        # Migration depuis l'ancien format (break_count + break_duration) - non supporté, réinitialiser
+        elif "break_count" in appointment_settings or "break_duration" in appointment_settings:
+            cleaned_settings["breaks"] = []
         
         # S'assurer que tous les types sont corrects avant de retourner
         cleaned_settings["auto_reminder_offset_hours"] = int(cleaned_settings["auto_reminder_offset_hours"])
