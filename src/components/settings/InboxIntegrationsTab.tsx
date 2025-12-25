@@ -668,33 +668,6 @@ function InboxIntegrationsTabComponent() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={formData.is_active}
-                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                disabled={isSubmitting}
-                className="rounded border-[#E5E7EB]"
-              />
-              <Label htmlFor="is_active" className="cursor-pointer">
-                Activer cette intégration
-              </Label>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is_primary"
-                checked={formData.is_primary || false}
-                onChange={(e) => setFormData({ ...formData, is_primary: e.target.checked })}
-                disabled={isSubmitting}
-                className="rounded border-[#E5E7EB]"
-              />
-              <Label htmlFor="is_primary" className="cursor-pointer">
-                Boîte mail principale (pour l'envoi des messages)
-              </Label>
-            </div>
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" onClick={handleCloseModal} variant="secondary" disabled={isSubmitting}>
