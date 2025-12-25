@@ -271,8 +271,13 @@ def fetch_emails_imap(
         print(f"[IMAP] INBOX sélectionné: {select_result}")
         
         # Calculer la date depuis laquelle récupérer les emails
-        # Par défaut: 14 jours (pour la première sync), mais peut être ajusté
-        since_date = datetime.utcnow() - timedelta(days=14)
+        # Si since_hours est fourni, utiliser cette période (en heures)
+        # Sinon, utiliser 14 jours par défaut (pour la première sync)
+        if since_hours is not None:
+            since_date = datetime.utcnow() - timedelta(hours=since_hours)
+        else:
+            since_date = datetime.utcnow() - timedelta(days=14)
+        
         # Formater la date au format IMAP (DD-MMM-YYYY) - format: "01-Jan-2024"
         date_str = since_date.strftime("%d-%b-%Y")
         
