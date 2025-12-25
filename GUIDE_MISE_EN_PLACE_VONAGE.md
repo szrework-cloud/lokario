@@ -2,10 +2,51 @@
 
 Ce guide vous explique comment configurer Vonage SMS dans votre application Lokario, étape par étape.
 
+## 🎯 Deux cas d'usage
+
+- **📤 Envoi uniquement** : Pour envoyer des SMS (relances, notifications) → Plus simple, pas besoin de webhook
+- **📥 Envoi + Réception** : Pour gérer une conversation bidirectionnelle dans l'Inbox → Nécessite un webhook
+
+---
+
+## 📤 Configuration pour ENVOI UNIQUEMENT (Relances SMS)
+
+Si vous voulez **uniquement envoyer** des SMS pour les relances, la configuration est plus simple :
+
+### Prérequis pour l'envoi uniquement
+
+1. ✅ Un compte Vonage (inscription gratuite)
+2. ✅ Vos credentials API (API Key et API Secret)
+3. ⚠️ **Pas besoin** d'acheter un numéro Vonage (vous pouvez utiliser un nom alphanumérique)
+4. ⚠️ **Pas besoin** de configurer un webhook
+
+### Étapes simplifiées pour l'envoi uniquement
+
+1. **Créer un compte Vonage** (voir Étape 1 ci-dessous)
+2. **Récupérer vos credentials API** (voir Étape 3 ci-dessous)
+3. **Configurer dans Lokario** :
+   - Paramètres → Intégrations Inbox
+   - Ajouter une intégration → Type "SMS (Vonage)"
+   - Renseigner :
+     - **Nom** : "SMS Relances"
+     - **Numéro Vonage** : Vous pouvez utiliser un **nom alphanumérique** (ex: "LOKARIO", max 11 caractères) OU un numéro
+     - **API Key** : Votre API Key
+     - **API Secret** : Votre API Secret
+   - ✅ Activer l'intégration
+   - Enregistrer
+
+**C'est tout !** Vous pouvez maintenant envoyer des SMS via les relances.
+
+⚠️ **Note sur les noms alphanumériques** : Certains pays/opérateurs peuvent bloquer les SMS depuis un nom alphanumérique. Si vous avez des problèmes, achetez un numéro Vonage (voir Étape 2).
+
+---
+
+## 📥 Configuration complète (Envoi + Réception)
+
 ## 📋 Prérequis
 
 1. Un compte Vonage (inscription gratuite sur https://www.vonage.com/)
-2. Un numéro de téléphone Vonage (acheté depuis le Dashboard)
+2. Un numéro de téléphone Vonage (acheté depuis le Dashboard) - **Nécessaire pour recevoir des SMS**
 3. Vos credentials API Vonage (API Key et API Secret)
 
 ---
@@ -24,7 +65,9 @@ Ce guide vous explique comment configurer Vonage SMS dans votre application Loka
 
 ---
 
-## 📞 Étape 2 : Obtenir un numéro de téléphone Vonage
+## 📞 Étape 2 : Obtenir un numéro de téléphone Vonage (Optionnel pour l'envoi uniquement)
+
+⚠️ **Cette étape est uniquement nécessaire si vous voulez recevoir des SMS**. Pour l'envoi uniquement, vous pouvez utiliser un nom alphanumérique.
 
 1. Dans votre Dashboard Vonage, allez dans **"Numbers"** → **"Buy Numbers"**
 2. Sélectionnez votre pays (ex: France)
@@ -36,6 +79,8 @@ Ce guide vous explique comment configurer Vonage SMS dans votre application Loka
 6. **Notez votre numéro** (format: `33612345678` ou `+33612345678`)
 
 💡 **Coût** : Les numéros Vonage sont généralement facturés mensuellement (environ 1-3€/mois selon le pays).
+
+💡 **Alternative pour l'envoi uniquement** : Vous pouvez utiliser un **nom alphanumérique** (ex: "LOKARIO") au lieu d'un numéro, mais cela peut être bloqué par certains opérateurs.
 
 ---
 
@@ -69,8 +114,10 @@ Ce guide vous explique comment configurer Vonage SMS dans votre application Loka
    **Nom** : Donnez un nom à votre intégration (ex: "SMS Vonage Principal")
 
    **Numéro Vonage** : 
-   - Entrez votre numéro Vonage acheté à l'étape 2
-   - Format : `33612345678` ou `+33612345678` (les deux fonctionnent)
+   - **Option 1 (Recommandé)** : Entrez votre numéro Vonage acheté à l'étape 2
+     - Format : `33612345678` ou `+33612345678` (les deux fonctionnent)
+   - **Option 2 (Envoi uniquement)** : Utilisez un nom alphanumérique (ex: "LOKARIO", max 11 caractères)
+     - ⚠️ Peut être bloqué par certains opérateurs/countries
 
    **API Key Vonage** : 
    - Collez votre API Key récupérée à l'étape 3
@@ -85,7 +132,9 @@ Ce guide vous explique comment configurer Vonage SMS dans votre application Loka
 
 ---
 
-## 🔗 Étape 5 : Configurer le webhook pour recevoir les SMS
+## 🔗 Étape 5 : Configurer le webhook pour recevoir les SMS (Optionnel)
+
+⚠️ **Cette étape est uniquement nécessaire si vous voulez recevoir des SMS dans l'Inbox**. Pour l'envoi uniquement (relances), vous pouvez ignorer cette étape.
 
 Pour que votre application puisse **recevoir** les SMS, vous devez configurer un webhook dans Vonage.
 
@@ -123,7 +172,16 @@ https://votre-url-ngrok.ngrok.io/inbox/webhooks/sms
 
 ## ✅ Étape 6 : Tester l'intégration
 
-### 6.1 Tester l'envoi d'un SMS
+### 6.1 Tester l'envoi d'un SMS (pour les relances)
+
+**Pour tester l'envoi via les relances** :
+
+1. Allez dans **Devis & Factures** → **Relances**
+2. Sélectionnez une relance
+3. Cliquez sur **"Envoyer"** et choisissez **"SMS"** comme méthode
+4. Vérifiez que le SMS a bien été envoyé (vous devriez voir un message de confirmation)
+
+**Pour tester l'envoi depuis l'Inbox** (si configuré) :
 
 1. Allez dans **Inbox** dans votre application
 2. Créez une nouvelle conversation ou ouvrez une conversation existante
@@ -131,7 +189,7 @@ https://votre-url-ngrok.ngrok.io/inbox/webhooks/sms
 4. Cliquez sur **Envoyer**
 5. Vérifiez que le SMS a bien été envoyé (vous devriez le voir dans la conversation)
 
-### 6.2 Tester la réception d'un SMS
+### 6.2 Tester la réception d'un SMS (seulement si webhook configuré)
 
 1. Envoyez un SMS depuis votre téléphone vers votre numéro Vonage
 2. Attendez quelques secondes
@@ -213,13 +271,35 @@ Les credentials Vonage sont stockés de manière sécurisée dans la base de don
 
 ## ✅ Checklist de configuration
 
+### Pour l'envoi uniquement (Relances SMS)
+
+- [ ] Compte Vonage créé
+- [ ] API Key et API Secret récupérés
+- [ ] Intégration SMS créée dans Lokario (avec nom alphanumérique OU numéro)
+- [ ] Test d'envoi de relance SMS réussi
+
+### Pour l'envoi + réception (Inbox complet)
+
 - [ ] Compte Vonage créé
 - [ ] Numéro de téléphone Vonage acheté
 - [ ] API Key et API Secret récupérés
-- [ ] Intégration SMS créée dans Lokario
+- [ ] Intégration SMS créée dans Lokario (avec numéro Vonage)
 - [ ] Webhook configuré dans Vonage
 - [ ] Test d'envoi réussi
 - [ ] Test de réception réussi
 
-Une fois toutes ces étapes complétées, votre intégration Vonage est opérationnelle ! 🎉
+Une fois ces étapes complétées, votre intégration Vonage est opérationnelle ! 🎉
+
+---
+
+## 💡 Résumé : Envoi uniquement vs Envoi + Réception
+
+| Fonctionnalité | Envoi uniquement | Envoi + Réception |
+|---|---|---|
+| **Compte Vonage** | ✅ Nécessaire | ✅ Nécessaire |
+| **API Key/Secret** | ✅ Nécessaire | ✅ Nécessaire |
+| **Numéro Vonage** | ⚠️ Optionnel (peut utiliser nom alphanumérique) | ✅ Obligatoire |
+| **Webhook** | ❌ Non nécessaire | ✅ Obligatoire |
+| **Prix mensuel** | Gratuit (juste crédit SMS) | ~1-3€/mois (numéro) + crédit SMS |
+| **Utilisation** | Relances SMS uniquement | Relances SMS + Inbox complet |
 
