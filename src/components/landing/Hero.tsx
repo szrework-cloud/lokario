@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/Button";
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export const LandingHero = () => {
   return (
@@ -43,14 +44,16 @@ export const LandingHero = () => {
 
           {/* CTA Button */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up">
-            <Button
-              variant="ghost"
-              size="xl"
-              className="bg-transparent border border-white/20 text-white hover:bg-white/5 hover:border-white/30 font-medium px-8"
-            >
-              Découvrir Lokario
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
+            <Link href="/register">
+              <Button
+                variant="ghost"
+                size="xl"
+                className="bg-transparent border border-white/20 text-white hover:bg-white/5 hover:border-white/30 font-medium px-8"
+              >
+                Découvrir Lokario
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

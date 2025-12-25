@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export const LandingCTASection = () => {
   const sectionRef = useRef<HTMLElement>(null);
@@ -123,14 +124,16 @@ export const LandingCTASection = () => {
           }`}
           style={{ transitionDelay: '0.2s' }}
         >
-          <Button
-            variant="outline"
-            size="lg"
-            className="bg-black/80 backdrop-blur-sm border-white/30 text-white hover:bg-black/90 hover:border-[#F97316]/40 rounded-full px-8"
-          >
-            Parler à un expert
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
+          <Link href="/register">
+            <Button
+              variant="outline"
+              size="lg"
+              className="bg-black/80 backdrop-blur-sm border-white/30 text-white hover:bg-black/90 hover:border-[#F97316]/40 rounded-full px-8"
+            >
+              Essayer gratuitement
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </Link>
         </div>
       </div>
     </section>
