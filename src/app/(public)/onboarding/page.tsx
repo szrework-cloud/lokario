@@ -27,6 +27,11 @@ export default function OnboardingPage() {
 
   // Vérifier le statut de l'onboarding au chargement
   useEffect(() => {
+    // Réinitialiser le flag de complétion du tutoriel quand on commence l'onboarding
+    // (au cas où un compte a été supprimé et réinscrit, le localStorage peut persister)
+    localStorage.removeItem("tutorial_completed");
+    localStorage.removeItem("should_start_tutorial");
+
     const checkOnboardingStatus = async () => {
       // Attendre que le token soit chargé
       if (!token) {
@@ -130,10 +135,15 @@ export default function OnboardingPage() {
 
   const handleVideoComplete = () => {
     console.log("[ONBOARDING] Video completed, setting up tutorial...");
+    // Réinitialiser le flag de complétion du tutoriel pour permettre de le relancer
+    localStorage.removeItem("tutorial_completed");
     // Marquer qu'on doit lancer le tutoriel après redirection
     // Utiliser setTimeout pour s'assurer que le localStorage est bien défini avant la navigation
     localStorage.setItem("should_start_tutorial", "true");
-    console.log("[ONBOARDING] localStorage set:", localStorage.getItem("should_start_tutorial"));
+    console.log("[ONBOARDING] localStorage set:", {
+      should_start_tutorial: localStorage.getItem("should_start_tutorial"),
+      tutorial_completed: localStorage.getItem("tutorial_completed"),
+    });
     
     // Déclencher un événement personnalisé pour notifier les autres composants (même onglet)
     window.dispatchEvent(new Event("shouldStartTutorial"));
