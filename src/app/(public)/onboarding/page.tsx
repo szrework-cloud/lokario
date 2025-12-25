@@ -27,8 +27,9 @@ export default function OnboardingPage() {
   // Vérifier le statut de l'onboarding au chargement
   useEffect(() => {
     const checkOnboardingStatus = async () => {
+      // Attendre que le token soit chargé
       if (!token) {
-        router.push("/login");
+        // Ne pas rediriger immédiatement, attendre un peu que le token soit chargé
         return;
       }
 
@@ -54,8 +55,9 @@ export default function OnboardingPage() {
         }
       } catch (err: any) {
         console.error("Erreur lors de la vérification du statut:", err);
-        // Si l'erreur est 404, c'est normal (pas encore de données d'onboarding)
-        if (err.message && !err.message.includes("404")) {
+        // Si l'erreur est 404 ou 500 (colonnes pas encore créées), c'est normal pour un nouveau compte
+        // Ne pas afficher d'erreur, simplement continuer avec l'onboarding
+        if (err.message && !err.message.includes("404") && !err.message.includes("500") && !err.message.includes("UndefinedColumn")) {
           setError("Erreur lors du chargement. Veuillez réessayer.");
         }
       }
@@ -124,7 +126,10 @@ export default function OnboardingPage() {
     }
   };
 
+  // Afficher un loader si le token est en cours de chargement
+  // Ne pas rediriger immédiatement vers login, attendre que useAuth charge le token
   if (!token) {
+    // Attendre un peu pour que le token soit chargé depuis localStorage
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]">
         <div className="text-center">

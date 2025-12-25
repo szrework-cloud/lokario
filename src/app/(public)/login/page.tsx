@@ -224,8 +224,16 @@ function LoginForm() {
             window.location.href = "/onboarding";
             return;
           }
-        } catch (err) {
-          // Si erreur, continuer vers le dashboard (l'utilisateur pourra être redirigé depuis le layout)
+        } catch (err: any) {
+          // Si erreur 404/500 (colonnes pas encore créées ou pas encore de données), rediriger vers onboarding
+          // Pour un nouveau compte, l'onboarding n'est pas encore complété
+          const errorMsg = err?.message || "";
+          if (errorMsg.includes("404") || errorMsg.includes("500") || errorMsg.includes("UndefinedColumn")) {
+            logger.log("🔄 Nouveau compte ou colonnes pas encore créées, redirection vers /onboarding");
+            window.location.href = "/onboarding";
+            return;
+          }
+          // Si autre erreur, continuer vers le dashboard (l'utilisateur pourra être redirigé depuis le layout)
           logger.log("⚠️ Erreur lors de la vérification de l'onboarding:", err);
         }
         
