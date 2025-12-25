@@ -331,55 +331,9 @@ export default function DashboardPage() {
     <PageTransition>
       <PageTitle title="Dashboard" subtitle={`${formattedDate}`} />
       <div className="space-y-6">
-        {/* Temps gagné - Section principale */}
-        <Card className="bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 border-2 border-[#F97316]/20" data-tutorial="dashboard-overview">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-[#0F172A] mb-1">
-                  Temps gagné
-                </h2>
-                <p className="text-sm text-[#64748B]">
-                  {stats.time_saved.description}
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="text-5xl font-bold text-[#F97316] mb-1">
-                  {stats.time_saved.total.hours}h {stats.time_saved.total.minutes}min
-                </div>
-                <div className="text-xs text-[#64748B]">
-                  Total {stats.time_saved.actual_days ? `(${stats.time_saved.actual_days} jour${stats.time_saved.actual_days > 1 ? 's' : ''})` : '(30 jours)'}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#E5E7EB]">
-              <div>
-                <div className="text-sm text-[#64748B] mb-1">Cette semaine</div>
-                <div className="text-2xl font-bold text-[#0F172A]">
-                  {stats.time_saved.thisWeek.hours}h {stats.time_saved.thisWeek.minutes}min
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-[#64748B] mb-1">Ce mois</div>
-                <div className="text-2xl font-bold text-[#0F172A]">
-                  {stats.time_saved.thisMonth.hours}h {stats.time_saved.thisMonth.minutes}min
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-[#64748B] mb-1">Moyenne par jour</div>
-                <div className="text-2xl font-bold text-[#0F172A]">
-                  {stats.time_saved.actual_days 
-                    ? Math.floor((stats.time_saved.total.hours * 60 + stats.time_saved.total.minutes) / stats.time_saved.actual_days)
-                    : Math.floor((stats.time_saved.total.hours * 60 + stats.time_saved.total.minutes) / 30)}min
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Planning du jour */}
         <SectionCard
+          data-tutorial="dashboard-overview"
           title="Planning du jour"
           action={
             <Link
