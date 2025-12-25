@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Body, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
@@ -6,6 +6,9 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from decimal import Decimal
 import logging
+from pathlib import Path
+import uuid
+import json
 
 from app.db.session import get_db
 from app.db.models.billing import Invoice, InvoiceLine, InvoiceStatus, InvoiceType, InvoicePayment, Quote
@@ -28,6 +31,10 @@ from app.core.invoice_audit_service import (
 )
 from app.core.invoice_pdf_service import generate_invoice_pdf
 from app.db.models.invoice_audit import InvoiceAuditLog
+from app.core.smtp_service import send_email_smtp, get_smtp_config
+from app.db.models.inbox_integration import InboxIntegration
+from app.db.models.company_settings import CompanySettings
+from app.core.config import settings
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -1735,4 +1742,256 @@ def get_invoice_pdf(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur lors de la génération du PDF: {str(e)}"
+        )
+
+
+@router.post("/{invoice_id}/send-email", response_model=dict)
+async def send_invoice_email(
+    invoice_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Envoie une facture par email avec des paramètres personnalisés (sujet, contenu, destinataires supplémentaires, pièces jointes).
+    Accepte FormData avec les fichiers uploadés.
+    Le PDF de la facture est automatiquement attaché.
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Récupérer les données du formulaire (FormData)
+        form_data = await request.form()
+        
+        logger.info(f"[SEND INVOICE EMAIL] Début de l'envoi d'email pour la facture {invoice_id}")
+        
+        # Récupérer les champs texte
+        subject = ""
+        content = ""
+        additional_recipients_str = "[]"
+        
+        subject_item = form_data.get("subject")
+        if subject_item and not isinstance(subject_item, UploadFile):
+            subject = subject_item if isinstance(subject_item, str) else str(subject_item)
+        
+        content_item = form_data.get("content")
+        if content_item and not isinstance(content_item, UploadFile):
+            content = content_item if isinstance(content_item, str) else str(content_item)
+        
+        recipients_item = form_data.get("additional_recipients")
+        if recipients_item and not isinstance(recipients_item, UploadFile):
+            additional_recipients_str = recipients_item if isinstance(recipients_item, str) else str(recipients_item)
+        
+        # Parser les destinataires supplémentaires
+        additional_recipients = []
+        try:
+            if additional_recipients_str and additional_recipients_str.strip():
+                cleaned_str = additional_recipients_str.strip()
+                if cleaned_str.startswith('"') and cleaned_str.endswith('"'):
+                    cleaned_str = cleaned_str[1:-1]
+                additional_recipients = json.loads(cleaned_str) if cleaned_str else []
+        except (json.JSONDecodeError, Exception) as e:
+            logger.error(f"[SEND INVOICE EMAIL] Erreur lors du parsing des destinataires: {e}")
+            additional_recipients = []
+        
+        # Récupérer les fichiers uploadés
+        uploaded_files = []
+        for key in form_data.keys():
+            if key.startswith("attachment_"):
+                file_item = form_data[key]
+                if isinstance(file_item, UploadFile) and file_item.filename:
+                    uploaded_files.append(file_item)
+        
+        if current_user.company_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not attached to a company"
+            )
+        
+        # Récupérer la facture
+        invoice = db.query(Invoice).options(joinedload(Invoice.lines)).filter(
+            Invoice.id == invoice_id,
+            Invoice.company_id == current_user.company_id,
+            Invoice.deleted_at.is_(None)
+        ).first()
+        
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invoice not found"
+            )
+        
+        # Récupérer le client et l'entreprise
+        client = get_client_info(db, invoice.client_id, current_user.company_id)
+        if not client:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Client not found"
+            )
+        
+        company = get_company_info(db, current_user.company_id)
+        if not company:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Company not found"
+            )
+        
+        # Vérifier que le client a un email
+        if not client.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Le client n'a pas d'adresse email configurée"
+            )
+        
+        # Construire la liste des destinataires
+        recipients = [client.email]
+        if additional_recipients:
+            valid_additional = [r for r in additional_recipients if r and r.strip()]
+            recipients.extend(valid_additional)
+        
+        # Récupérer l'intégration inbox principale
+        primary_integration = db.query(InboxIntegration).filter(
+            InboxIntegration.company_id == current_user.company_id,
+            InboxIntegration.is_primary == True,
+            InboxIntegration.is_active == True,
+            InboxIntegration.integration_type == "imap"
+        ).first()
+        
+        if not primary_integration or not primary_integration.email_address:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Aucune intégration email principale configurée"
+            )
+        
+        # Générer le PDF de la facture
+        company_settings_obj = db.query(CompanySettings).filter(
+            CompanySettings.company_id == current_user.company_id
+        ).first()
+        
+        company_info = {}
+        design_config = {}
+        if company_settings_obj and company_settings_obj.settings:
+            company_info_data = company_settings_obj.settings.get("company_info", {})
+            company_info = {
+                "address": company_info_data.get("address"),
+                "phone": company_info_data.get("phone"),
+                "email": company_info_data.get("email")
+            }
+            
+            billing_settings = company_settings_obj.settings.get("billing", {})
+            quote_design = billing_settings.get("quote_design", {})
+            design_config = {
+                "logo_path": company_info_data.get("logo_path"),
+                "signature_path": quote_design.get("signature_path")
+            }
+        
+        # Récupérer le devis d'origine si la facture provient d'un devis
+        quote = None
+        if invoice.quote_id:
+            quote = db.query(Quote).filter(Quote.id == invoice.quote_id).first()
+        
+        upload_dir = Path(settings.UPLOAD_DIR)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        invoices_dir = upload_dir / str(current_user.company_id) / "invoices"
+        invoices_dir.mkdir(parents=True, exist_ok=True)
+        
+        pdf_filename = f"facture_{invoice.number}_{uuid.uuid4().hex[:8]}.pdf"
+        pdf_path = invoices_dir / pdf_filename
+        
+        try:
+            pdf_bytes = generate_invoice_pdf(invoice, client=client, company_info=company_info, quote=quote, design_config=design_config)
+            # Sauvegarder le PDF
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_bytes)
+        except Exception as e:
+            logger.error(f"[SEND INVOICE EMAIL] Erreur lors de la génération du PDF: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Erreur lors de la génération du PDF: {str(e)}"
+            )
+        
+        # Préparer les pièces jointes (PDF de la facture en premier)
+        attachments = [{
+            "path": str(pdf_path),
+            "filename": f"Facture_{invoice.number}.pdf" if invoice.invoice_type == InvoiceType.FACTURE else f"Avoir_{invoice.number}.pdf"
+        }]
+        
+        # Sauvegarder les fichiers uploadés et les ajouter aux pièces jointes
+        attachments_dir = upload_dir / str(current_user.company_id) / "email_attachments"
+        attachments_dir.mkdir(parents=True, exist_ok=True)
+        
+        for uploaded_file in uploaded_files:
+            try:
+                filename = uploaded_file.filename if isinstance(uploaded_file, UploadFile) else getattr(uploaded_file, 'filename', 'attachment')
+                file_ext = Path(filename).suffix if filename else ""
+                unique_filename = f"{uuid.uuid4().hex[:8]}{file_ext}"
+                file_path = attachments_dir / unique_filename
+                
+                with open(file_path, "wb") as f:
+                    if isinstance(uploaded_file, UploadFile):
+                        file_content = await uploaded_file.read()
+                    else:
+                        file_content = await uploaded_file.read() if hasattr(uploaded_file, 'read') else b""
+                    f.write(file_content)
+                
+                attachments.append({
+                    "path": str(file_path),
+                    "filename": filename or "attachment"
+                })
+            except Exception as e:
+                logger.error(f"[SEND INVOICE EMAIL] Erreur lors de la sauvegarde de la pièce jointe: {e}", exc_info=True)
+        
+        # Envoyer l'email à tous les destinataires
+        smtp_config = get_smtp_config(primary_integration.email_address)
+        sent_count = 0
+        last_error = None
+        
+        for recipient in recipients:
+            try:
+                send_email_smtp(
+                    smtp_server=smtp_config["smtp_server"],
+                    smtp_port=smtp_config["smtp_port"],
+                    email_address=primary_integration.email_address,
+                    password=primary_integration.email_password,
+                    to_email=recipient,
+                    subject=subject or f"Facture {invoice.number}",
+                    content=content,
+                    use_tls=smtp_config["use_tls"],
+                    attachments=attachments,
+                    from_name=current_user.full_name or company.name
+                )
+                sent_count += 1
+            except Exception as e:
+                last_error = str(e)
+                logger.error(f"[SEND INVOICE EMAIL] Erreur lors de l'envoi à {recipient}: {e}", exc_info=True)
+        
+        if sent_count == 0:
+            error_detail = "Aucun email n'a pu être envoyé. Vérifiez la configuration SMTP et les logs."
+            if last_error:
+                error_detail += f" Dernière erreur: {last_error}"
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_detail
+            )
+        
+        # Mettre à jour le statut de la facture à "envoyée" si nécessaire
+        if invoice.status != InvoiceStatus.ENVOYEE:
+            invoice.status = InvoiceStatus.ENVOYEE
+            invoice.sent_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(invoice)
+        
+        return {
+            "success": True,
+            "sent_count": sent_count,
+            "total_recipients": len(recipients),
+            "message": f"Email envoyé à {sent_count} destinataire(s) sur {len(recipients)}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[SEND INVOICE EMAIL] Erreur inattendue: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de l'envoi de l'email: {str(e)}"
         )
