@@ -55,7 +55,7 @@ export function VideoSection({
   };
 
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <section className={`relative overflow-hidden py-24 lg:py-32 bg-black ${className}`}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {(title || description) && (
           <div className="max-w-3xl mx-auto text-center mb-12">
@@ -89,7 +89,7 @@ export function VideoSection({
           </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
