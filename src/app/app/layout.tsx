@@ -9,6 +9,7 @@ import { PageProvider, usePage } from "@/contexts/PageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import { FloatingChatWidget } from "@/components/chatbot/FloatingChatWidget";
+import { TutorialProvider } from "@/components/tutorial/TutorialProvider";
 import { logger } from "@/lib/logger";
 import { apiGet } from "@/lib/api";
 
