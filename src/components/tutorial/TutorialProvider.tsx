@@ -32,6 +32,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
   });
 
   const initializeTutorial = useCallback(() => {
+    console.log("[TUTORIAL] Initializing tutorial...");
     const steps: Step[] = [
       {
         target: "[data-tutorial='dashboard-overview']",
@@ -59,37 +60,61 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       },
     ];
 
+    console.log("[TUTORIAL] Setting tutorial state:", { stepsCount: steps.length });
     setTutorialState({
       isRunning: true,
       currentStep: 0,
       steps,
     });
+    console.log("[TUTORIAL] Tutorial state set");
   }, []);
 
   // Vérifier si le tutoriel doit être lancé
   useEffect(() => {
+    let retryCount = 0;
+    const MAX_RETRIES = 25; // 5 secondes max (25 * 200ms)
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const checkAndStartTutorial = () => {
       const shouldStartTutorial = localStorage.getItem("should_start_tutorial") === "true";
       const tutorialCompleted = localStorage.getItem("tutorial_completed") === "true";
+
+      console.log("[TUTORIAL] Checking tutorial start:", {
+        shouldStartTutorial,
+        tutorialCompleted,
+        pathname,
+        isDashboard: pathname === "/app/dashboard",
+      });
 
       if (shouldStartTutorial && !tutorialCompleted && pathname === "/app/dashboard") {
         // Vérifier que le premier élément cible existe avant de démarrer
         const checkElementExists = () => {
           const firstElement = document.querySelector("[data-tutorial='dashboard-overview']");
+          console.log("[TUTORIAL] Checking element exists:", {
+            found: !!firstElement,
+            retryCount,
+            maxRetries: MAX_RETRIES,
+          });
+
           if (firstElement) {
             // L'élément existe, démarrer le tutoriel
+            console.log("[TUTORIAL] Element found! Starting tutorial...");
             setTimeout(() => {
               initializeTutorial();
               localStorage.removeItem("should_start_tutorial");
-            }, 500);
+              console.log("[TUTORIAL] Tutorial started successfully");
+            }, 300);
+          } else if (retryCount < MAX_RETRIES) {
+            // Réessayer après un court délai
+            retryCount++;
+            timeoutId = setTimeout(checkElementExists, 200);
           } else {
-            // Réessayer après un court délai (max 5 secondes)
-            setTimeout(checkElementExists, 200);
+            console.warn("[TUTORIAL] Max retries reached, element not found");
           }
         };
 
-        // Commencer à vérifier après un délai initial
-        setTimeout(checkElementExists, 1000);
+        // Commencer à vérifier après un délai initial pour laisser le DOM se charger
+        setTimeout(checkElementExists, 800);
       }
     };
 
@@ -97,7 +122,13 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     checkAndStartTutorial();
 
     // Écouter les changements de storage au cas où il serait défini après le montage
-    const handleStorageChange = () => {
+    const handleStorageChange = (e?: Event) => {
+      console.log("[TUTORIAL] Storage change event:", e?.type);
+      retryCount = 0; // Réinitialiser le compteur de retry
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       checkAndStartTutorial();
     };
 
@@ -106,14 +137,15 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     window.addEventListener("shouldStartTutorial", handleStorageChange);
 
     // Vérifier aussi après un court délai pour gérer les cas où localStorage est défini juste avant la navigation
-    const timeoutId = setTimeout(() => {
+    const initialTimeoutId = setTimeout(() => {
       checkAndStartTutorial();
-    }, 500);
+    }, 1000);
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("shouldStartTutorial", handleStorageChange);
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
+      clearTimeout(initialTimeoutId);
     };
   }, [pathname, initializeTutorial]);
 
