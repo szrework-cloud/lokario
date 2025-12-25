@@ -71,21 +71,19 @@ export function VideoSection({
         )}
         
         <div className="max-w-5xl mx-auto">
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-black/20 backdrop-blur-sm">
-            <div className={`${aspectClasses[aspectRatio]} w-full`}>
-              <video
-                ref={videoRef}
-                src={videoUrl}
-                className="w-full h-full object-cover"
-                controls
-                playsInline
-                loop={loop}
-                muted={muted}
-                preload="metadata"
-              >
-                Votre navigateur ne supporte pas la lecture de vidéos.
-              </video>
-            </div>
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-black/20 backdrop-blur-sm flex justify-center items-center">
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              className="w-full h-auto max-h-[80vh] object-contain"
+              controls
+              playsInline
+              loop={loop}
+              muted={muted}
+              preload="metadata"
+            >
+              Votre navigateur ne supporte pas la lecture de vidéos.
+            </video>
           </div>
         </div>
       </div>
