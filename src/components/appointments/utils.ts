@@ -54,17 +54,9 @@ export function calculateAvailableSlots(
       
       // Si l'heure minimale est après le début de la journée, l'utiliser
       if (minStartTime > startOfDay) {
-        // Arrondir à la prochaine tranche de 15 minutes
-        const minutes = minStartTime.getMinutes();
-        const roundedMinutes = Math.ceil(minutes / 15) * 15;
         currentTime = new Date(minStartTime);
-        currentTime.setMinutes(roundedMinutes, 0, 0);
-        
-        // Si on dépasse l'heure, passer à l'heure suivante
-        if (roundedMinutes >= 60) {
-          currentTime.setHours(currentTime.getHours() + 1);
-          currentTime.setMinutes(0, 0, 0);
-        }
+        currentTime.setSeconds(0, 0);
+        currentTime.setMilliseconds(0);
       }
     }
 
@@ -74,8 +66,8 @@ export function calculateAvailableSlots(
 
       // Vérifier que le créneau n'est pas dans le passé
       if (slotStart < now) {
-        // Passer au créneau suivant
-        currentTime = new Date(currentTime.getTime() + 15 * 60 * 1000);
+        // Passer directement au créneau suivant (bout à bout, sans pause entre)
+        currentTime = new Date(slotEnd);
         continue;
       }
 
@@ -124,8 +116,8 @@ export function calculateAvailableSlots(
         });
       }
 
-      // Passer au créneau suivant (toutes les 15 minutes)
-      currentTime = new Date(currentTime.getTime() + 15 * 60 * 1000);
+      // Passer au créneau suivant (bout à bout, sans pause entre)
+      currentTime = new Date(slotEnd);
     }
   });
 

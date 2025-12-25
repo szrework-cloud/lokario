@@ -64,13 +64,31 @@ export default function PublicBookingPage() {
       setError(null);
       
       try {
-        const [typesData, employeesData] = await Promise.all([
+        const [typesData, employeesData, settings] = await Promise.all([
           getPublicAppointmentTypes(slug),
           getPublicEmployees(slug),
+          getPublicAppointmentSettings(slug).catch(() => ({
+            workStartTime: "09:00",
+            workEndTime: "18:00",
+            breaksEnabled: false,
+            breaks: [],
+          })),
         ]);
         
         setAppointmentTypes(typesData);
         setEmployees(employeesData.map((e) => ({ id: e.id, name: e.name })));
+        
+        // Convertir les horaires en nombres pour calculateAvailableSlots
+        const [startHour, startMin] = settings.workStartTime.split(":").map(Number);
+        const [endHour, endMin] = settings.workEndTime.split(":").map(Number);
+        setWorkHours({ start: startHour, end: endHour });
+        
+        // Définir les pauses si activées
+        if (settings.breaksEnabled && settings.breaks.length > 0) {
+          setBreaks(settings.breaks);
+        } else {
+          setBreaks([]);
+        }
       } catch (err: any) {
         console.error("Erreur lors du chargement des données:", err);
         setError(err.message || "Erreur lors du chargement des données");
