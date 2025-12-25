@@ -329,6 +329,9 @@ Rappelle-toi : tu as accès aux VRAIES données de l'entreprise. Utilise-les pou
             
             logger.info(f"[CHATBOT] Envoi de {len(api_messages)} messages à ChatGPT (modèle: {model})")
             
+            # Throttle pour éviter les rate limits
+            throttle_openai_request()
+            
             # Appeler l'API OpenAI
             response = self.client.chat.completions.create(
                 model=model,
