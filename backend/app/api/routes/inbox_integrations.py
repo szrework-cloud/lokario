@@ -558,13 +558,21 @@ async def sync_integration(
         encryption_service = get_encryption_service()
         decrypted_password = encryption_service.decrypt(integration.email_password) if integration.email_password else None
         
+        # Déterminer la période de recherche (même logique que sync périodique)
+        # Première fois (pas de last_sync_at) : 14 jours
+        # Ensuite : 6 heures
+        since_hours = None
+        if integration.last_sync_at:
+            since_hours = 6
+        
         emails = await fetch_emails_async(
             imap_server=integration.imap_server,
             imap_port=integration.imap_port or 993,
             email_address=integration.email_address,
             password=decrypted_password,
             company_code=company.code,
-            use_ssl=integration.use_ssl if integration.use_ssl is not None else True
+            use_ssl=integration.use_ssl if integration.use_ssl is not None else True,
+            since_hours=since_hours
         )
         
         # Détecter et supprimer les emails supprimés depuis la boîte mail
