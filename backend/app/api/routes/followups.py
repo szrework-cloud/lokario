@@ -1078,6 +1078,7 @@ def send_followup(
     company_phone = None
     company_info = {}
     template_content = None
+    template_method = None  # Méthode définie dans le template
     
     try:
         # Récupérer company_settings une seule fois pour tout
@@ -1105,6 +1106,7 @@ def send_followup(
             for msg_template in messages:
                 if isinstance(msg_template, dict) and msg_template.get("type") == followup.type:
                     template_content = msg_template.get("content")
+                    template_method = msg_template.get("method", "email")  # Récupérer la méthode du template
                     break
         
         # Si pas d'email dans settings, utiliser l'intégration inbox principale (priorité 2)
@@ -1142,6 +1144,14 @@ def send_followup(
         logger.warning(f"[FOLLOWUP SEND/{followup_id}] Erreur lors de la récupération des infos entreprise/template: {e}")
     
     logger.info(f"[FOLLOWUP SEND/{followup_id}] Infos entreprise - Nom: {company_name}, Email: {company_email or 'N/A'}, Phone: {company_phone or 'N/A'}")
+    
+    # Déterminer la méthode d'envoi : template.method > request.method > "email"
+    send_method = request.method  # Par défaut, utiliser la méthode de la requête
+    if template_method:
+        send_method = template_method
+        logger.info(f"[FOLLOWUP SEND/{followup_id}] Méthode d'envoi du template utilisée: {send_method}")
+    else:
+        logger.info(f"[FOLLOWUP SEND/{followup_id}] Méthode d'envoi de la requête utilisée: {send_method}")
     
     # Utiliser le template ou un message par défaut
     if template_content:
@@ -1248,14 +1258,14 @@ def send_followup(
             existing_conversation = db.query(Conversation).filter(
                 Conversation.company_id == current_user.company_id,
                 Conversation.client_id == followup.client_id,
-                Conversation.source == request.method  # email, sms, whatsapp
+                Conversation.source == send_method  # email, sms, whatsapp
             ).order_by(Conversation.created_at.desc()).first()
             
             # Utiliser la conversation existante ou en créer une nouvelle
             if existing_conversation:
                 conversation = existing_conversation
                 conversation_id = conversation.id
-                logger.info(f"[FOLLOWUP SEND/{followup_id}] ✅ Conversation existante trouvée: {conversation_id} (client: {followup.client_id}, source: {request.method})")
+                logger.info(f"[FOLLOWUP SEND/{followup_id}] ✅ Conversation existante trouvée: {conversation_id} (client: {followup.client_id}, source: {send_method})")
             else:
                 # Créer une nouvelle conversation
                 conversation = Conversation(
@@ -1263,14 +1273,14 @@ def send_followup(
                     client_id=followup.client_id,
                     subject=f"Relance - {followup.source_label}",
                     status="À répondre",
-                    source=request.method,  # email, sms, whatsapp
+                    source=send_method,  # email, sms, whatsapp
                     unread_count=0,  # Message de l'entreprise, donc pas de non-lu
                     last_message_at=datetime.now()
                 )
                 db.add(conversation)
                 db.flush()
                 conversation_id = conversation.id
-                logger.info(f"[FOLLOWUP SEND/{followup_id}] ✅ Nouvelle conversation créée: {conversation_id} (client: {followup.client_id}, source: {request.method})")
+                logger.info(f"[FOLLOWUP SEND/{followup_id}] ✅ Nouvelle conversation créée: {conversation_id} (client: {followup.client_id}, source: {send_method})")
             
             # Récupérer l'adresse email ou téléphone de l'expéditeur depuis l'intégration
             from app.db.models.inbox_integration import InboxIntegration
@@ -1280,12 +1290,12 @@ def send_followup(
             primary_integration = None
             vonage_integration = None
             
-            # Mettre à jour la source de la conversation si elle ne correspond pas à la méthode de la requête
-            if conversation.source != request.method:
-                logger.info(f"[FOLLOWUP SEND/{followup_id}] Mise à jour de la source de la conversation: {conversation.source} -> {request.method}")
-                conversation.source = request.method
+            # Mettre à jour la source de la conversation si elle ne correspond pas à la méthode d'envoi
+            if conversation.source != send_method:
+                logger.info(f"[FOLLOWUP SEND/{followup_id}] Mise à jour de la source de la conversation: {conversation.source} -> {send_method}")
+                conversation.source = send_method
             
-            if request.method == "email":
+            if send_method == "email":
                 primary_integration = db.query(InboxIntegration).filter(
                     InboxIntegration.company_id == current_user.company_id,
                     InboxIntegration.is_primary == True,
@@ -1298,7 +1308,7 @@ def send_followup(
                     logger.info(f"[FOLLOWUP SEND/{followup_id}] Intégration email trouvée: {from_email}")
                 else:
                     logger.warning(f"[FOLLOWUP SEND/{followup_id}] ⚠️ Aucune intégration email active trouvée")
-            elif request.method in ["sms", "whatsapp"]:
+            elif send_method in ["sms", "whatsapp"]:
                 vonage_integration = db.query(InboxIntegration).filter(
                     InboxIntegration.company_id == current_user.company_id,
                     InboxIntegration.integration_type == "whatsapp",
@@ -1317,7 +1327,7 @@ def send_followup(
                 from_email=from_email,
                 from_phone=from_phone,
                 content=message,
-                source=request.method,
+                source=send_method,
                 is_from_client=False,  # C'est l'entreprise qui envoie
                 read=True,  # Déjà lu car c'est l'entreprise qui l'a envoyé
                 external_id=None,
@@ -1373,7 +1383,7 @@ def send_followup(
                 except Exception as e:
                     logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Erreur lors de l'envoi de l'email: {e}", exc_info=True)
             
-            elif request.method in ["sms", "whatsapp"]:
+            elif send_method in ["sms", "whatsapp"]:
                 try:
                     if not vonage_integration:
                         logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: aucune intégration WhatsApp trouvée")
@@ -1409,10 +1419,10 @@ def send_followup(
             
             logger.info(f"[FOLLOWUP SEND/{followup_id}] ✅ Message ajouté à la conversation inbox: {conversation_id}")
             send_failed = False
-            if request.method == "email" and not email_sent:
+            if send_method == "email" and not email_sent:
                 logger.warning(f"[FOLLOWUP SEND/{followup_id}] ⚠️ ATTENTION: La conversation a été créée mais l'email n'a PAS été envoyé")
                 send_failed = True
-            elif request.method in ["sms", "whatsapp"] and not sms_sent:
+            elif send_method in ["sms", "whatsapp"] and not sms_sent:
                 logger.warning(f"[FOLLOWUP SEND/{followup_id}] ⚠️ ATTENTION: La conversation a été créée mais le SMS n'a PAS été envoyé")
                 send_failed = True
             
@@ -1429,7 +1439,7 @@ def send_followup(
                         company_id=current_user.company_id,
                         notification_type=NotificationType.FOLLOWUP_FAILED,
                         title="Échec d'envoi de relance",
-                        message=f"La relance pour {followup.source_label} n'a pas pu être envoyée via {request.method}",
+                        message=f"La relance pour {followup.source_label} n'a pas pu être envoyée via {send_method}",
                         link_url=f"{frontend_url}/app/relances",
                         link_text="Voir les relances",
                         source_type="followup",
@@ -1476,7 +1486,7 @@ def send_followup(
         followup_id=followup_id,
         company_id=current_user.company_id,
         message=message,
-        message_type=request.method,
+        message_type=send_method,
         status=FollowUpHistoryStatus.ENVOYE,
         sent_by_id=current_user.id,
         sent_by_name=current_user.full_name,

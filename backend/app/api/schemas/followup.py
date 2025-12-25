@@ -103,6 +103,7 @@ class FollowUpMessageTemplate(BaseModel):
     id: int
     type: str  # "devis", "facture", "info", "rdv", "general"
     content: str
+    method: Optional[str] = "email"  # "email" ou "sms" - méthode d'envoi par défaut pour ce template
 
 
 class FollowUpStopConditions(BaseModel):

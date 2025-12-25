@@ -364,6 +364,7 @@ export interface FollowUpSettings {
     id: number;
     type: string;
     content: string;
+    method?: string;  // "email" ou "sms" - méthode d'envoi par défaut pour ce template
   }>;
   enable_relances_before?: boolean;
   days_before_due?: number | null;
@@ -384,6 +385,7 @@ export interface FollowUpSettingsUpdate {
     id: number;
     type: string;
     content: string;
+    method?: string;  // "email" ou "sms" - méthode d'envoi par défaut pour ce template
   }>;
   enable_relances_before?: boolean;
   days_before_due?: number | null;

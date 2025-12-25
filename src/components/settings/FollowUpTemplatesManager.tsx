@@ -61,6 +61,13 @@ export function FollowUpTemplatesManager({ settings, updateSettingsLocal, user }
     return template?.content || "";
   };
 
+  // Obtenir la méthode pour un type donné
+  const getMethodForType = (type: string): string => {
+    if (!followupSettings) return "email";
+    const template = followupSettings.messages.find(m => m.type === type);
+    return template?.method || "email";
+  };
+
   // Mettre à jour le template pour un type
   const updateTemplate = (type: string, content: string) => {
     if (!followupSettings) return;
@@ -73,7 +80,25 @@ export function FollowUpTemplatesManager({ settings, updateSettingsLocal, user }
     } else {
       // Créer un nouveau template
       const newId = Math.max(0, ...updatedMessages.map(m => m.id)) + 1;
-      updatedMessages.push({ id: newId, type, content });
+      updatedMessages.push({ id: newId, type, content, method: "email" });
+    }
+    
+    setFollowupSettings({ ...followupSettings, messages: updatedMessages });
+  };
+
+  // Mettre à jour la méthode pour un type
+  const updateMethod = (type: string, method: string) => {
+    if (!followupSettings) return;
+    
+    const updatedMessages = [...followupSettings.messages];
+    const existingIndex = updatedMessages.findIndex(m => m.type === type);
+    
+    if (existingIndex >= 0) {
+      updatedMessages[existingIndex] = { ...updatedMessages[existingIndex], method };
+    } else {
+      // Créer un nouveau template avec la méthode
+      const newId = Math.max(0, ...updatedMessages.map(m => m.id)) + 1;
+      updatedMessages.push({ id: newId, type, content: "", method });
     }
     
     setFollowupSettings({ ...followupSettings, messages: updatedMessages });
@@ -122,6 +147,7 @@ export function FollowUpTemplatesManager({ settings, updateSettingsLocal, user }
       {FOLLOWUP_TYPES.map((followupType) => {
         const isExpanded = expandedTypes.has(followupType.value);
         const templateContent = getTemplateForType(followupType.value);
+        const templateMethod = getMethodForType(followupType.value);
         
         return (
           <div key={followupType.value} className="border border-[#E5E7EB] rounded-lg">
@@ -139,6 +165,9 @@ export function FollowUpTemplatesManager({ settings, updateSettingsLocal, user }
                     Template configuré
                   </span>
                 )}
+                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                  {templateMethod === "sms" ? "SMS" : "Email"}
+                </span>
               </div>
               <span className="text-[#64748B]">
                 {isExpanded ? "▼" : "▶"}
@@ -146,22 +175,59 @@ export function FollowUpTemplatesManager({ settings, updateSettingsLocal, user }
             </button>
             
             {isExpanded && (
-              <div className="p-4 border-t border-[#E5E7EB] bg-[#F9FAFB]">
-                <Label htmlFor={`template-${followupType.value}`}>
-                  Message de base pour "{followupType.label}"
-                </Label>
-                <Textarea
-                  id={`template-${followupType.value}`}
-                  value={templateContent}
-                  onChange={(e) => updateTemplate(followupType.value, e.target.value)}
-                  placeholder={`Exemple : Bonjour {client_name},\n\nNous vous contactons concernant {source_label}.\n\nCordialement,\n{company_name}`}
-                  rows={6}
-                  className="mt-2 font-mono text-xs"
-                  disabled={user?.role === "user"}
-                />
-                <p className="mt-2 text-xs text-[#64748B]">
-                  Variables disponibles : <code className="bg-white px-1 rounded">{"{client_name}"}</code>, <code className="bg-white px-1 rounded">{"{source_label}"}</code>, <code className="bg-white px-1 rounded">{"{company_name}"}</code>, <code className="bg-white px-1 rounded">{"{company_email}"}</code>, <code className="bg-white px-1 rounded">{"{company_phone}"}</code>, <code className="bg-white px-1 rounded">{"{amount}"}</code>
-                </p>
+              <div className="p-4 border-t border-[#E5E7EB] bg-[#F9FAFB] space-y-4">
+                {/* Sélecteur de méthode (Email/SMS) */}
+                <div>
+                  <Label>Méthode d'envoi</Label>
+                  <div className="mt-2 flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`method-${followupType.value}`}
+                        value="email"
+                        checked={templateMethod === "email"}
+                        onChange={(e) => updateMethod(followupType.value, e.target.value)}
+                        disabled={user?.role === "user"}
+                        className="w-4 h-4 text-[#F97316] border-[#E5E7EB] focus:ring-[#F97316] focus:ring-2"
+                      />
+                      <span className="text-sm text-[#0F172A]">📧 Email</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`method-${followupType.value}`}
+                        value="sms"
+                        checked={templateMethod === "sms"}
+                        onChange={(e) => updateMethod(followupType.value, e.target.value)}
+                        disabled={user?.role === "user"}
+                        className="w-4 h-4 text-[#F97316] border-[#E5E7EB] focus:ring-[#F97316] focus:ring-2"
+                      />
+                      <span className="text-sm text-[#0F172A]">📱 SMS</span>
+                    </label>
+                  </div>
+                  <p className="mt-1 text-xs text-[#64748B]">
+                    La relance sera envoyée via {templateMethod === "sms" ? "SMS (Vonage)" : "email"}
+                  </p>
+                </div>
+
+                {/* Contenu du template */}
+                <div>
+                  <Label htmlFor={`template-${followupType.value}`}>
+                    Message de base pour "{followupType.label}"
+                  </Label>
+                  <Textarea
+                    id={`template-${followupType.value}`}
+                    value={templateContent}
+                    onChange={(e) => updateTemplate(followupType.value, e.target.value)}
+                    placeholder={`Exemple : Bonjour {client_name},\n\nNous vous contactons concernant {source_label}.\n\nCordialement,\n{company_name}`}
+                    rows={6}
+                    className="mt-2 font-mono text-xs"
+                    disabled={user?.role === "user"}
+                  />
+                  <p className="mt-2 text-xs text-[#64748B]">
+                    Variables disponibles : <code className="bg-white px-1 rounded">{"{client_name}"}</code>, <code className="bg-white px-1 rounded">{"{source_label}"}</code>, <code className="bg-white px-1 rounded">{"{company_name}"}</code>, <code className="bg-white px-1 rounded">{"{company_email}"}</code>, <code className="bg-white px-1 rounded">{"{company_phone}"}</code>, <code className="bg-white px-1 rounded">{"{amount}"}</code>
+                  </p>
+                </div>
               </div>
             )}
           </div>
