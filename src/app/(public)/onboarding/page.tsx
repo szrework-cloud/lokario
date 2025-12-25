@@ -23,6 +23,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [showCompletionVideo, setShowCompletionVideo] = useState(false);
 
   // Vérifier le statut de l'onboarding au chargement
   useEffect(() => {
