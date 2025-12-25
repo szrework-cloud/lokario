@@ -2,6 +2,7 @@
 
 import { LandingHeader } from "@/components/landing/Header";
 import { LandingHero } from "@/components/landing/Hero";
+import { VideoSection } from "@/components/landing/VideoSection";
 import { LandingPainPointsSection } from "@/components/landing/PainPointsSection";
 import { LandingSolutionSection } from "@/components/landing/SolutionSection";
 import { LandingValueSection } from "@/components/landing/ValueSection";
@@ -27,6 +28,11 @@ export default function LandingPage() {
       <LandingHeader />
       <main className="bg-black w-full">
         <LandingHero />
+        <VideoSection
+          videoUrl="/videos/landing-video.mp4"
+          title="Découvrez Lokario en action"
+          description="Voyez comment Lokario transforme votre gestion d'entreprise"
+        />
         <LandingPainPointsSection />
         <LandingSolutionSection />
         <LandingValueSection />

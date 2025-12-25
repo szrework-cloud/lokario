@@ -111,6 +111,8 @@ export default function OnboardingPage() {
     }
   };
 
+  const [showCompletionVideo, setShowCompletionVideo] = useState(false);
+
   const handleStep4 = async (plan: "starter" | "professional") => {
     if (!token) return;
     setLoading(true);
@@ -118,12 +120,18 @@ export default function OnboardingPage() {
 
     try {
       await apiPost("/companies/me/onboarding/step4", { plan }, token);
-      // Rediriger vers le dashboard après la finalisation
-      router.push("/app/dashboard");
+      // Afficher la vidéo de complétion avant de rediriger
+      setShowCompletionVideo(true);
+      setLoading(false);
     } catch (err: any) {
       setError(err.message || "Erreur lors de la finalisation");
       setLoading(false);
     }
+  };
+
+  const handleVideoComplete = () => {
+    // Rediriger vers le dashboard après la vidéo
+    router.push("/app/dashboard");
   };
 
   // Afficher un loader si le token est en cours de chargement
