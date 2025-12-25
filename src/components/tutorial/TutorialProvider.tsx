@@ -679,7 +679,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             </button>
             <button
               onClick={handleNext}
-              className="px-4 py-2 text-sm font-medium text-white bg-[#F97316] hover:bg-[#EA580C] rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium text-white bg-[#F97316] hover:bg-[#EA580C] rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
             >
               {tutorialState.currentStep === tutorialState.steps.length - 1 ? "Terminer" : "Suivant"}
             </button>
