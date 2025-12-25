@@ -847,7 +847,7 @@ export default function SettingsPage() {
 
           {/* Tab Content - Afficher si on a des settings */}
           {settings && (
-      <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm" data-tutorial="settings-content">
         {activeTab === "company" && (
           <div className="space-y-4">
             <div>

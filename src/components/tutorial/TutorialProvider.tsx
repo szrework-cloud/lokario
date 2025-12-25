@@ -55,59 +55,128 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         placement: "right",
       },
       {
-        target: "[data-tutorial='settings-link']",
-        title: "⚙️ Paramètres",
-        content: "Cliquez sur 'Paramètres' dans la sidebar pour commencer la configuration de votre entreprise.",
-        placement: "right",
-        action: "navigate",
-        navigateTo: "/app/settings",
-      },
-      {
         target: "[data-tutorial='settings-tab-company']",
         title: "📋 Infos entreprise",
-        content: "Remplissez les informations de base de votre entreprise :\n\n• Nom de l'entreprise\n• Logo (optionnel mais recommandé)\n• Email et téléphone\n• Adresse complète\n• SIRET/SIREN (important pour les factures)\n• Numéro de TVA si applicable\n\nCes informations apparaîtront sur vos devis et factures.",
+        content: (
+          <div className="space-y-3">
+            <p className="font-medium">Remplissez les informations de base de votre entreprise :</p>
+            <ul className="list-disc list-inside space-y-1.5 text-sm">
+              <li>Nom de l'entreprise</li>
+              <li>Logo (optionnel mais recommandé)</li>
+              <li>Email et téléphone</li>
+              <li>Adresse complète</li>
+              <li>SIRET/SIREN (important pour les factures)</li>
+              <li>Numéro de TVA si applicable</li>
+            </ul>
+            <p className="text-sm text-[#64748B] mt-2">Ces informations apparaîtront sur vos devis et factures.</p>
+          </div>
+        ),
         placement: "right",
-        action: "click",
+        action: "navigate",
+        navigateTo: "/app/settings?tab=company",
       },
       {
         target: "[data-tutorial='settings-tab-billing']",
         title: "💼 Facturation",
-        content: "Personnalisez vos devis et factures :\n\n• Design : Choisissez vos couleurs (couleur principale et secondaire)\n• Logo : Ajoutez ou modifiez le logo pour vos documents\n• Signature : Téléchargez votre signature pour les devis\n• Numérotation : Configurez le format de numérotation (ex: DEV-2025-0001)\n• Taux de TVA : Ajoutez les taux de TVA que vous utilisez (20%, 5.5%, etc.)\n• Textes : Personnalisez les mentions légales et conditions",
+        content: (
+          <div className="space-y-3">
+            <p className="font-medium">Personnalisez vos devis et factures :</p>
+            <ul className="list-disc list-inside space-y-1.5 text-sm">
+              <li><strong>Design :</strong> Choisissez vos couleurs (couleur principale et secondaire)</li>
+              <li><strong>Logo :</strong> Ajoutez ou modifiez le logo pour vos documents</li>
+              <li><strong>Signature :</strong> Téléchargez votre signature pour les devis</li>
+              <li><strong>Numérotation :</strong> Configurez le format de numérotation (ex: DEV-2025-0001)</li>
+              <li><strong>Taux de TVA :</strong> Ajoutez les taux de TVA que vous utilisez (20%, 5.5%, etc.)</li>
+              <li><strong>Textes :</strong> Personnalisez les mentions légales et conditions</li>
+            </ul>
+          </div>
+        ),
         placement: "right",
         action: "click",
       },
       {
         target: "[data-tutorial='settings-tab-modules']",
         title: "🔧 Modules activés",
-        content: "Activez ou désactivez les fonctionnalités selon vos besoins et votre abonnement :\n\n• Rendez-vous : Gérez vos rendez-vous clients\n• Inbox : Centralisez vos messages\n• Projets : Suivez vos projets\n• Relances : Activez les relances automatiques\n\nNote : Certains modules peuvent être limités selon votre plan d'abonnement.",
+        content: (
+          <div className="space-y-3">
+            <p className="font-medium">Activez ou désactivez les fonctionnalités selon vos besoins et votre abonnement :</p>
+            <ul className="list-disc list-inside space-y-1.5 text-sm">
+              <li><strong>Rendez-vous :</strong> Gérez vos rendez-vous clients</li>
+              <li><strong>Inbox :</strong> Centralisez vos messages</li>
+              <li><strong>Projets :</strong> Suivez vos projets</li>
+              <li><strong>Relances :</strong> Activez les relances automatiques</li>
+            </ul>
+            <p className="text-sm text-[#64748B] mt-2">Note : Certains modules peuvent être limités selon votre plan d'abonnement.</p>
+          </div>
+        ),
         placement: "right",
         action: "click",
       },
       {
         target: "[data-tutorial='settings-tab-ia']",
         title: "🤖 Intelligence artificielle",
-        content: "Configurez l'IA pour automatiser vos tâches :\n\n• Réponses automatiques : Personnalisez le prompt pour les réponses automatiques aux emails\n• Résumés : Configurez comment l'IA doit résumer vos conversations\n• Classification : L'IA classera automatiquement vos messages\n\nCes paramètres aideront l'IA à mieux comprendre votre entreprise.",
+        content: (
+          <div className="space-y-3">
+            <p className="font-medium">Configurez l'IA pour automatiser vos tâches :</p>
+            <ul className="list-disc list-inside space-y-1.5 text-sm">
+              <li><strong>Réponses automatiques :</strong> Personnalisez le prompt pour les réponses automatiques aux emails</li>
+              <li><strong>Résumés :</strong> Configurez comment l'IA doit résumer vos conversations</li>
+              <li><strong>Classification :</strong> L'IA classera automatiquement vos messages</li>
+            </ul>
+            <p className="text-sm text-[#64748B] mt-2">Ces paramètres aideront l'IA à mieux comprendre votre entreprise.</p>
+          </div>
+        ),
         placement: "right",
         action: "click",
       },
       {
         target: "[data-tutorial='settings-tab-subscription']",
         title: "💳 Abonnement",
-        content: "Consultez votre abonnement et vos quotas :\n\n• Plan actuel : Voir votre plan (Essentiel ou Pro)\n• Quotas : Vérifiez votre utilisation (devis, factures, clients, etc.)\n• Gérer : Cliquez sur 'Voir les abonnements' pour changer de plan\n\nPendant l'essai gratuit, vous avez accès à toutes les fonctionnalités.",
+        content: (
+          <div className="space-y-3">
+            <p className="font-medium">Consultez votre abonnement et vos quotas :</p>
+            <ul className="list-disc list-inside space-y-1.5 text-sm">
+              <li><strong>Plan actuel :</strong> Voir votre plan (Essentiel ou Pro)</li>
+              <li><strong>Quotas :</strong> Vérifiez votre utilisation (devis, factures, clients, etc.)</li>
+              <li><strong>Gérer :</strong> Cliquez sur "Voir les abonnements" pour changer de plan</li>
+            </ul>
+            <p className="text-sm text-[#64748B] mt-2">Pendant l'essai gratuit, vous avez accès à toutes les fonctionnalités.</p>
+          </div>
+        ),
         placement: "right",
         action: "click",
       },
       {
         target: "[data-tutorial='settings-tab-integrations']",
         title: "🔗 Intégrations",
-        content: "Connectez vos outils externes :\n\n• Email : Connectez votre boîte email (Gmail, Outlook, etc.) pour centraliser vos messages\n• SMS : Intégrez un service SMS si disponible\n• Autres : D'autres intégrations peuvent être disponibles selon votre plan\n\nLes intégrations permettent de centraliser toutes vos communications dans Lokario.",
+        content: (
+          <div className="space-y-3">
+            <p className="font-medium">Connectez vos outils externes :</p>
+            <ul className="list-disc list-inside space-y-1.5 text-sm">
+              <li><strong>Email :</strong> Connectez votre boîte email (Gmail, Outlook, etc.) pour centraliser vos messages</li>
+              <li><strong>SMS :</strong> Intégrez un service SMS si disponible</li>
+              <li><strong>Autres :</strong> D'autres intégrations peuvent être disponibles selon votre plan</li>
+            </ul>
+            <p className="text-sm text-[#64748B] mt-2">Les intégrations permettent de centraliser toutes vos communications dans Lokario.</p>
+          </div>
+        ),
         placement: "right",
         action: "click",
       },
       {
         target: "[data-tutorial='settings-tab-team']",
         title: "👥 Équipe",
-        content: "Gérez les membres de votre équipe :\n\n• Inviter : Ajoutez des membres à votre entreprise\n• Permissions : Définissez qui peut faire quoi (créer des devis, voir les statistiques, etc.)\n• Supprimer : Retirez des membres si nécessaire\n\nTous les membres partagent le même abonnement et les mêmes quotas.",
+        content: (
+          <div className="space-y-3">
+            <p className="font-medium">Gérez les membres de votre équipe :</p>
+            <ul className="list-disc list-inside space-y-1.5 text-sm">
+              <li><strong>Inviter :</strong> Ajoutez des membres à votre entreprise</li>
+              <li><strong>Permissions :</strong> Définissez qui peut faire quoi (créer des devis, voir les statistiques, etc.)</li>
+              <li><strong>Supprimer :</strong> Retirez des membres si nécessaire</li>
+            </ul>
+            <p className="text-sm text-[#64748B] mt-2">Tous les membres partagent le même abonnement et les mêmes quotas.</p>
+          </div>
+        ),
         placement: "right",
         action: "click",
       },
