@@ -20,6 +20,7 @@ from app.api.schemas.invoice import (
 )
 from app.api.deps import get_current_active_user
 from app.db.models.user import User
+from app.db.retry import execute_with_retry
 from app.core.invoice_service import (
     generate_invoice_number, validate_invoice_totals, calculate_line_totals,
     can_modify_invoice, can_delete_invoice, recalculate_invoice_totals,
@@ -286,14 +287,16 @@ def get_invoice(
             detail="User is not attached to a company"
         )
     
-    invoice = db.query(Invoice).options(
-        joinedload(Invoice.lines),
-        joinedload(Invoice.company)
-    ).filter(
-        Invoice.id == invoice_id,
-        Invoice.company_id == current_user.company_id,
-        Invoice.deleted_at.is_(None)
-    ).first()
+    def _get_invoice():
+        return db.query(Invoice).options(
+            joinedload(Invoice.lines),
+            joinedload(Invoice.company)
+        ).filter(
+            Invoice.id == invoice_id,
+            Invoice.company_id == current_user.company_id,
+            Invoice.deleted_at.is_(None)
+        ).first()
+    invoice = execute_with_retry(db, _get_invoice, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not invoice:
         raise HTTPException(
@@ -314,15 +317,19 @@ def get_invoice(
     
     # Calculer le montant payé et restant
     total_invoice = invoice.total_ttc or invoice.amount
-    total_paid = db.query(func.sum(InvoicePayment.amount)).filter(
-        InvoicePayment.invoice_id == invoice_id
-    ).scalar() or Decimal('0')
+    def _get_total_paid_single():
+        return db.query(func.sum(InvoicePayment.amount)).filter(
+            InvoicePayment.invoice_id == invoice_id
+        ).scalar() or Decimal('0')
+    total_paid = execute_with_retry(db, _get_total_paid_single, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Calculer le montant déjà crédité (somme des avoirs existants)
-    total_credited = db.query(func.sum(Invoice.credit_amount)).filter(
-        Invoice.original_invoice_id == invoice_id,
-        Invoice.deleted_at.is_(None)
-    ).scalar() or Decimal('0')
+    def _get_total_credited_single():
+        return db.query(func.sum(Invoice.credit_amount)).filter(
+            Invoice.original_invoice_id == invoice_id,
+            Invoice.deleted_at.is_(None)
+        ).scalar() or Decimal('0')
+    total_credited = execute_with_retry(db, _get_total_credited_single, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     invoice.amount_paid = total_paid
     invoice.amount_remaining = total_invoice - total_paid
