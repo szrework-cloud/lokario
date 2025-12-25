@@ -100,7 +100,7 @@ export const LandingValueSection = () => {
                       background: `linear-gradient(135deg, rgba(249, 115, 22, 0.3), rgba(234, 88, 12, 0.3))`,
                     }}
                   />
-                  <div className="relative bg-[#1E293B]/50 backdrop-blur-sm border border-white/5 rounded-2xl p-8 text-center hover:border-[#F97316]/30 transition-all duration-300 hover:-translate-y-1">
+                  <div className="relative bg-[#1E293B]/50 backdrop-blur-sm border border-white/5 rounded-2xl p-8 text-center hover:border-[#F97316]/30 transition-all duration-300">
                     <div
                       className={`w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center`}
                     >

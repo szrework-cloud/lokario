@@ -3,7 +3,38 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { logger } from "@/lib/logger";
 import React from "react";
+
+// Constantes pour le tutoriel
+const TUTORIAL_CONSTANTS = {
+  // Délais (ms)
+  INIT_DELAY: 300,
+  NAVIGATION_DELAY: 500,
+  CLICK_DELAY: 300,
+  ELEMENT_CHECK_DELAY: 800,
+  STORAGE_CHANGE_DELAY: 100,
+  FIND_ELEMENT_DELAY: 50,
+  INITIAL_CHECK_DELAY_1: 500,
+  INITIAL_CHECK_DELAY_2: 1500,
+  INITIAL_CHECK_DELAY_3: 3000,
+  RETRY_INTERVAL: 200,
+  
+  // Retry
+  MAX_RETRIES: 25, // 5 secondes max (25 * 200ms)
+  
+  // Dimensions tooltip (px)
+  TOOLTIP_WIDTH: 400,
+  TOOLTIP_HEIGHT: 300,
+  TOOLTIP_MARGIN: 20,
+  TOOLTIP_OFFSET: 16,
+  TOOLTIP_OFFSET_TOP: 10,
+  
+  // Animation durations (ms)
+  FADE_IN_DURATION: 300,
+  SLIDE_IN_DURATION: 400,
+  HIGHLIGHT_PULSE_DURATION: 2000,
+} as const;
 
 // Styles pour les animations
 const animationStyles = `
@@ -67,7 +98,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
   });
 
   const initializeTutorial = useCallback(() => {
-    console.log("[TUTORIAL] Initializing tutorial...");
+    logger.debug("[TUTORIAL] Initializing tutorial...");
     const steps: Step[] = [
       {
         target: "[data-tutorial='dashboard-overview']",
@@ -215,19 +246,19 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       },
     ];
 
-    console.log("[TUTORIAL] Setting tutorial state:", { stepsCount: steps.length });
+    logger.debug("[TUTORIAL] Setting tutorial state:", { stepsCount: steps.length });
     setTutorialState({
       isRunning: true,
       currentStep: 0,
       steps,
     });
-    console.log("[TUTORIAL] Tutorial state set");
+    logger.debug("[TUTORIAL] Tutorial state set");
   }, []);
 
   // Vérifier si le tutoriel doit être lancé
   useEffect(() => {
     let retryCount = 0;
-    const MAX_RETRIES = 25; // 5 secondes max (25 * 200ms)
+    const MAX_RETRIES = TUTORIAL_CONSTANTS.MAX_RETRIES;
     let timeoutId: NodeJS.Timeout | null = null;
 
     const checkAndStartTutorial = () => {
@@ -238,7 +269,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       const currentPath = typeof window !== "undefined" ? window.location.pathname : pathname;
       const isOnDashboard = pathname === "/app/dashboard" || currentPath === "/app/dashboard";
 
-      console.log("[TUTORIAL] Checking tutorial start:", {
+      logger.debug("[TUTORIAL] Checking tutorial start:", {
         shouldStartTutorial: shouldStartTutorial ? "TRUE" : "FALSE",
         tutorialCompleted: tutorialCompleted ? "TRUE" : "FALSE",
         pathname: `"${pathname}"`,
@@ -250,7 +281,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         // Vérifier que le premier élément cible existe avant de démarrer
         const checkElementExists = () => {
           const firstElement = document.querySelector("[data-tutorial='dashboard-overview']");
-          console.log("[TUTORIAL] Checking element exists:", {
+          logger.debug("[TUTORIAL] Checking element exists:", {
             found: !!firstElement,
             retryCount,
             maxRetries: MAX_RETRIES,
@@ -259,19 +290,19 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
 
           if (firstElement) {
             // L'élément existe, démarrer le tutoriel
-            console.log("[TUTORIAL] Element found! Starting tutorial...");
+            logger.debug("[TUTORIAL] Element found! Starting tutorial...");
             setTimeout(() => {
               initializeTutorial();
               localStorage.removeItem("should_start_tutorial");
-              console.log("[TUTORIAL] Tutorial started successfully");
-            }, 300);
+              logger.debug("[TUTORIAL] Tutorial started successfully");
+            }, TUTORIAL_CONSTANTS.INIT_DELAY);
           } else if (retryCount < MAX_RETRIES) {
             // Réessayer après un court délai
             retryCount++;
-            timeoutId = setTimeout(checkElementExists, 200);
+            timeoutId = setTimeout(checkElementExists, TUTORIAL_CONSTANTS.RETRY_INTERVAL);
           } else {
-            console.warn("[TUTORIAL] Max retries reached, element not found");
-            console.warn("[TUTORIAL] Available elements with data-tutorial:", 
+            logger.warn("[TUTORIAL] Max retries reached, element not found");
+            logger.warn("[TUTORIAL] Available elements with data-tutorial:", 
               Array.from(document.querySelectorAll("[data-tutorial]")).map(el => ({
                 attribute: el.getAttribute("data-tutorial"),
                 tagName: el.tagName,
@@ -282,12 +313,12 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         };
 
         // Commencer à vérifier après un délai initial pour laisser le DOM se charger
-        setTimeout(checkElementExists, 800);
+        setTimeout(checkElementExists, TUTORIAL_CONSTANTS.ELEMENT_CHECK_DELAY);
       } else {
         const reason = !shouldStartTutorial ? "should_start_tutorial not set" :
                       tutorialCompleted ? "tutorial already completed" :
                       !isOnDashboard ? "not on dashboard" : "unknown";
-        console.log("[TUTORIAL] Conditions not met:", {
+        logger.debug("[TUTORIAL] Conditions not met:", {
           shouldStartTutorial: shouldStartTutorial ? "TRUE" : "FALSE",
           tutorialCompleted: tutorialCompleted ? "TRUE" : "FALSE",
           isOnDashboard: isOnDashboard ? "TRUE" : "FALSE",
@@ -295,7 +326,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
           currentPath: `"${currentPath}"`,
           reason: reason
         });
-        console.log("[TUTORIAL] Full localStorage:", {
+        logger.debug("[TUTORIAL] Full localStorage:", {
           should_start_tutorial: localStorage.getItem("should_start_tutorial"),
           tutorial_completed: localStorage.getItem("tutorial_completed"),
         });
@@ -307,7 +338,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
 
     // Écouter les changements de storage au cas où il serait défini après le montage
     const handleStorageChange = (e?: Event) => {
-      console.log("[TUTORIAL] Storage change event:", e?.type);
+      logger.debug("[TUTORIAL] Storage change event:", e?.type);
       retryCount = 0; // Réinitialiser le compteur de retry
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -316,32 +347,36 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       // Attendre un peu après l'événement pour que le pathname soit à jour
       setTimeout(() => {
         checkAndStartTutorial();
-      }, 100);
+      }, TUTORIAL_CONSTANTS.STORAGE_CHANGE_DELAY);
     };
 
     // Écouter les événements storage (entre onglets) et un événement personnalisé (même onglet)
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("shouldStartTutorial", handleStorageChange);
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleStorageChange);
+      window.addEventListener("shouldStartTutorial", handleStorageChange);
+    }
 
     // Vérifier aussi après plusieurs délais pour gérer les cas où localStorage est défini juste avant la navigation
     const initialTimeoutId1 = setTimeout(() => {
-      console.log("[TUTORIAL] First timeout check (500ms)");
+      logger.debug("[TUTORIAL] First timeout check");
       checkAndStartTutorial();
-    }, 500);
+    }, TUTORIAL_CONSTANTS.INITIAL_CHECK_DELAY_1);
 
     const initialTimeoutId2 = setTimeout(() => {
-      console.log("[TUTORIAL] Second timeout check (1500ms)");
+      logger.debug("[TUTORIAL] Second timeout check");
       checkAndStartTutorial();
-    }, 1500);
+    }, TUTORIAL_CONSTANTS.INITIAL_CHECK_DELAY_2);
 
     const initialTimeoutId3 = setTimeout(() => {
-      console.log("[TUTORIAL] Third timeout check (3000ms)");
+      logger.debug("[TUTORIAL] Third timeout check");
       checkAndStartTutorial();
-    }, 3000);
+    }, TUTORIAL_CONSTANTS.INITIAL_CHECK_DELAY_3);
 
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("shouldStartTutorial", handleStorageChange);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("storage", handleStorageChange);
+        window.removeEventListener("shouldStartTutorial", handleStorageChange);
+      }
       if (timeoutId) clearTimeout(timeoutId);
       clearTimeout(initialTimeoutId1);
       clearTimeout(initialTimeoutId2);
@@ -354,48 +389,9 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     
     // Si l'étape a une action "navigate", naviguer d'abord
     if (currentStepData?.action === "navigate" && currentStepData.navigateTo) {
-      router.push(currentStepData.navigateTo);
-      // Attendre un peu que la navigation se termine avant de passer à l'étape suivante
-      setTimeout(() => {
-        if (tutorialState.currentStep < tutorialState.steps.length - 1) {
-          setTutorialState((prev) => ({
-            ...prev,
-            currentStep: prev.currentStep + 1,
-          }));
-        } else {
-          handleFinish();
-        }
-      }, 500);
-      return;
-    }
-
-    // Si l'étape a une action "click", cliquer sur l'élément cible
-    if (currentStepData?.action === "click") {
-      // Si on cible le contenu d'une section des paramètres, cliquer d'abord sur l'onglet correspondant
-      if (currentStepData.target.includes("settings-content-")) {
-        const tabId = currentStepData.target.replace("[data-tutorial='settings-content-", "").replace("']", "");
-        const tabButton = document.querySelector(`[data-tutorial='settings-tab-${tabId}']`) as HTMLElement;
-        if (tabButton) {
-          tabButton.click();
-          // Attendre que l'onglet s'ouvre avant de passer à l'étape suivante
-          setTimeout(() => {
-            if (tutorialState.currentStep < tutorialState.steps.length - 1) {
-              setTutorialState((prev) => ({
-                ...prev,
-                currentStep: prev.currentStep + 1,
-              }));
-            } else {
-              handleFinish();
-            }
-          }, 500);
-          return;
-        }
-      }
-      
-      const element = document.querySelector(currentStepData.target) as HTMLElement;
-      if (element) {
-        element.click();
-        // Attendre un peu que le clic se propage avant de passer à l'étape suivante
+      try {
+        router.push(currentStepData.navigateTo);
+        // Attendre un peu que la navigation se termine avant de passer à l'étape suivante
         setTimeout(() => {
           if (tutorialState.currentStep < tutorialState.steps.length - 1) {
             setTutorialState((prev) => ({
@@ -405,9 +401,80 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
           } else {
             handleFinish();
           }
-        }, 300);
-        return;
+        }, TUTORIAL_CONSTANTS.NAVIGATION_DELAY);
+      } catch (error) {
+        logger.error("[TUTORIAL] Navigation error:", error);
+        // En cas d'erreur, continuer quand même à l'étape suivante
+        if (tutorialState.currentStep < tutorialState.steps.length - 1) {
+          setTutorialState((prev) => ({
+            ...prev,
+            currentStep: prev.currentStep + 1,
+          }));
+        }
       }
+      return;
+    }
+
+    // Si l'étape a une action "click", cliquer sur l'élément cible
+    if (currentStepData?.action === "click") {
+      try {
+        // Si on cible le contenu d'une section des paramètres, cliquer d'abord sur l'onglet correspondant
+        if (currentStepData.target.includes("settings-content-")) {
+          const tabId = currentStepData.target.replace("[data-tutorial='settings-content-", "").replace("']", "");
+          const tabButton = document.querySelector(`[data-tutorial='settings-tab-${tabId}']`) as HTMLElement;
+          if (tabButton) {
+            tabButton.click();
+            // Attendre que l'onglet s'ouvre avant de passer à l'étape suivante
+            setTimeout(() => {
+              if (tutorialState.currentStep < tutorialState.steps.length - 1) {
+                setTutorialState((prev) => ({
+                  ...prev,
+                  currentStep: prev.currentStep + 1,
+                }));
+              } else {
+                handleFinish();
+              }
+            }, TUTORIAL_CONSTANTS.NAVIGATION_DELAY);
+            return;
+          }
+        }
+        
+        const element = document.querySelector(currentStepData.target) as HTMLElement;
+        if (element) {
+          element.click();
+          // Attendre un peu que le clic se propage avant de passer à l'étape suivante
+          setTimeout(() => {
+            if (tutorialState.currentStep < tutorialState.steps.length - 1) {
+              setTutorialState((prev) => ({
+                ...prev,
+                currentStep: prev.currentStep + 1,
+              }));
+            } else {
+              handleFinish();
+            }
+          }, TUTORIAL_CONSTANTS.CLICK_DELAY);
+          return;
+        } else {
+          logger.warn("[TUTORIAL] Element not found for click action:", currentStepData.target);
+          // Si l'élément n'existe pas, continuer quand même
+          if (tutorialState.currentStep < tutorialState.steps.length - 1) {
+            setTutorialState((prev) => ({
+              ...prev,
+              currentStep: prev.currentStep + 1,
+            }));
+          }
+        }
+      } catch (error) {
+        logger.error("[TUTORIAL] Click action error:", error);
+        // En cas d'erreur, continuer quand même à l'étape suivante
+        if (tutorialState.currentStep < tutorialState.steps.length - 1) {
+          setTutorialState((prev) => ({
+            ...prev,
+            currentStep: prev.currentStep + 1,
+          }));
+        }
+      }
+      return;
     }
 
     // Comportement par défaut
@@ -468,19 +535,21 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     let transformY = "0";
 
     // Constantes pour les dimensions du tooltip
-    const tooltipWidth = 400; // max-w-sm = 384px, on prend 400px pour la marge
-    const tooltipHeight = 300; // Estimation de la hauteur du tooltip
-    const margin = 20; // Marge minimale des bords de l'écran
+    const tooltipWidth = TUTORIAL_CONSTANTS.TOOLTIP_WIDTH;
+    const tooltipHeight = TUTORIAL_CONSTANTS.TOOLTIP_HEIGHT;
+    const margin = TUTORIAL_CONSTANTS.TOOLTIP_MARGIN;
+    const offset = TUTORIAL_CONSTANTS.TOOLTIP_OFFSET;
+    const topOffset = TUTORIAL_CONSTANTS.TOOLTIP_OFFSET_TOP;
 
     switch (placement) {
       case "bottom":
-        top = rect.bottom + 16;
+        top = rect.bottom + offset;
         left = rect.left + rect.width / 2;
         transformX = "-50%";
         // Vérifier qu'on ne dépasse pas en bas de l'écran
         if (top + tooltipHeight > window.innerHeight - margin) {
           // Si on dépasse, positionner au-dessus de l'élément
-          top = rect.top - tooltipHeight - 16;
+          top = rect.top - tooltipHeight - offset;
           transformY = "-100%";
         }
         // Vérifier qu'on ne dépasse pas à gauche ou à droite
@@ -492,9 +561,9 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         break;
       case "top":
         // Positionner en haut de l'élément, mais s'assurer de ne pas dépasser du haut de l'écran
-        top = Math.max(margin, rect.top - tooltipHeight - 10); // Au moins 20px de marge en haut
+        top = Math.max(margin, rect.top - tooltipHeight - topOffset);
         // Positionner à droite de l'élément (aligné à droite), mais s'assurer de ne pas dépasser de l'écran
-        left = rect.right - tooltipWidth; // Aligner le tooltip à droite de l'élément
+        left = rect.right - tooltipWidth;
         // S'assurer qu'on ne dépasse pas à droite
         if (left + tooltipWidth > window.innerWidth - margin) {
           left = window.innerWidth - tooltipWidth - margin;
@@ -503,16 +572,16 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         if (left < margin) {
           left = margin;
         }
-        transformY = top === margin ? "0%" : "-100%"; // Si on est collé en haut, ne pas décaler vers le haut
+        transformY = top === margin ? "0%" : "-100%";
         break;
       case "right":
         top = rect.top + rect.height / 2;
-        left = rect.right + 16;
+        left = rect.right + offset;
         transformY = "-50%";
         // Vérifier qu'on ne dépasse pas à droite de l'écran
         if (left + tooltipWidth > window.innerWidth - margin) {
           // Si on dépasse, positionner à gauche de l'élément
-          left = rect.left - tooltipWidth - 16;
+          left = rect.left - tooltipWidth - offset;
           transformX = "-100%";
         }
         // Vérifier qu'on ne dépasse pas en haut ou en bas
@@ -524,13 +593,13 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         break;
       case "left":
         top = rect.top + rect.height / 2;
-        left = rect.left - 16;
+        left = rect.left - offset;
         transformX = "-100%";
         transformY = "-50%";
         // Vérifier qu'on ne dépasse pas à gauche de l'écran
         if (left - tooltipWidth < margin) {
           // Si on dépasse, positionner à droite de l'élément
-          left = rect.right + 16;
+          left = rect.right + offset;
           transformX = "0%";
         }
         // Vérifier qu'on ne dépasse pas en haut ou en bas
@@ -568,7 +637,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
 
         // Utiliser requestAnimationFrame pour s'assurer que le DOM est à jour
         requestAnimationFrame(() => {
-          setTimeout(findElement, 50);
+          setTimeout(findElement, TUTORIAL_CONSTANTS.FIND_ELEMENT_DELAY);
         });
       }
     } else {
@@ -605,7 +674,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
           className="fixed inset-0 bg-black/50 z-[9998] transition-opacity duration-300 ease-in-out"
           style={{ 
             pointerEvents: "none",
-            animation: "fadeIn 0.3s ease-in-out",
+            animation: `fadeIn ${TUTORIAL_CONSTANTS.FADE_IN_DURATION}ms ease-in-out`,
           }}
         />
       )}
@@ -621,8 +690,8 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             height: `${position.elementRect.height}px`,
             boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 0 4px #F97316",
             borderRadius: "8px",
-            transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-            animation: "highlightPulse 2s ease-in-out infinite",
+            transition: `all ${TUTORIAL_CONSTANTS.SLIDE_IN_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+            animation: `highlightPulse ${TUTORIAL_CONSTANTS.HIGHLIGHT_PULSE_DURATION}ms ease-in-out infinite`,
           }}
         />
       )}
@@ -631,12 +700,17 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       {tutorialState.isRunning && currentStep && position && (
         <div
           className="fixed z-[10000] bg-white rounded-lg shadow-2xl max-w-sm p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tutorial-title"
+          aria-describedby="tutorial-content"
+          aria-live="polite"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
             transform: `translate(${position.transformX}, ${position.transformY})`,
-            transition: "top 0.4s cubic-bezier(0.4, 0, 0.2, 1), left 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-            animation: "tooltipSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+            transition: `top ${TUTORIAL_CONSTANTS.SLIDE_IN_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1), left ${TUTORIAL_CONSTANTS.SLIDE_IN_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1), transform ${TUTORIAL_CONSTANTS.SLIDE_IN_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+            animation: `tooltipSlideIn ${TUTORIAL_CONSTANTS.SLIDE_IN_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1)`,
             "--transform-x": position.transformX,
             "--transform-y": position.transformY,
           } as React.CSSProperties}
@@ -655,12 +729,12 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
           </div>
 
           {/* Titre */}
-          <h3 className="font-semibold text-base mb-2 text-[#0F172A]">
+          <h3 id="tutorial-title" className="font-semibold text-base mb-2 text-[#0F172A]">
             {currentStep.title}
           </h3>
 
           {/* Contenu */}
-          <div className="text-sm text-[#64748B] mb-6">
+          <div id="tutorial-content" className="text-sm text-[#64748B] mb-6">
             {typeof currentStep.content === "string" ? (
               <p className="whitespace-pre-line">{currentStep.content}</p>
             ) : (
@@ -674,12 +748,14 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
               onClick={handlePrevious}
               disabled={tutorialState.currentStep === 0}
               className="px-4 py-2 text-sm font-medium text-[#64748B] hover:text-[#0F172A] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95 disabled:hover:scale-100"
+              aria-label="Étape précédente"
             >
               Précédent
             </button>
             <button
               onClick={handleNext}
               className="px-4 py-2 text-sm font-medium text-white bg-[#F97316] hover:bg-[#EA580C] rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+              aria-label={tutorialState.currentStep === tutorialState.steps.length - 1 ? "Terminer le tutoriel" : "Étape suivante"}
             >
               {tutorialState.currentStep === tutorialState.steps.length - 1 ? "Terminer" : "Suivant"}
             </button>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { logger } from "@/lib/logger";
 import { apiPost, apiGet } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
