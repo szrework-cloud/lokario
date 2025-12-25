@@ -13,8 +13,10 @@ export function useDashboardStats() {
     queryKey: ["dashboard", "stats"],
     queryFn: () => getDashboardStats(token || ""),
     enabled: !!token,
-    staleTime: 1000 * 60 * 2, // 2 minutes - les stats changent peu fréquemment
+    staleTime: 1000 * 30, // 30 secondes - les stats doivent être à jour fréquemment
     gcTime: 1000 * 60 * 5, // 5 minutes (ancien cacheTime)
+    refetchOnMount: true, // Toujours rafraîchir au montage pour avoir les données à jour
+    refetchOnWindowFocus: true, // Rafraîchir quand la fenêtre reprend le focus
   });
 }
 
