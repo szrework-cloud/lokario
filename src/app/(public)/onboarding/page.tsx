@@ -112,8 +112,6 @@ export default function OnboardingPage() {
     }
   };
 
-  const [showCompletionVideo, setShowCompletionVideo] = useState(false);
-
   const handleStep4 = async (plan: "starter" | "professional") => {
     if (!token) return;
     setLoading(true);
@@ -144,6 +142,58 @@ export default function OnboardingPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F97316] mx-auto mb-3"></div>
           <p className="text-sm text-[#64748B]">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si la vidéo de complétion doit être affichée
+  if (showCompletionVideo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#F9FAFB] to-[#E5E7EB] flex items-center justify-center p-4">
+        <div className="w-full max-w-5xl">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-lg p-8"
+          >
+            <div className="mb-6 text-center">
+              <h2 className="text-3xl font-bold text-[#0F172A] mb-2">
+                Félicitations ! 🎉
+              </h2>
+              <p className="text-[#64748B]">
+                Vous êtes maintenant prêt à utiliser Lokario. Regardez cette vidéo pour découvrir comment démarrer.
+              </p>
+            </div>
+            
+            <div className="mb-6">
+              <div className="max-w-4xl mx-auto">
+                <div className="relative rounded-xl overflow-hidden shadow-lg bg-black/5">
+                  <div className="aspect-video w-full">
+                    <video
+                      src="/videos/onboarding-completion-video.mp4"
+                      className="w-full h-full object-cover"
+                      controls
+                      playsInline
+                      preload="metadata"
+                    >
+                      Votre navigateur ne supporte pas la lecture de vidéos.
+                    </video>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <AnimatedButton
+                variant="primary"
+                onClick={handleVideoComplete}
+                className="w-full sm:w-auto"
+              >
+                Commencer à utiliser Lokario
+              </AnimatedButton>
+            </div>
+          </motion.div>
         </div>
       </div>
     );
