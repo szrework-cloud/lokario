@@ -2,22 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import dynamic from "next/dynamic";
 import { useAuth } from "@/hooks/useAuth";
-
-// Importer React Joyride dynamiquement pour éviter les erreurs SSR
-const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
 
 interface Step {
   target: string;
-  content: React.ReactNode;
-  disableBeacon?: boolean;
-  placement?: "top" | "bottom" | "left" | "right" | "center" | "auto";
+  title: string;
+  content: string;
+  placement?: "top" | "bottom" | "left" | "right" | "center";
 }
 
 interface TutorialState {
-  run: boolean;
-  stepIndex: number;
+  isRunning: boolean;
+  currentStep: number;
   steps: Step[];
 }
 
@@ -30,8 +26,8 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
   const pathname = usePathname();
   const { user } = useAuth();
   const [tutorialState, setTutorialState] = useState<TutorialState>({
-    run: false,
-    stepIndex: 0,
+    isRunning: false,
+    currentStep: 0,
     steps: [],
   });
 
@@ -53,135 +49,190 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     const steps: Step[] = [
       {
         target: "[data-tutorial='dashboard-overview']",
-        content: (
-          <div className="p-2">
-            <h3 className="font-semibold text-base mb-2 text-[#0F172A]">Bienvenue sur Lokario ! 👋</h3>
-            <p className="text-sm text-[#64748B]">
-              Voici votre tableau de bord. Il vous donne une vue d'ensemble de votre activité.
-            </p>
-          </div>
-        ),
-        disableBeacon: true,
+        title: "Bienvenue sur Lokario ! 👋",
+        content: "Voici votre tableau de bord. Il vous donne une vue d'ensemble de votre activité.",
         placement: "bottom",
       },
       {
         target: "[data-tutorial='inbox-link']",
-        content: (
-          <div className="p-2">
-            <h3 className="font-semibold text-base mb-2 text-[#0F172A]">📥 La Boîte de Réception</h3>
-            <p className="text-sm text-[#64748B] mb-2">
-              Gérez tous vos messages emails, SMS et WhatsApp au même endroit.
-            </p>
-            <p className="text-sm text-[#64748B]">
-              Cliquez sur "Inbox" dans la sidebar pour y accéder.
-            </p>
-          </div>
-        ),
-        disableBeacon: true,
+        title: "📥 La Boîte de Réception",
+        content: "Gérez tous vos messages emails, SMS et WhatsApp au même endroit. Cliquez sur 'Inbox' dans la sidebar pour y accéder.",
         placement: "right",
       },
       {
         target: "[data-tutorial='billing-link']",
-        content: (
-          <div className="p-2">
-            <h3 className="font-semibold text-base mb-2 text-[#0F172A]">💼 Devis & Factures</h3>
-            <p className="text-sm text-[#64748B] mb-2">
-              Créez et gérez vos devis et factures facilement.
-            </p>
-            <p className="text-sm text-[#64748B]">
-              Cliquez sur "Devis & Factures" dans la sidebar.
-            </p>
-          </div>
-        ),
-        disableBeacon: true,
+        title: "💼 Devis & Factures",
+        content: "Créez et gérez vos devis et factures facilement. Cliquez sur 'Devis & Factures' dans la sidebar.",
         placement: "right",
       },
       {
         target: "[data-tutorial='settings-link']",
-        content: (
-          <div className="p-2">
-            <h3 className="font-semibold text-base mb-2 text-[#0F172A]">⚙️ Paramètres</h3>
-            <p className="text-sm text-[#64748B] mb-2">
-              Personnalisez Lokario selon vos besoins : logo, signature, modules, etc.
-            </p>
-            <p className="text-sm text-[#64748B]">
-              Cliquez sur "Paramètres" dans la sidebar.
-            </p>
-          </div>
-        ),
-        disableBeacon: true,
+        title: "⚙️ Paramètres",
+        content: "Personnalisez Lokario selon vos besoins : logo, signature, modules, etc. Cliquez sur 'Paramètres' dans la sidebar.",
         placement: "right",
       },
     ];
 
     setTutorialState({
-      run: true,
-      stepIndex: 0,
+      isRunning: true,
+      currentStep: 0,
       steps,
     });
   }, []);
 
-  const handleJoyrideCallback = (data: any) => {
-    const { status, type } = data;
-
-    if (status === "finished" || status === "skipped") {
-      localStorage.setItem("tutorial_completed", "true");
-      setTutorialState((prev) => ({ ...prev, run: false }));
+  const handleNext = () => {
+    if (tutorialState.currentStep < tutorialState.steps.length - 1) {
+      setTutorialState((prev) => ({
+        ...prev,
+        currentStep: prev.currentStep + 1,
+      }));
+    } else {
+      handleFinish();
     }
   };
 
-  const styles = {
-    options: {
-      primaryColor: "#F97316",
-      zIndex: 10000,
-    },
-    tooltip: {
-      borderRadius: 8,
-    },
-    tooltipContainer: {
-      textAlign: "left" as const,
-    },
-    buttonNext: {
-      backgroundColor: "#F97316",
-      fontSize: 14,
-      padding: "8px 16px",
-      borderRadius: 6,
-    },
-    buttonBack: {
-      color: "#64748B",
-      fontSize: 14,
-      padding: "8px 16px",
-      marginRight: 8,
-    },
-    buttonSkip: {
-      color: "#64748B",
-      fontSize: 14,
-    },
+  const handlePrevious = () => {
+    if (tutorialState.currentStep > 0) {
+      setTutorialState((prev) => ({
+        ...prev,
+        currentStep: prev.currentStep - 1,
+      }));
+    }
   };
+
+  const handleSkip = () => {
+    handleFinish();
+  };
+
+  const handleFinish = () => {
+    localStorage.setItem("tutorial_completed", "true");
+    setTutorialState({
+      isRunning: false,
+      currentStep: 0,
+      steps: [],
+    });
+  };
+
+  // Calculer la position du tooltip
+  const getTooltipPosition = (target: string) => {
+    if (typeof window === "undefined") return { top: 0, left: 0 };
+    
+    const element = document.querySelector(target);
+    if (!element) return { top: 0, left: 0 };
+
+    const rect = element.getBoundingClientRect();
+    const step = tutorialState.steps[tutorialState.currentStep];
+    const placement = step?.placement || "bottom";
+
+    let top = 0;
+    let left = 0;
+
+    switch (placement) {
+      case "bottom":
+        top = rect.bottom + window.scrollY + 16;
+        left = rect.left + window.scrollX + rect.width / 2;
+        break;
+      case "top":
+        top = rect.top + window.scrollY - 16;
+        left = rect.left + window.scrollX + rect.width / 2;
+        break;
+      case "right":
+        top = rect.top + window.scrollY + rect.height / 2;
+        left = rect.right + window.scrollX + 16;
+        break;
+      case "left":
+        top = rect.top + window.scrollY + rect.height / 2;
+        left = rect.left + window.scrollX - 16;
+        break;
+    }
+
+    return { top, left, elementRect: rect };
+  };
+
+  const currentStep = tutorialState.steps[tutorialState.currentStep];
+  const position = tutorialState.isRunning && currentStep
+    ? getTooltipPosition(currentStep.target)
+    : null;
 
   return (
     <>
       {children}
-      {typeof window !== "undefined" && (
-        <Joyride
-          steps={tutorialState.steps}
-          run={tutorialState.run}
-          stepIndex={tutorialState.stepIndex}
-          continuous
-          showProgress
-          showSkipButton
-          callback={handleJoyrideCallback}
-          styles={styles}
-          locale={{
-            back: "Précédent",
-            close: "Fermer",
-            last: "Terminer",
-            next: "Suivant",
-            skip: "Passer",
+      
+      {/* Overlay sombre */}
+      {tutorialState.isRunning && (
+        <div
+          className="fixed inset-0 bg-black/50 z-[9998] transition-opacity"
+          style={{ pointerEvents: "none" }}
+        />
+      )}
+
+      {/* Highlight de l'élément cible */}
+      {tutorialState.isRunning && currentStep && position && (
+        <div
+          className="fixed z-[9999] pointer-events-none"
+          style={{
+            top: `${position.elementRect.top}px`,
+            left: `${position.elementRect.left}px`,
+            width: `${position.elementRect.width}px`,
+            height: `${position.elementRect.height}px`,
+            boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5), 0 0 0 4px #F97316",
+            borderRadius: "8px",
+            transition: "all 0.3s ease",
           }}
         />
+      )}
+
+      {/* Tooltip du tutoriel */}
+      {tutorialState.isRunning && currentStep && position && (
+        <div
+          className="fixed z-[10000] bg-white rounded-lg shadow-2xl max-w-sm p-6 animate-in fade-in slide-in-from-bottom-2"
+          style={{
+            top: `${position.top}px`,
+            left: `${position.left}px`,
+            transform: `translate(-50%, ${currentStep.placement === "bottom" ? "0" : currentStep.placement === "top" ? "-100%" : "0"})`,
+          }}
+        >
+          {/* Indicateur de progression */}
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-medium text-[#64748B]">
+              Étape {tutorialState.currentStep + 1} sur {tutorialState.steps.length}
+            </span>
+            <button
+              onClick={handleSkip}
+              className="text-xs text-[#64748B] hover:text-[#0F172A] transition-colors"
+            >
+              Passer
+            </button>
+          </div>
+
+          {/* Titre */}
+          <h3 className="font-semibold text-base mb-2 text-[#0F172A]">
+            {currentStep.title}
+          </h3>
+
+          {/* Contenu */}
+          <p className="text-sm text-[#64748B] mb-6">
+            {currentStep.content}
+          </p>
+
+          {/* Boutons de navigation */}
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={handlePrevious}
+              disabled={tutorialState.currentStep === 0}
+              className="px-4 py-2 text-sm font-medium text-[#64748B] hover:text-[#0F172A] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Précédent
+            </button>
+            <button
+              onClick={handleNext}
+              className="px-4 py-2 text-sm font-medium text-white bg-[#F97316] hover:bg-[#EA580C] rounded-lg transition-colors"
+            >
+              {tutorialState.currentStep === tutorialState.steps.length - 1 ? "Terminer" : "Suivant"}
+            </button>
+          </div>
+        </div>
       )}
     </>
   );
 }
-

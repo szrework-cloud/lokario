@@ -176,8 +176,10 @@ export default function AppLayout({
 
   return (
     <PageProvider>
+      <TutorialProvider>
         <AppLayoutContent>{children}</AppLayoutContent>
         <FloatingChatWidget />
+      </TutorialProvider>
     </PageProvider>
   );
 }
