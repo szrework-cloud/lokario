@@ -849,7 +849,7 @@ export default function SettingsPage() {
           {settings && (
       <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm" data-tutorial="settings-content">
         {activeTab === "company" && (
-          <div className="space-y-4">
+          <div className="space-y-4" data-tutorial="settings-content-company">
             <div>
               <label className="block text-sm font-medium text-[#0F172A] mb-1">
                 Nom de l'entreprise
@@ -1193,7 +1193,7 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "modules" && settings && (
-          <div className="space-y-4">
+          <div className="space-y-4" data-tutorial="settings-content-modules">
             {user?.role !== "super_admin" && (
               <div className="rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-4 py-3 mb-4">
                 <p className="text-sm text-[#9A3412]">
@@ -1357,7 +1357,7 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "ia" && settings && (
-          <div className="space-y-4">
+          <div className="space-y-4" data-tutorial="settings-content-ia">
             <p className="text-sm text-[#64748B] mb-4">
               Configurez les fonctionnalités d'intelligence artificielle.
             </p>
@@ -1787,7 +1787,7 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "billing" && (
-          <div className="space-y-6">
+          <div className="space-y-6" data-tutorial="settings-content-billing">
             {/* Section Relances automatiques */}
             <Card>
               <CardHeader>
@@ -3224,7 +3224,7 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "team" && (
-          <div className="space-y-4">
+          <div className="space-y-4" data-tutorial="settings-content-team">
             <div className="mb-4">
               <p className="text-sm text-slate-600 mb-3">
                 Gérez les membres de votre équipe et leurs permissions.

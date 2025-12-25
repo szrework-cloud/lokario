@@ -56,7 +56,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         placement: "right",
       },
       {
-        target: "[data-tutorial='settings-tab-company']",
+        target: "[data-tutorial='settings-content-company']",
         title: "📋 Infos entreprise",
         content: (
           <div className="space-y-3">
@@ -77,7 +77,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         navigateTo: "/app/settings?tab=company",
       },
       {
-        target: "[data-tutorial='settings-tab-billing']",
+        target: "[data-tutorial='settings-content-billing']",
         title: "💼 Facturation",
         content: (
           <div className="space-y-3">
@@ -96,7 +96,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         action: "click",
       },
       {
-        target: "[data-tutorial='settings-tab-modules']",
+        target: "[data-tutorial='settings-content-modules']",
         title: "🔧 Modules activés",
         content: (
           <div className="space-y-3">
@@ -114,7 +114,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         action: "click",
       },
       {
-        target: "[data-tutorial='settings-tab-ia']",
+        target: "[data-tutorial='settings-content-ia']",
         title: "🤖 Intelligence artificielle",
         content: (
           <div className="space-y-3">
@@ -131,7 +131,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         action: "click",
       },
       {
-        target: "[data-tutorial='settings-tab-subscription']",
+        target: "[data-tutorial='settings-content-subscription']",
         title: "💳 Abonnement",
         content: (
           <div className="space-y-3">
@@ -148,7 +148,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         action: "click",
       },
       {
-        target: "[data-tutorial='settings-tab-integrations']",
+        target: "[data-tutorial='settings-content-integrations']",
         title: "🔗 Intégrations",
         content: (
           <div className="space-y-3">
@@ -165,7 +165,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         action: "click",
       },
       {
-        target: "[data-tutorial='settings-tab-team']",
+        target: "[data-tutorial='settings-content-team']",
         title: "👥 Équipe",
         content: (
           <div className="space-y-3">
