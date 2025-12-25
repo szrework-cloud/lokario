@@ -45,6 +45,7 @@ from app.api.schemas.inbox import (
 )
 from app.api.deps import get_current_active_user
 from app.core.config import settings
+from app.db.retry import execute_with_retry
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 logger = logging.getLogger(__name__)
@@ -133,11 +134,13 @@ def get_conversations(
         joinedload(Conversation.folder)
     )
     
-    # Trier par dernière activité
-    conversations = query.order_by(
-        Conversation.last_message_at.desc().nullslast(),
-        Conversation.created_at.desc()
-    ).offset(skip).limit(limit).all()
+    # Trier par dernière activité avec retry pour gérer les erreurs SSL
+    def _get_conversations():
+        return query.order_by(
+            Conversation.last_message_at.desc().nullslast(),
+            Conversation.created_at.desc()
+        ).offset(skip).limit(limit).all()
+    conversations = execute_with_retry(db, _get_conversations, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Récupérer tous les premiers messages clients en une seule requête (optimisation N+1)
     conversation_ids = [conv.id for conv in conversations]
@@ -229,12 +232,14 @@ def get_conversation(
         )
     
     # Charger la conversation avec tous les messages (eager loading)
-    conversation = db.query(Conversation).options(
-        joinedload(Conversation.messages).joinedload(InboxMessage.attachments)
-    ).filter(
-        Conversation.id == conversation_id,
-        Conversation.company_id == current_user.company_id
-    ).first()
+    def _get_conversation_detail():
+        return db.query(Conversation).options(
+            joinedload(Conversation.messages).joinedload(InboxMessage.attachments)
+        ).filter(
+            Conversation.id == conversation_id,
+            Conversation.company_id == current_user.company_id
+        ).first()
+    conversation = execute_with_retry(db, _get_conversation_detail, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not conversation:
         raise HTTPException(
@@ -304,10 +309,12 @@ def get_conversation(
     ]
     
     # Récupérer le premier message du client pour l'email/téléphone
-    first_client_message = db.query(InboxMessage).filter(
-        InboxMessage.conversation_id == conversation.id,
-        InboxMessage.is_from_client == True
-    ).order_by(InboxMessage.created_at.asc()).first()
+    def _get_first_client_message():
+        return db.query(InboxMessage).filter(
+            InboxMessage.conversation_id == conversation.id,
+            InboxMessage.is_from_client == True
+        ).order_by(InboxMessage.created_at.asc()).first()
+    first_client_message = execute_with_retry(db, _get_first_client_message, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Récupérer le contenu de la réponse en attente
     pending_reply_content = conversation.pending_auto_reply_content

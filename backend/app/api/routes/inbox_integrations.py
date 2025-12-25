@@ -26,6 +26,7 @@ from pathlib import Path
 import uuid
 from app.core.config import settings
 from app.core.encryption_service import get_encryption_service
+from app.db.retry import execute_with_retry
 
 router = APIRouter(prefix="/inbox/integrations", tags=["inbox-integrations"])
 
@@ -125,41 +126,49 @@ def find_conversation_from_reply(
     if references and len(references) > 0:
         first_reference = normalize_message_id(references[0])
         # Chercher un message avec ce Message-ID comme external_id
-        referenced_message = db.query(InboxMessage).join(Conversation).filter(
-            Conversation.company_id == company_id,
-            Conversation.source == "email",
-            or_(
-                InboxMessage.external_id == first_reference,
-                InboxMessage.external_id == references[0],
-                InboxMessage.external_id == f"<{first_reference}>",
-                InboxMessage.external_id.like(f"%{first_reference}%")
-            )
-        ).first()
+        def _get_referenced_message():
+            return db.query(InboxMessage).join(Conversation).filter(
+                Conversation.company_id == company_id,
+                Conversation.source == "email",
+                or_(
+                    InboxMessage.external_id == first_reference,
+                    InboxMessage.external_id == references[0],
+                    InboxMessage.external_id == f"<{first_reference}>",
+                    InboxMessage.external_id.like(f"%{first_reference}%")
+                )
+            ).first()
+        referenced_message = execute_with_retry(db, _get_referenced_message, max_retries=3, initial_delay=0.5, max_delay=2.0)
         
         if referenced_message:
-            conversation = db.query(Conversation).filter(
-                Conversation.id == referenced_message.conversation_id,
-                Conversation.company_id == company_id
-            ).first()
+            def _get_conversation_from_referenced_message():
+                return db.query(Conversation).filter(
+                    Conversation.id == referenced_message.conversation_id,
+                    Conversation.company_id == company_id
+                ).first()
+            conversation = execute_with_retry(db, _get_conversation_from_referenced_message, max_retries=3, initial_delay=0.5, max_delay=2.0)
             if conversation:
                 return conversation
     
     # Enfin, essayer de trouver via le sujet normalisé (sans Re:, etc.)
     if normalized_subject:
-        conversation = db.query(Conversation).filter(
-            Conversation.company_id == company_id,
-            Conversation.source == "email",
-            Conversation.subject == normalized_subject
-        ).first()
+        def _get_conversation_by_normalized_subject():
+            return db.query(Conversation).filter(
+                Conversation.company_id == company_id,
+                Conversation.source == "email",
+                Conversation.subject == normalized_subject
+            ).first()
+        conversation = execute_with_retry(db, _get_conversation_by_normalized_subject, max_retries=3, initial_delay=0.5, max_delay=2.0)
         if conversation:
             return conversation
         
         # Aussi chercher avec le sujet original (au cas où)
-        conversation = db.query(Conversation).filter(
-            Conversation.company_id == company_id,
-            Conversation.source == "email",
-            Conversation.subject.like(f"%{normalized_subject}%")
-        ).first()
+        def _get_conversation_by_subject_like():
+            return db.query(Conversation).filter(
+                Conversation.company_id == company_id,
+                Conversation.source == "email",
+                Conversation.subject.like(f"%{normalized_subject}%")
+            ).first()
+        conversation = execute_with_retry(db, _get_conversation_by_subject_like, max_retries=3, initial_delay=0.5, max_delay=2.0)
         if conversation:
             return conversation
     
@@ -260,9 +269,11 @@ def get_integrations(
             detail="User is not attached to a company"
         )
     
-    integrations = db.query(InboxIntegration).filter(
-        InboxIntegration.company_id == current_user.company_id
-    ).all()
+    def _get_integrations():
+        return db.query(InboxIntegration).filter(
+            InboxIntegration.company_id == current_user.company_id
+        ).all()
+    integrations = execute_with_retry(db, _get_integrations, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Masquer les mots de passe/clés API dans la réponse
     result = []
@@ -516,7 +527,9 @@ async def sync_integration(
             detail="IMAP configuration is incomplete"
         )
     
-    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    def _get_company():
+        return db.query(Company).filter(Company.id == current_user.company_id).first()
+    company = execute_with_retry(db, _get_company, max_retries=3, initial_delay=0.5, max_delay=2.0)
     if not company:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -524,9 +537,11 @@ async def sync_integration(
         )
     
     # Récupérer les settings de l'entreprise pour obtenir la liste noire de domaines
-    company_settings = db.query(CompanySettings).filter(
-        CompanySettings.company_id == company.id
-    ).first()
+    def _get_company_settings():
+        return db.query(CompanySettings).filter(
+            CompanySettings.company_id == company.id
+        ).first()
+    company_settings = execute_with_retry(db, _get_company_settings, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     blocked_client_domains = []
     if company_settings and company_settings.settings:
@@ -1290,10 +1305,12 @@ async def sync_imap_emails(
                 client = None
                 if from_email:
                     # D'abord vérifier si le client existe déjà (optimisation : pas besoin d'IA si client existe)
-                    client = db.query(Client).filter(
-                        Client.company_id == company.id,
-                        Client.email == from_email
-                    ).first()
+                    def _get_client_by_email():
+                        return db.query(Client).filter(
+                            Client.company_id == company.id,
+                            Client.email == from_email
+                        ).first()
+                    client = execute_with_retry(db, _get_client_by_email, max_retries=3, initial_delay=0.5, max_delay=2.0)
                     
                     # Si le client n'existe pas, vérifier avec l'IA si c'est une notification avant de créer
                     if not client:
