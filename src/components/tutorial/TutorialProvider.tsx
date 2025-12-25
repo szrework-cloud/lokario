@@ -401,7 +401,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     } else {
       setPosition(null);
     }
-  }, [tutorialState.isRunning, tutorialState.currentStep, tutorialState.steps, getTooltipPosition]);
+  }, [tutorialState.isRunning, tutorialState.currentStep, tutorialState.steps, getTooltipPosition, pathname]);
 
   const currentStep = tutorialState.steps[tutorialState.currentStep];
 
