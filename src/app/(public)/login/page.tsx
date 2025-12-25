@@ -192,12 +192,13 @@ function LoginForm() {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Vérifier que l'auth est bien sauvegardée
-      const savedToken = localStorage.getItem("auth_token");
-      const savedUser = localStorage.getItem("auth_user");
+      const { getAuthToken, getAuthUser } = await import("@/lib/auth-storage");
+      const savedToken = getAuthToken();
+      const savedUser = getAuthUser();
       logger.log("✅ Vérification après sauvegarde:", { 
         tokenExists: !!savedToken, 
         userExists: !!savedUser,
-        userEmail: savedUser ? JSON.parse(savedUser).email : null
+        userEmail: savedUser ? (savedUser as any).email : null
       });
       
       if (!savedToken || !savedUser) {

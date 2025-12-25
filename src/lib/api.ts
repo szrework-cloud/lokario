@@ -1,4 +1,6 @@
 import { logger } from "@/lib/logger";
+import { isTokenExpired } from "@/lib/token-utils";
+import { clearAuthStorage } from "@/lib/auth-storage";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -22,6 +24,21 @@ export async function apiPost<T>(
   if (!process.env.NEXT_PUBLIC_API_URL) {
     logger.log("[MOCK API] POST", path, body);
     return Promise.resolve({} as T);
+  }
+
+  // Vérifier si le token est expiré avant de faire la requête (sauf pour login/register)
+  if (token && path !== "/auth/login" && path !== "/auth/register" && isTokenExpired(token)) {
+    // Nettoyer le storage et rediriger
+    clearAuthStorage();
+    if (typeof window !== "undefined") {
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 100);
+    }
+    const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+    (authError as any).status = 401;
+    (authError as any).isAuthError = true;
+    throw authError;
   }
 
   const res = await fetch(buildApiUrl(path), {
@@ -107,6 +124,21 @@ export async function apiGet<T>(path: string, token?: string | null): Promise<T>
     return Promise.resolve({} as T);
   }
 
+  // Vérifier si le token est expiré avant de faire la requête (sauf pour login/register)
+  if (token && path !== "/auth/login" && path !== "/auth/register" && isTokenExpired(token)) {
+    // Nettoyer le storage et rediriger
+    clearAuthStorage();
+    if (typeof window !== "undefined") {
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 100);
+    }
+    const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+    (authError as any).status = 401;
+    (authError as any).isAuthError = true;
+    throw authError;
+  }
+
   const res = await fetch(buildApiUrl(path), {
     headers: {
       "Content-Type": "application/json",
@@ -152,10 +184,9 @@ export async function apiGet<T>(path: string, token?: string | null): Promise<T>
         throw authError;
       } else {
         // Pour les autres routes, c'est une session expirée
-        // Nettoyer le localStorage
+        // Nettoyer le storage
+        clearAuthStorage();
         if (typeof window !== "undefined") {
-          localStorage.removeItem("auth_token");
-          localStorage.removeItem("auth_user");
           // Rediriger vers la page de connexion après un court délai
           setTimeout(() => {
             window.location.href = "/login";
@@ -193,6 +224,22 @@ export async function apiPut<T>(
   if (!process.env.NEXT_PUBLIC_API_URL) {
     logger.log("[MOCK API] PUT", path, body);
     return Promise.resolve({} as T);
+  }
+
+  // Vérifier si le token est expiré avant de faire la requête
+  if (token && isTokenExpired(token)) {
+    // Nettoyer le localStorage et rediriger
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 100);
+    }
+    const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+    (authError as any).status = 401;
+    (authError as any).isAuthError = true;
+    throw authError;
   }
 
   const res = await fetch(buildApiUrl(path), {
@@ -260,6 +307,22 @@ export async function apiPatch<T>(
     return Promise.resolve({} as T);
   }
 
+  // Vérifier si le token est expiré avant de faire la requête
+  if (token && isTokenExpired(token)) {
+    // Nettoyer le localStorage et rediriger
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 100);
+    }
+    const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+    (authError as any).status = 401;
+    (authError as any).isAuthError = true;
+    throw authError;
+  }
+
   const res = await fetch(buildApiUrl(path), {
     method: "PATCH",
     headers: {
@@ -304,6 +367,22 @@ export async function apiDelete<T>(
   if (!process.env.NEXT_PUBLIC_API_URL) {
     logger.log("[MOCK API] DELETE", path);
     return Promise.resolve({} as T);
+  }
+
+  // Vérifier si le token est expiré avant de faire la requête
+  if (token && isTokenExpired(token)) {
+    // Nettoyer le localStorage et rediriger
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 100);
+    }
+    const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+    (authError as any).status = 401;
+    (authError as any).isAuthError = true;
+    throw authError;
   }
 
   const res = await fetch(buildApiUrl(path), {
@@ -355,6 +434,22 @@ export async function apiUploadFile<T>(
   if (!process.env.NEXT_PUBLIC_API_URL) {
     logger.log("[MOCK API] UPLOAD", path, file.name);
     return Promise.resolve({} as T);
+  }
+
+  // Vérifier si le token est expiré avant de faire la requête
+  if (token && isTokenExpired(token)) {
+    // Nettoyer le localStorage et rediriger
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 100);
+    }
+    const authError = new Error("Votre session a expiré. Veuillez vous reconnecter.");
+    (authError as any).status = 401;
+    (authError as any).isAuthError = true;
+    throw authError;
   }
 
   const formData = new FormData();

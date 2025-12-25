@@ -112,26 +112,49 @@ def get_dashboard_stats(
     
     # ==================== FACTURES ====================
     # CA mensuel (factures payées ce mois-ci)
-    monthly_revenue = db.query(func.sum(Invoice.total_ttc)).filter(
+    # Utiliser paid_at si disponible, sinon utiliser updated_at si le statut est PAYEE
+    monthly_revenue_query = db.query(func.sum(Invoice.total_ttc)).filter(
         Invoice.company_id == current_user.company_id,
         Invoice.status == InvoiceStatus.PAYEE,
-        func.date(Invoice.paid_at) >= first_day_this_month
-    ).scalar() or Decimal('0')
+        or_(
+            and_(
+                Invoice.paid_at.isnot(None),
+                func.date(Invoice.paid_at) >= first_day_this_month
+            ),
+            and_(
+                Invoice.paid_at.is_(None),
+                func.date(Invoice.updated_at) >= first_day_this_month
+            )
+        )
+    )
+    monthly_revenue = monthly_revenue_query.scalar() or Decimal('0')
     
     # CA mois dernier
-    monthly_revenue_last_month = db.query(func.sum(Invoice.total_ttc)).filter(
+    monthly_revenue_last_month_query = db.query(func.sum(Invoice.total_ttc)).filter(
         Invoice.company_id == current_user.company_id,
         Invoice.status == InvoiceStatus.PAYEE,
-        func.date(Invoice.paid_at) >= first_day_last_month,
-        func.date(Invoice.paid_at) <= last_day_last_month
-    ).scalar() or Decimal('0')
+        or_(
+            and_(
+                Invoice.paid_at.isnot(None),
+                func.date(Invoice.paid_at) >= first_day_last_month,
+                func.date(Invoice.paid_at) <= last_day_last_month
+            ),
+            and_(
+                Invoice.paid_at.is_(None),
+                func.date(Invoice.updated_at) >= first_day_last_month,
+                func.date(Invoice.updated_at) <= last_day_last_month
+            )
+        )
+    )
+    monthly_revenue_last_month = monthly_revenue_last_month_query.scalar() or Decimal('0')
     
-    # Factures en retard
+    # Factures en retard (statut IMPAYEE avec due_date passée)
+    # Inclure aussi les factures ENVOYEE en retard pour être plus complet
     overdue_invoices = db.query(Invoice).filter(
         Invoice.company_id == current_user.company_id,
-        Invoice.status == InvoiceStatus.IMPAYEE,
+        Invoice.status.in_([InvoiceStatus.IMPAYEE, InvoiceStatus.ENVOYEE]),
         Invoice.due_date.isnot(None),
-        Invoice.due_date < today
+        func.date(Invoice.due_date) < today
     ).all()
     
     overdue_invoices_count = len(overdue_invoices)
@@ -147,10 +170,20 @@ def get_dashboard_stats(
     
     # ==================== TÂCHES ====================
     # Tâches complétées cette semaine
+    # Utiliser completed_at si disponible, sinon utiliser updated_at si le statut est TERMINE
     tasks_completed_this_week = db.query(Task).filter(
         Task.company_id == current_user.company_id,
         Task.status == TaskStatus.TERMINE,
-        func.date(Task.completed_at) >= week_start
+        or_(
+            and_(
+                Task.completed_at.isnot(None),
+                func.date(Task.completed_at) >= week_start
+            ),
+            and_(
+                Task.completed_at.is_(None),
+                func.date(Task.updated_at) >= week_start
+            )
+        )
     ).count()
     
     # ==================== GRAPHIQUES ====================
@@ -167,12 +200,23 @@ def get_dashboard_stats(
         if month_end > today:
             month_end = today
         
-        month_revenue = db.query(func.sum(Invoice.total_ttc)).filter(
+        month_revenue_query = db.query(func.sum(Invoice.total_ttc)).filter(
             Invoice.company_id == current_user.company_id,
             Invoice.status == InvoiceStatus.PAYEE,
-            func.date(Invoice.paid_at) >= month_start,
-            func.date(Invoice.paid_at) <= month_end
-        ).scalar() or Decimal('0')
+            or_(
+                and_(
+                    Invoice.paid_at.isnot(None),
+                    func.date(Invoice.paid_at) >= month_start,
+                    func.date(Invoice.paid_at) <= month_end
+                ),
+                and_(
+                    Invoice.paid_at.is_(None),
+                    func.date(Invoice.updated_at) >= month_start,
+                    func.date(Invoice.updated_at) <= month_end
+                )
+            )
+        )
+        month_revenue = month_revenue_query.scalar() or Decimal('0')
         
         month_names = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"]
         monthly_billing.append({

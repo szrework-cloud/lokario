@@ -143,11 +143,12 @@ export default function InboxPage() {
           // Rediriger vers la page de login
           if (typeof window !== "undefined") {
             // Nettoyer le token invalide
-            localStorage.removeItem("auth_token");
-            localStorage.removeItem("auth_user");
-            setTimeout(() => {
-              window.location.href = "/login";
-            }, 1000);
+            import("@/lib/auth-storage").then(({ clearAuthStorage }) => {
+              clearAuthStorage();
+              setTimeout(() => {
+                window.location.href = "/login";
+              }, 1000);
+            });
           }
           setError("Votre session a expiré. Redirection vers la page de connexion...");
         } else {

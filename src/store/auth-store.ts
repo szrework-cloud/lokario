@@ -1,5 +1,16 @@
 import { create } from "zustand";
 import { logger } from "@/lib/logger";
+import { isTokenExpired } from "@/lib/token-utils";
+import {
+  saveAuthToken,
+  getAuthToken,
+  removeAuthToken,
+  saveAuthUser,
+  getAuthUser,
+  removeAuthUser,
+  clearAuthStorage,
+  migrateFromLocalStorage,
+} from "@/lib/auth-storage";
 
 export type UserRole = "super_admin" | "owner" | "user";
 
@@ -32,49 +43,52 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuth: (token, user) => {
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("auth_token", token);
-        localStorage.setItem("auth_user", JSON.stringify(user));
-        logger.log("✅ Auth sauvegardée dans localStorage:", { 
+        saveAuthToken(token);
+        saveAuthUser(user);
+        logger.log("✅ Auth sauvegardée dans sessionStorage:", { 
           tokenLength: token?.length, 
           userEmail: user?.email 
         });
       } catch (error) {
-        console.error("❌ Erreur lors de la sauvegarde dans localStorage:", error);
+        console.error("❌ Erreur lors de la sauvegarde:", error);
       }
     }
     set({ token, user, isLoading: false });
     logger.log("✅ Auth mise à jour dans le store:", { hasToken: !!token, hasUser: !!user });
   },
   clearAuth: () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("auth_user");
-    }
+    clearAuthStorage();
     set({ token: null, user: null, isLoading: false });
   },
   hydrateFromStorage: () => {
     if (typeof window === "undefined") return;
-    const token = localStorage.getItem("auth_token");
-    const userRaw = localStorage.getItem("auth_user");
-    logger.log("🔄 Hydratation depuis localStorage:", { hasToken: !!token, hasUser: !!userRaw });
-    if (token && userRaw) {
-      try {
-        const user = JSON.parse(userRaw) as CurrentUser;
-        logger.log("✅ Utilisateur restauré depuis localStorage:", user.email);
-        set({ token, user, isLoading: false });
-      } catch (error) {
-        console.error("❌ Erreur lors du parsing de l'utilisateur:", error);
-        set({ token: null, user: null, isLoading: false });
-      }
+    
+    // Migrer depuis localStorage vers sessionStorage si nécessaire (une seule fois)
+    migrateFromLocalStorage();
+    
+    const token = getAuthToken();
+    const user = getAuthUser<CurrentUser>();
+    
+    logger.log("🔄 Hydratation depuis storage:", { hasToken: !!token, hasUser: !!user });
+    
+    // Vérifier si le token est expiré
+    if (token && isTokenExpired(token)) {
+      logger.log("⚠️ Token expiré détecté, nettoyage de l'authentification");
+      clearAuthStorage();
+      set({ token: null, user: null, isLoading: false });
+      return;
+    }
+    
+    if (token && user) {
+      logger.log("✅ Utilisateur restauré depuis storage:", user.email);
+      set({ token, user, isLoading: false });
     } else {
-      logger.log("⚠️ Pas de données d'auth dans localStorage");
+      logger.log("⚠️ Pas de données d'auth dans storage");
       set({ token: null, user: null, isLoading: false });
     }
   },
   refreshUser: (user: CurrentUser) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("auth_user", JSON.stringify(user));
-    }
+    saveAuthUser(user);
     set((state) => ({ ...state, user }));
   },
 }));

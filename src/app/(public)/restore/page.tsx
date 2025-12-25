@@ -39,9 +39,10 @@ export default function RestoreAccountPage() {
       // Attendre un peu pour que le token soit chargé
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Vérifier le token depuis localStorage directement
-      const localToken = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
-      const tokenToUse = token || localToken;
+      // Vérifier le token depuis le storage directement
+      const { getAuthToken } = await import("@/lib/auth-storage");
+      const storedToken = typeof window !== "undefined" ? getAuthToken() : null;
+      const tokenToUse = token || storedToken;
       
       if (!tokenToUse) {
         // Si vraiment pas de token, rediriger vers login
