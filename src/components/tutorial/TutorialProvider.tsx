@@ -442,9 +442,8 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         transformX = "-50%";
         break;
       case "top":
-        top = rect.top - 16;
-        left = rect.left + rect.width / 2;
-        transformX = "-50%";
+        top = rect.top - 10;
+        left = rect.right - 400; // Positionner à droite avec une largeur de ~400px (max-w-sm)
         transformY = "-100%";
         break;
       case "right":
