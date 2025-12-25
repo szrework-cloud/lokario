@@ -7,8 +7,9 @@ import { Invoice, Payment, BillingLine } from "@/components/billing/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { getInvoiceStatusColor, formatAmount, calculateLineTotal, isInvoiceOverdue, getDaysOverdue } from "@/components/billing/utils";
-import { getInvoice, updateInvoice, validateInvoice, cancelInvoice, generatePDF, getRelatedDocuments, Invoice as InvoiceAPI, InvoiceLine, RelatedDocument } from "@/services/invoicesService";
+import { getInvoice, updateInvoice, validateInvoice, cancelInvoice, generatePDF, getRelatedDocuments, sendInvoiceEmail, Invoice as InvoiceAPI, InvoiceLine, RelatedDocument } from "@/services/invoicesService";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettings } from "@/hooks/useSettings";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { logger } from "@/lib/logger";
@@ -18,6 +19,7 @@ export default function InvoiceDetailPage() {
   const params = useParams();
   const invoiceId = Number(params.id);
   const { token } = useAuth();
+  const { settings } = useSettings(false);
   const { showToast } = useToast();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,6 +30,16 @@ export default function InvoiceDetailPage() {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [creditNoteAmount, setCreditNoteAmount] = useState<string>("");
+  const [isSending, setIsSending] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [senderEmail, setSenderEmail] = useState<string>("");
+  const [emailForm, setEmailForm] = useState({
+    subject: "",
+    content: "",
+    additionalRecipients: [] as string[],
+    newRecipient: "",
+    additionalAttachments: [] as File[]
+  });
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     date: new Date().toISOString().split("T")[0],
@@ -112,6 +124,52 @@ export default function InvoiceDetailPage() {
 
     loadInvoice();
   }, [invoiceId, token]);
+
+  // Charger l'email de l'expéditeur et préparer le formulaire quand le modal s'ouvre
+  useEffect(() => {
+    const loadEmailData = async () => {
+      if (!showSendModal || !token || !invoice) return;
+      
+      try {
+        // Charger l'intégration inbox principale
+        const { apiGet } = await import("@/lib/api");
+        const integrations = await apiGet<any[]>("/inbox/integrations", token);
+        const primaryIntegration = integrations.find((int: any) => int.is_primary && int.is_active);
+        
+        if (primaryIntegration?.email_address) {
+          setSenderEmail(primaryIntegration.email_address);
+        }
+        
+        // Charger le template d'email depuis les settings
+        const billingSettings = (settings?.settings as any)?.billing || {};
+        let emailTemplate = billingSettings.invoice_email_template;
+        
+        // Si pas de template personnalisé, utiliser le template par défaut
+        if (!emailTemplate) {
+          emailTemplate = "Bonjour,\n\nVeuillez trouver ci-joint la facture {invoice_number}.\n\nMontant total : {total_amount}€\nDate d'échéance : {due_date}\n\n{notes}\n\nCordialement";
+        }
+        
+        // Remplacer les variables du template
+        let defaultContent = emailTemplate
+          .replace(/{invoice_number}/g, invoice.number)
+          .replace(/{total_amount}/g, invoice.total.toFixed(2))
+          .replace(/{due_date}/g, invoice.due_date ? new Date(invoice.due_date).toLocaleDateString("fr-FR") : "Non définie")
+          .replace(/{notes}/g, invoice.notes ? `Notes: ${invoice.notes}` : "");
+        
+        setEmailForm({
+          subject: `Facture ${invoice.number}`,
+          content: defaultContent,
+          additionalRecipients: [],
+          newRecipient: "",
+          additionalAttachments: []
+        });
+      } catch (err) {
+        console.error("Erreur lors du chargement des données email:", err);
+      }
+    };
+    
+    loadEmailData();
+  }, [showSendModal, token, invoice, settings]);
 
   if (isLoading) {
     return (
@@ -363,6 +421,16 @@ export default function InvoiceDetailPage() {
                 >
                   📄 PDF
                 </button>
+                {invoice.status === "brouillon" && (
+                  <button
+                    onClick={() => {
+                      setShowSendModal(true);
+                    }}
+                    className="rounded-xl bg-gradient-to-r from-green-600 to-green-700 px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110"
+                  >
+                    📤 Envoyer la facture
+                  </button>
+                )}
                 {invoice.status !== "payée" && invoice.status !== "annulée" && (
                   <>
                     <button
@@ -1042,6 +1110,307 @@ export default function InvoiceDetailPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Modal d'envoi de facture par email */}
+        <Modal
+          isOpen={showSendModal}
+          onClose={() => {
+            setShowSendModal(false);
+            setEmailForm({
+              subject: "",
+              content: "",
+              additionalRecipients: [],
+              newRecipient: "",
+              additionalAttachments: []
+            });
+          }}
+          title="Envoyer la facture par email"
+          size="xl"
+        >
+          <div className="w-full space-y-4 px-6 py-4">
+            {/* Section Expéditeur et Destinataire */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Expéditeur */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-[#0F172A]">
+                  Expéditeur
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={senderEmail}
+                    readOnly
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm bg-gradient-to-br from-[#F9FAFB] to-[#F3F4F6] text-[#64748B] font-medium"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    <span className="text-xs text-[#94A3B8] bg-white px-1.5 py-0.5 rounded border border-[#E5E7EB]">Lecture seule</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Destinataire principal */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-[#0F172A]">
+                  Destinataire principal
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={invoice?.client_name || "Chargement..."}
+                    readOnly
+                    className="w-full rounded-lg border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 text-amber-700 px-3 py-2 text-sm font-medium"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    <span className="text-xs text-amber-600 bg-white px-1.5 py-0.5 rounded border border-amber-200">Email à configurer</span>
+                  </div>
+                </div>
+                <div className="p-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs text-amber-700">
+                    Ajoutez un email dans les destinataires supplémentaires.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Destinataires supplémentaires */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A]">
+                Destinataires supplémentaires <span className="text-[#94A3B8] font-normal">(optionnel)</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={emailForm.newRecipient}
+                  onChange={(e) => setEmailForm({ ...emailForm, newRecipient: e.target.value })}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter" && emailForm.newRecipient.trim()) {
+                      e.preventDefault();
+                      if (!emailForm.additionalRecipients.includes(emailForm.newRecipient.trim())) {
+                        setEmailForm({
+                          ...emailForm,
+                          additionalRecipients: [...emailForm.additionalRecipients, emailForm.newRecipient.trim()],
+                          newRecipient: ""
+                        });
+                      }
+                    }
+                  }}
+                  placeholder="email@exemple.com"
+                  className="flex-1 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1 transition-all"
+                />
+                <button
+                  onClick={() => {
+                    if (emailForm.newRecipient.trim() && !emailForm.additionalRecipients.includes(emailForm.newRecipient.trim())) {
+                      setEmailForm({
+                        ...emailForm,
+                        additionalRecipients: [...emailForm.additionalRecipients, emailForm.newRecipient.trim()],
+                        newRecipient: ""
+                      });
+                    }
+                  }}
+                  className="rounded-lg bg-[#F97316] text-white px-4 py-2 text-sm font-medium hover:bg-[#EA580C] transition-colors"
+                >
+                  Ajouter
+                </button>
+              </div>
+              {emailForm.additionalRecipients.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1.5 p-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg">
+                  {emailForm.additionalRecipients.map((email, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-[#E5E7EB] rounded text-xs text-[#0F172A]"
+                    >
+                      <span className="font-medium">{email}</span>
+                      <button
+                        onClick={() => {
+                          setEmailForm({
+                            ...emailForm,
+                            additionalRecipients: emailForm.additionalRecipients.filter((_, i) => i !== idx)
+                          });
+                        }}
+                        className="text-[#94A3B8] hover:text-red-500 transition-colors font-bold text-sm leading-none"
+                        title="Supprimer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Objet */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A]">
+                Objet <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={emailForm.subject}
+                onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
+                className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1 transition-all bg-white"
+                required
+                placeholder="Sujet de l'email"
+              />
+            </div>
+
+            {/* Contenu */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#0F172A]">
+                <span>Contenu</span>
+                <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={emailForm.content}
+                onChange={(e) => setEmailForm({ ...emailForm, content: e.target.value })}
+                rows={10}
+                className="w-full rounded-lg border border-[#E5E7EB] px-4 py-3 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1 transition-all bg-white resize-none font-mono"
+                required
+                placeholder="Contenu de l'email..."
+              />
+            </div>
+
+            {/* Pièces jointes supplémentaires */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A]">
+                Pièces jointes supplémentaires <span className="text-[#94A3B8] font-normal">(optionnel)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setEmailForm({
+                      ...emailForm,
+                      additionalAttachments: [...emailForm.additionalAttachments, ...files]
+                    });
+                  }}
+                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1 transition-all bg-white cursor-pointer file:mr-3 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[#F97316] file:text-white file:cursor-pointer hover:file:bg-[#EA580C]"
+                />
+              </div>
+              {emailForm.additionalAttachments.length > 0 && (
+                <div className="mt-1.5 space-y-1.5 p-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg">
+                  {emailForm.additionalAttachments.map((file, idx) => (
+                    <div key={idx} className="flex items-center justify-between px-2 py-1.5 bg-white border border-[#E5E7EB] rounded text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-[#0F172A]">{file.name}</span>
+                        <span className="text-[#94A3B8]">
+                          ({(file.size / 1024).toFixed(1)} KB)
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setEmailForm({
+                            ...emailForm,
+                            additionalAttachments: emailForm.additionalAttachments.filter((_, i) => i !== idx)
+                          });
+                        }}
+                        className="text-[#94A3B8] hover:text-red-500 transition-colors font-bold text-sm leading-none px-1"
+                        title="Supprimer"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  <strong>Note :</strong> Le PDF de la facture sera automatiquement joint à l'email.
+                </p>
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div className="flex justify-end gap-2 pt-4 border-t border-[#E5E7EB]">
+              <button
+                onClick={() => {
+                  setShowSendModal(false);
+                  setEmailForm({
+                    subject: "",
+                    content: "",
+                    additionalRecipients: [],
+                    newRecipient: "",
+                    additionalAttachments: []
+                  });
+                }}
+                className="rounded-lg border-2 border-[#E5E7EB] px-4 py-2 text-sm font-semibold text-[#0F172A] hover:bg-[#F9FAFB] hover:border-[#D1D5DB] transition-all"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  if (!token || !invoice || !emailForm.subject || !emailForm.content) return;
+                  
+                  setIsSending(true);
+                  try {
+                    const result = await sendInvoiceEmail(token, invoice.id, {
+                      subject: emailForm.subject,
+                      content: emailForm.content,
+                      additional_recipients: emailForm.additionalRecipients,
+                      additional_attachments: emailForm.additionalAttachments
+                    });
+                    
+                    // Mettre à jour la facture
+                    const updatedInvoice = await getInvoice(token, invoice.id);
+                    const validOperationCategory = updatedInvoice.operation_category && 
+                      (updatedInvoice.operation_category === "vente" || 
+                       updatedInvoice.operation_category === "prestation" || 
+                       updatedInvoice.operation_category === "les deux")
+                      ? updatedInvoice.operation_category as "vente" | "prestation" | "les deux"
+                      : undefined;
+
+                    setInvoice({
+                      ...updatedInvoice,
+                      client_name: updatedInvoice.client_name || "",
+                      due_date: updatedInvoice.due_date || new Date().toISOString().split('T')[0],
+                      operation_category: validOperationCategory,
+                      vat_on_debit: updatedInvoice.vat_on_debit ?? false,
+                      vat_applicable: updatedInvoice.vat_applicable ?? true,
+                      amount: updatedInvoice.amount || updatedInvoice.total_ttc || 0,
+                      lines: (updatedInvoice.lines || []).map((line) => ({
+                        id: line.id || 0,
+                        description: line.description,
+                        quantity: line.quantity,
+                        unit: line.unit,
+                        unitPrice: line.unit_price_ht,
+                        taxRate: line.tax_rate,
+                        total: line.total_ttc,
+                      })),
+                      amount_paid: updatedInvoice.amount_paid || 0,
+                      amount_remaining: updatedInvoice.amount_remaining ?? (updatedInvoice.total_ttc || updatedInvoice.amount || 0),
+                      subtotal: updatedInvoice.subtotal_ht || 0,
+                      tax: updatedInvoice.total_tax || 0,
+                      total: updatedInvoice.total_ttc || updatedInvoice.amount || 0,
+                      timeline: [],
+                      history: [],
+                      payments: invoice.payments || [],
+                    } as Invoice);
+                    
+                    setShowSendModal(false);
+                    setEmailForm({
+                      subject: "",
+                      content: "",
+                      additionalRecipients: [],
+                      newRecipient: "",
+                      additionalAttachments: []
+                    });
+                    showToast(`Facture envoyée avec succès à ${result.total_recipients} destinataire(s)`, "success");
+                  } catch (err: any) {
+                    console.error("Erreur lors de l'envoi de l'email:", err);
+                    showToast(`Erreur lors de l'envoi: ${err.message || "Erreur inconnue"}`, "error");
+                  } finally {
+                    setIsSending(false);
+                  }
+                }}
+                disabled={isSending || !emailForm.subject || !emailForm.content}
+                className="rounded-xl bg-gradient-to-r from-green-600 to-green-700 px-6 py-2 text-sm font-semibold text-white shadow-lg hover:shadow-xl hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+              >
+                {isSending ? "Envoi en cours..." : "Envoyer"}
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </>
   );

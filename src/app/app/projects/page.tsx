@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import React from "react";
 import Image from "next/image";
+import { useQuery } from "@tanstack/react-query";
 import { PageTitle } from "@/components/layout/PageTitle";
 import { ProjectList } from "@/components/projects/ProjectList";
 import { ProjectTimeline } from "@/components/projects/ProjectTimeline";
@@ -11,6 +12,10 @@ import { TimelineEvent } from "@/components/projects/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useAuth } from "@/hooks/useAuth";
+import { useProjects } from "@/hooks/queries/useProjects";
+import { useClients } from "@/hooks/queries/useClients";
+import { getTasks } from "@/services/tasksService";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader } from "@/components/ui/Loader";
 import {
   getProjects,
@@ -27,8 +32,8 @@ import {
   Project as ProjectType,
   ProjectDocument,
 } from "@/services/projectsService";
-import { getClients, Client } from "@/services/clientsService";
-import { getTasks, Task } from "@/services/tasksService";
+import { Task } from "@/services/tasksService";
+import { Client } from "@/services/clientsService";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ModuleLink } from "@/components/ui/ModuleLink";
@@ -235,6 +240,7 @@ function ExcelPreview({ fileName }: { fileName: string }) {
 export default function ProjectsPage() {
   const { user, token, refreshUserFromAPI } = useAuth();
   const { isModuleEnabled } = useModuleAccess();
+  const queryClient = useQueryClient();
   const [selectedProject, setSelectedProject] = useState<ProjectType | null>(null);
   const [isTimelineModalOpen, setIsTimelineModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -245,12 +251,8 @@ export default function ProjectsPage() {
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string; type: "image" | "pdf" | "text"; textContent?: string } | null>(null);
   const [imageUrls, setImageUrls] = useState<Map<number, string>>(new Map());
   
-  const [projects, setProjects] = useState<ProjectType[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   const [statusFilter, setStatusFilter] = useState<"all" | "Nouveau" | "En cours" | "Terminé">("all");
 
@@ -260,38 +262,37 @@ export default function ProjectsPage() {
   const canDeleteProjects = user?.role === "super_admin" || user?.role === "owner" || (user?.role === "user" && user?.can_delete_tasks === true); // Utiliser can_delete_tasks pour l'instant
   const canCreateProjects = user?.role === "super_admin" || user?.role === "owner" || (user?.role === "user" && user?.can_create_tasks === true); // Utiliser can_create_tasks pour l'instant
 
-  // Charger les données
-  const loadData = useCallback(async () => {
-    if (!token) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const [projectsData, clientsData, tasksData] = await Promise.all([
-        getProjects(token, statusFilter !== "all" ? { status: statusFilter } : undefined),
-        getClients(token),
-        getTasks(token),
-      ]);
-      
-      setProjects(projectsData);
-      setClients(clientsData);
-      setTasks(tasksData);
-    } catch (err: any) {
-      console.error("Erreur lors du chargement des données:", err);
-      setError(err.message || "Erreur lors du chargement des données");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [token, statusFilter]);
+  // Charger les données avec React Query (cache automatique)
+  const {
+    data: projectsData = [],
+    isLoading: isLoadingProjects,
+    error: projectsError,
+  } = useProjects(statusFilter !== "all" ? { status: statusFilter } : {});
+
+  const { data: clientsData = [] } = useClients();
+  const { data: tasksData = [], isLoading: isLoadingTasks } = useQuery({
+    queryKey: ["tasks", "all"],
+    queryFn: () => getTasks(token, {}),
+    enabled: !!token,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+  });
+
+  // Adapter les données (compatibilité avec le code existant)
+  const projects = projectsData as ProjectType[];
+  const clients = clientsData;
+  const tasks = tasksData;
+
+  const isLoading = isLoadingProjects || isLoadingTasks;
+  // Utiliser l'erreur de React Query si disponible, sinon l'erreur locale
+  const displayError = projectsError?.message || error;
 
   useEffect(() => {
-    loadData();
     // Rafraîchir les permissions utilisateur à chaque chargement de page
     if (refreshUserFromAPI) {
       refreshUserFromAPI();
     }
-  }, [loadData, refreshUserFromAPI]);
+  }, [refreshUserFromAPI]);
 
   // Nettoyer les URLs blob quand le projet change ou le composant se démonte
   useEffect(() => {
@@ -358,7 +359,8 @@ export default function ProjectsPage() {
       await createProject(token, projectData);
       setSuccessMessage("Projet créé avec succès !");
       setTimeout(() => setSuccessMessage(null), 5000);
-      await loadData();
+      // Invalider le cache React Query pour recharger les projets
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
       setIsCreateModalOpen(false);
     } catch (err: any) {
       console.error("Erreur lors de la création du projet:", err);
@@ -385,7 +387,9 @@ export default function ProjectsPage() {
         setSelectedProject(updatedProject);
       }
       
-      await loadData();
+      // Invalider le cache React Query pour recharger les projets
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
     } catch (err: any) {
       console.error("Erreur lors de la mise à jour du projet:", err);
       setError(err.message || "Erreur lors de la mise à jour du projet");
@@ -410,7 +414,9 @@ export default function ProjectsPage() {
         setSelectedProject(null);
       }
       
-      await loadData();
+      // Invalider le cache React Query pour recharger les projets
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["project", projectToDelete] });
       setIsDeleteConfirmOpen(false);
       setProjectToDelete(null);
     } catch (err: any) {
@@ -430,13 +436,17 @@ export default function ProjectsPage() {
         event.description
       );
       
-      await loadData();
+      // Invalider le cache React Query pour recharger les projets et le projet spécifique
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["project", selectedProject.id] });
       
-      // Recharger le projet sélectionné
-      const updatedProjects = await getProjects(token);
-      const updatedProject = updatedProjects.find((p) => p.id === selectedProject.id);
-      if (updatedProject) {
-        setSelectedProject(updatedProject);
+      // Recharger le projet sélectionné depuis le cache
+      const updatedProjects = queryClient.getQueryData<ProjectType[]>(["projects", statusFilter !== "all" ? { status: statusFilter } : {}]);
+      if (updatedProjects) {
+        const updatedProject = updatedProjects.find((p) => p.id === selectedProject.id);
+        if (updatedProject) {
+          setSelectedProject(updatedProject);
+        }
       }
       
       setIsTimelineModalOpen(false);
@@ -457,13 +467,17 @@ export default function ProjectsPage() {
     try {
       await deleteProjectHistory(token, historyToDelete);
       
-      await loadData();
+      // Invalider le cache React Query pour recharger les projets et le projet spécifique
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["project", selectedProject.id] });
       
-      // Recharger le projet sélectionné
-      const updatedProjects = await getProjects(token);
-      const updatedProject = updatedProjects.find((p) => p.id === selectedProject.id);
-      if (updatedProject) {
-        setSelectedProject(updatedProject);
+      // Recharger le projet sélectionné depuis le cache
+      const updatedProjects = queryClient.getQueryData<ProjectType[]>(["projects", statusFilter !== "all" ? { status: statusFilter } : {}]);
+      if (updatedProjects) {
+        const updatedProject = updatedProjects.find((p) => p.id === selectedProject.id);
+        if (updatedProject) {
+          setSelectedProject(updatedProject);
+        }
       }
       
       setSuccessMessage("Événement supprimé avec succès");
@@ -482,11 +496,17 @@ export default function ProjectsPage() {
     try {
       const document = await uploadProjectDocument(token, selectedProject.id, file);
       
-      // Recharger le projet sélectionné
-      const updatedProjects = await getProjects(token);
-      const updatedProject = updatedProjects.find((p) => p.id === selectedProject.id);
-      if (updatedProject) {
-        setSelectedProject(updatedProject);
+      // Invalider le cache React Query pour recharger les projets et le projet spécifique
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["project", selectedProject.id] });
+      
+      // Recharger le projet sélectionné depuis le cache
+      const updatedProjects = queryClient.getQueryData<ProjectType[]>(["projects", statusFilter !== "all" ? { status: statusFilter } : {}]);
+      if (updatedProjects) {
+        const updatedProject = updatedProjects.find((p) => p.id === selectedProject.id);
+        if (updatedProject) {
+          setSelectedProject(updatedProject);
+        }
       }
       
       setSuccessMessage("Document ajouté avec succès !");
@@ -504,11 +524,17 @@ export default function ProjectsPage() {
     try {
       await deleteProjectDocument(token, documentId);
       
-      // Recharger le projet sélectionné
-      const updatedProjects = await getProjects(token);
-      const updatedProject = updatedProjects.find((p) => p.id === selectedProject.id);
-      if (updatedProject) {
-        setSelectedProject(updatedProject);
+      // Invalider le cache React Query pour recharger les projets et le projet spécifique
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["project", selectedProject.id] });
+      
+      // Recharger le projet sélectionné depuis le cache
+      const updatedProjects = queryClient.getQueryData<ProjectType[]>(["projects", statusFilter !== "all" ? { status: statusFilter } : {}]);
+      if (updatedProjects) {
+        const updatedProject = updatedProjects.find((p) => p.id === selectedProject.id);
+        if (updatedProject) {
+          setSelectedProject(updatedProject);
+        }
       }
       
       setSuccessMessage("Document supprimé avec succès");

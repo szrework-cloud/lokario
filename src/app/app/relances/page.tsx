@@ -19,9 +19,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import {
-  getFollowUps,
-  getFollowUpStats,
-  getWeeklyFollowUps,
   getFollowUpHistory,
   markFollowUpAsDone,
   generateFollowUpMessage,
@@ -31,6 +28,8 @@ import {
   type WeeklyFollowUpData,
   type FollowUpHistoryItem,
 } from "@/services/followupsService";
+import { useFollowUps, useFollowUpStats, useWeeklyFollowUps } from "@/hooks/queries/useFollowUps";
+import { useQueryClient } from "@tanstack/react-query";
 
 type FilterType = "all" | "devis" | "factures" | "infos" | "rdv";
 type StatusFilterType = "all" | "pending" | "done";
@@ -38,13 +37,13 @@ type AutomationFilterType = "all" | "auto" | "manual";
 
 export default function RelancesPage() {
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const followupIdFromUrl = searchParams?.get("followupId");
   const clientIdFromUrl = searchParams?.get("clientId");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FollowUpItem | null>(null);
   const [messageText, setMessageText] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>("all");
   const [automationFilter, setAutomationFilter] = useState<AutomationFilterType>("all");
@@ -56,51 +55,51 @@ export default function RelancesPage() {
   const [isCreateRelanceIaModalOpen, setIsCreateRelanceIaModalOpen] = useState(false);
   const { showToast } = useToast();
 
-  const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
-  const [stats, setStats] = useState<FollowUpStats | null>(null);
-  const [weeklyData, setWeeklyData] = useState<WeeklyFollowUpData[]>([]);
   const [followUpHistory, setFollowUpHistory] = useState<Record<number, FollowUpHistoryItem[]>>({});
 
-  const loadData = async () => {
-    if (!token) return;
-    
-    try {
-      setIsLoading(true);
-      const filters: { status?: string; clientId?: number } = { status: "all" };
-      if (clientIdFromUrl) {
-        filters.clientId = Number(clientIdFromUrl);
-      }
-      
-      const [followupsData, statsData, weeklyDataResult] = await Promise.all([
-        getFollowUps(token, filters),
-        getFollowUpStats(token),
-        getWeeklyFollowUps(token),
-      ]);
-      setFollowUps(followupsData);
-      setStats(statsData);
-      setWeeklyData(weeklyDataResult);
-      
-      // Si followupId est dans l'URL, ouvrir automatiquement cette relance
-      if (followupIdFromUrl) {
-        const followupId = Number(followupIdFromUrl);
-        const followup = followupsData.find(fu => fu.id === followupId);
-        if (followup) {
-          setSelectedFollowUp(followup);
-          setIsSlideOverOpen(true);
-        }
-      }
-    } catch (error) {
-      console.error("Erreur lors du chargement des relances:", error);
-      showToast("Erreur lors du chargement des relances", "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Charger les données avec React Query (cache automatique)
+  const followUpFilters: { status?: string; clientId?: number } = { status: "all" };
+  if (clientIdFromUrl) {
+    followUpFilters.clientId = Number(clientIdFromUrl);
+  }
 
+  const {
+    data: followupsData = [],
+    isLoading: isLoadingFollowUps,
+    error: followUpsError,
+  } = useFollowUps(followUpFilters);
+
+  const {
+    data: statsData,
+    isLoading: isLoadingStats,
+    error: statsError,
+  } = useFollowUpStats();
+
+  const {
+    data: weeklyDataResult = [],
+    isLoading: isLoadingWeekly,
+    error: weeklyError,
+  } = useWeeklyFollowUps();
+
+  // Adapter les données (compatibilité avec le code existant)
+  const followUps = followupsData;
+  const stats = statsData || { total: 0, invoices: 0, quotes: 0, late: 0, total_amount: 0 };
+  const weeklyData = weeklyDataResult;
+
+  const isLoading = isLoadingFollowUps || isLoadingStats || isLoadingWeekly;
+  const errorMessage = followUpsError?.message || statsError?.message || weeklyError?.message || null;
+
+  // Si followupId est dans l'URL, ouvrir automatiquement cette relance
   useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+    if (followupIdFromUrl && followUps.length > 0) {
+      const followupId = Number(followupIdFromUrl);
+      const followup = followUps.find(fu => fu.id === followupId);
+      if (followup) {
+        setSelectedFollowUp(followup);
+        setIsSlideOverOpen(true);
+      }
+    }
+  }, [followupIdFromUrl, followUps]);
 
   // Fermer le dropdown des filtres quand on clique en dehors
   useEffect(() => {
@@ -192,7 +191,9 @@ export default function RelancesPage() {
     
     try {
       await markFollowUpAsDone(id, token);
-      setFollowUps(followUps.map(f => f.id === id ? {...f, status: "Fait"} : f));
+      // Invalider le cache React Query pour recharger les relances
+      queryClient.invalidateQueries({ queryKey: ["followups"] });
+      queryClient.invalidateQueries({ queryKey: ["followups", "stats"] });
       showToast("Relance marquée comme faite", "success");
     } catch (error) {
       console.error("Erreur lors de la mise à jour:", error);
@@ -204,15 +205,10 @@ export default function RelancesPage() {
     if (!token) return;
     
     try {
-      // Recharger les données après suppression
-      const [followupsData, statsData, weeklyDataResult] = await Promise.all([
-        getFollowUps(token, { status: "all" }),
-        getFollowUpStats(token),
-        getWeeklyFollowUps(token),
-      ]);
-      setFollowUps(followupsData);
-      setStats(statsData);
-      setWeeklyData(weeklyDataResult);
+      // Invalider le cache React Query pour recharger les données
+      queryClient.invalidateQueries({ queryKey: ["followups"] });
+      queryClient.invalidateQueries({ queryKey: ["followups", "stats"] });
+      queryClient.invalidateQueries({ queryKey: ["followups", "weekly"] });
     } catch (error) {
       console.error("Erreur lors du rechargement après suppression:", error);
     }
@@ -302,15 +298,16 @@ export default function RelancesPage() {
       setSelectedItem(null);
       setMessageText("");
       
-      // Recharger les données pour mettre à jour l'historique et les stats
-      await loadData();
+      // Invalider le cache React Query pour recharger les données
+      queryClient.invalidateQueries({ queryKey: ["followups"] });
+      queryClient.invalidateQueries({ queryKey: ["followups", "stats"] });
     } catch (error: any) {
       console.error("Erreur lors de l'envoi de la relance:", error);
       showToast(`Erreur lors de l'envoi: ${error.message || "Erreur inconnue"}`, "error");
     }
   };
 
-  const filters: Array<{ id: FilterType; label: string }> = [
+  const filterOptions: Array<{ id: FilterType; label: string }> = [
     { id: "all", label: "Tous" },
     { id: "devis", label: "Devis" },
     { id: "factures", label: "Factures" },
@@ -323,7 +320,7 @@ export default function RelancesPage() {
     const parts: string[] = [];
     
     if (activeFilter !== "all") {
-      const filter = filters.find(f => f.id === activeFilter);
+      const filter = filterOptions.find(f => f.id === activeFilter);
       if (filter) parts.push(filter.label);
     } else {
       parts.push("Tous");
@@ -414,7 +411,7 @@ export default function RelancesPage() {
                       Type
                     </label>
                     <div className="flex flex-wrap gap-2">
-              {filters.map((filter) => (
+              {filterOptions.map((filter) => (
                 <button
                   key={filter.id}
                   onClick={() => setActiveFilter(filter.id)}
@@ -551,15 +548,13 @@ export default function RelancesPage() {
             // Recharger les données après mise à jour
             if (!token) return;
             try {
-              const [followupsData, statsData] = await Promise.all([
-                getFollowUps(token, { status: "all" }),
-                getFollowUpStats(token),
-              ]);
-              setFollowUps(followupsData);
-              setStats(statsData);
-              // Mettre à jour selectedFollowUp si c'est la même relance
-              if (selectedFollowUp) {
-                const updated = followupsData.find(f => f.id === selectedFollowUp.id);
+              // Invalider le cache React Query pour recharger les données
+              queryClient.invalidateQueries({ queryKey: ["followups"] });
+              queryClient.invalidateQueries({ queryKey: ["followups", "stats"] });
+              // Mettre à jour selectedFollowUp depuis le cache
+              const updatedFollowUps = queryClient.getQueryData<FollowUpItem[]>(["followups", { status: "all" }]);
+              if (selectedFollowUp && updatedFollowUps) {
+                const updated = updatedFollowUps.find(f => f.id === selectedFollowUp.id);
                 if (updated) {
                   setSelectedFollowUp(updated);
                 }
@@ -575,8 +570,10 @@ export default function RelancesPage() {
           isOpen={isCreateRelanceIaModalOpen}
           onClose={() => setIsCreateRelanceIaModalOpen(false)}
           onSuccess={() => {
-            // Recharger les données (stats, graphique, liste) après création/envoi
-            loadData();
+            // Invalider le cache React Query pour recharger les données
+            queryClient.invalidateQueries({ queryKey: ["followups"] });
+            queryClient.invalidateQueries({ queryKey: ["followups", "stats"] });
+            queryClient.invalidateQueries({ queryKey: ["followups", "weekly"] });
           }}
         />
 

@@ -323,3 +323,59 @@ export async function getInvoiceAuditLogs(
 ): Promise<InvoiceAuditLog[]> {
   return apiGet<InvoiceAuditLog[]>(`/invoices/${invoiceId}/audit-logs`, token);
 }
+
+export interface InvoiceEmailData {
+  subject: string;
+  content: string;
+  additional_recipients?: string[];
+  additional_attachments?: File[];
+}
+
+export async function sendInvoiceEmail(
+  token: string,
+  invoiceId: number,
+  emailData: InvoiceEmailData
+): Promise<{ success: boolean; sent_count: number; total_recipients: number; message: string }> {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  
+  // Créer FormData pour envoyer les fichiers
+  const formData = new FormData();
+  formData.append("subject", emailData.subject);
+  formData.append("content", emailData.content);
+  
+  // S'assurer que les destinataires supplémentaires sont bien sérialisés
+  const recipients = emailData.additional_recipients || [];
+  formData.append("additional_recipients", JSON.stringify(recipients));
+  
+  // Ajouter les fichiers uploadés
+  if (emailData.additional_attachments && emailData.additional_attachments.length > 0) {
+    emailData.additional_attachments.forEach((file, index) => {
+      formData.append(`attachment_${index}`, file);
+    });
+  }
+  
+  const response = await fetch(`${API_URL}/invoices/${invoiceId}/send-email`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    let message = "Erreur serveur";
+    try {
+      const errorBody = await response.json();
+      if (errorBody.detail) {
+        message = Array.isArray(errorBody.detail)
+          ? errorBody.detail[0].msg ?? message
+          : errorBody.detail;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+  
+  return await response.json();
+}

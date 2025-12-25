@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { PageTitle } from "@/components/layout/PageTitle";
 import { ClientList, Client } from "@/components/clients/ClientList";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
-import { getClients as fetchClients } from "@/services/clientsService";
+import { useClients } from "@/hooks/queries/useClients";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader } from "@/components/ui/Loader";
 import { ClientModal } from "@/components/clients/ClientModal";
 import { PageTransition } from "@/components/ui/PageTransition";
@@ -18,36 +19,19 @@ import { ClientCard } from "@/components/clients/ClientCard";
 export default function ClientsPage() {
   const router = useRouter();
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
-  const [clients, setClients] = useState<Client[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
 
-  // Charger les clients depuis l'API
-  useEffect(() => {
-    const loadClients = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await fetchClients(token, searchQuery || undefined);
-        setClients(data);
-      } catch (err: any) {
-        console.error("Erreur lors du chargement des clients:", err);
-        setError(err.message || "Erreur lors du chargement des clients");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Charger les clients avec React Query (cache automatique avec debounce intégré)
+  const {
+    data: clients = [],
+    isLoading,
+    error: queryError,
+  } = useClients(searchQuery || undefined);
 
-    // Debounce de la recherche
-    const timeoutId = setTimeout(() => {
-      loadClients();
-    }, searchQuery ? 300 : 0);
-
-    return () => clearTimeout(timeoutId);
-  }, [token, searchQuery]);
+  const error = queryError?.message || null;
 
   const handleOpenCreateModal = () => {
     setEditingClient(null);
@@ -65,16 +49,10 @@ export default function ClientsPage() {
   };
 
   const handleModalSuccess = () => {
-    // Recharger la liste des clients après création/modification
-    const loadClients = async () => {
-      try {
-        const data = await fetchClients(token, searchQuery || undefined);
-        setClients(data);
-      } catch (err: any) {
-        console.error("Erreur lors du rechargement:", err);
-      }
-    };
-    loadClients();
+    // Invalider le cache React Query pour recharger les clients
+    queryClient.invalidateQueries({
+      queryKey: ["clients", searchQuery || "all"],
+    });
   };
 
   const handleModalDelete = () => {
