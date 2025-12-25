@@ -461,9 +461,16 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       case "top":
         // Positionner en haut de l'élément, mais s'assurer de ne pas dépasser du haut de l'écran
         top = Math.max(margin, rect.top - tooltipHeight - 10); // Au moins 20px de marge en haut
-        // Positionner à droite de l'élément, mais s'assurer de ne pas dépasser de l'écran
-        left = Math.min(rect.right - tooltipWidth, window.innerWidth - tooltipWidth - margin);
-        left = Math.max(margin, left); // Au moins 20px de marge à gauche
+        // Positionner à droite de l'élément (aligné à droite), mais s'assurer de ne pas dépasser de l'écran
+        left = rect.right - tooltipWidth; // Aligner le tooltip à droite de l'élément
+        // S'assurer qu'on ne dépasse pas à droite
+        if (left + tooltipWidth > window.innerWidth - margin) {
+          left = window.innerWidth - tooltipWidth - margin;
+        }
+        // S'assurer qu'on ne dépasse pas à gauche
+        if (left < margin) {
+          left = margin;
+        }
         transformY = top === margin ? "0%" : "-100%"; // Si on est collé en haut, ne pas décaler vers le haut
         break;
       case "right":
