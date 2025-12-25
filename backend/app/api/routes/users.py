@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from datetime import datetime
 from app.db.session import get_db
@@ -781,4 +781,75 @@ def get_deletion_status(
         "deletion_scheduled_at": current_user.deletion_scheduled_at.isoformat() if current_user.deletion_scheduled_at else None,
         "days_remaining": days_remaining
     }
+
+
+@router.post("/process-account-deletions")
+@router.get("/process-account-deletions")
+def process_account_deletions_endpoint(
+    secret: Optional[str] = Query(None, description="Secret pour protéger l'endpoint (variable CRON_SECRET)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint pour déclencher la suppression définitive des comptes marqués pour suppression.
+    
+    Cet endpoint peut être appelé :
+    - Manuellement via POST/GET /api/users/process-account-deletions?secret=YOUR_CRON_SECRET
+    - Via un service externe de cron (cron-job.org, EasyCron, etc.) quotidiennement
+    - Via un webhook périodique
+    
+    Protection : Nécessite le paramètre 'secret' qui doit correspondre à CRON_SECRET
+    """
+    import logging
+    from app.core.config import settings
+    
+    logger = logging.getLogger(__name__)
+    
+    # Vérifier le secret si configuré
+    if settings.CRON_SECRET:
+        if not secret or secret != settings.CRON_SECRET:
+            logger.warning("Tentative d'accès à /process-account-deletions sans secret valide")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid secret. Provide ?secret=YOUR_CRON_SECRET"
+            )
+    else:
+        # En développement, log un avertissement si pas de secret configuré
+        logger.warning("CRON_SECRET non configuré - l'endpoint est accessible sans protection")
+    
+    try:
+        # Importer directement depuis le script
+        import sys
+        from pathlib import Path
+        
+        # Ajouter le répertoire backend au path si nécessaire
+        backend_dir = Path(__file__).parent.parent.parent
+        if str(backend_dir) not in sys.path:
+            sys.path.insert(0, str(backend_dir))
+        
+        # Importer depuis le script
+        from scripts.process_account_deletions import main as process_account_deletions_main
+        
+        logger.info("🔄 Déclenchement de la suppression des comptes via API...")
+        
+        # Exécuter le traitement (le script gère sa propre session DB)
+        process_account_deletions_main()
+        
+        return {
+            "success": True,
+            "message": "Traitement des suppressions de comptes terminé avec succès",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except ImportError as e:
+        logger.error(f"❌ Erreur d'import lors du traitement des suppressions de comptes: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur d'import: {str(e)}. Vérifiez que le script process_account_deletions.py existe."
+        )
+    except Exception as e:
+        logger.error(f"❌ Erreur lors du traitement des suppressions de comptes: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors du traitement: {str(e)}"
+        )
 

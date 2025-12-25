@@ -25,8 +25,7 @@ from app.api.routes.inbox_integrations import (
     normalize_subject,
     find_conversation_from_reply,
     is_duplicate_message,
-    detect_newsletter_or_spam,
-    get_or_create_spam_folder
+    detect_newsletter_or_spam
 )
 from app.core.conversation_classifier import auto_classify_conversation_status
 from app.core.folder_ai_classifier import classify_conversation_to_folder

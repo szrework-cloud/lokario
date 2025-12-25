@@ -205,53 +205,10 @@ def detect_newsletter_or_spam(email_data: dict) -> Tuple[bool, str]:
 def create_default_folders(db: Session, company_id: int):
     """
     Crée les dossiers par défaut pour une entreprise s'ils n'existent pas.
+    Note: Les dossiers Spam, Newsletters et Notifications ont été supprimés.
     """
-    default_folders = [
-        {
-            "name": "Spam",
-            "folder_type": "autre",
-            "is_system": True,
-            "color": "#DC2626",  # Rouge
-            "ai_rules": {
-                "autoClassify": True,
-                "priority": 1,
-                "filters": {
-                    "keywords": ["spam", "phishing", "scam"],
-                    "keywords_location": "any",
-                    "match_type": "any"
-                }
-            }
-        },
-        {
-            "name": "Newsletters",
-            "folder_type": "autre",
-            "is_system": True,
-            "color": "#F59E0B",  # Orange
-            "ai_rules": {
-                "autoClassify": True,
-                "priority": 2,
-                "filters": {
-                    "keywords": ["newsletter", "se désabonner", "désinscription", "unsubscribe", "désabonnez", "désabonner", "se désabonner"],
-                    "keywords_location": "any",
-                    "match_type": "any"
-                }
-            }
-        },
-        {
-            "name": "Notifications",
-            "folder_type": "autre",
-            "is_system": True,
-            "color": "#6B7280",  # Gris
-            "ai_rules": {
-                "autoClassify": True,
-                "priority": 3,
-                "filters": {
-                    "sender_email": ["noreply@", "no-reply@", "notifications@", "notification@"],
-                    "match_type": "any"
-                }
-            }
-        }
-    ]
+    # Plus aucun dossier par défaut - les utilisateurs créent leurs propres dossiers
+    default_folders = []
     
     created_count = 0
     for folder_data in default_folders:
@@ -283,28 +240,8 @@ def create_default_folders(db: Session, company_id: int):
     return created_count
 
 
-def get_or_create_spam_folder(db: Session, company_id: int) -> InboxFolder:
-    """
-    Récupère ou crée le dossier Spam système pour une entreprise.
-    """
-    spam_folder = db.query(InboxFolder).filter(
-        InboxFolder.company_id == company_id,
-        InboxFolder.is_system == True,
-        InboxFolder.name == "Spam"
-    ).first()
-    
-    if not spam_folder:
-        spam_folder = InboxFolder(
-            company_id=company_id,
-            name="Spam",
-            folder_type="autre",
-            is_system=True,
-            color="#DC2626"  # Rouge pour spam
-        )
-        db.add(spam_folder)
-        db.flush()
-    
-    return spam_folder
+# NOTE: get_or_create_spam_folder et cleanup_old_spam_messages ont été supprimés
+# car les dossiers Spam, Newsletters et Notifications ne sont plus utilisés
 
 
 def cleanup_old_spam_messages(db: Session, company_id: int, days_old: int = 15):

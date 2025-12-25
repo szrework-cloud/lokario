@@ -26,12 +26,16 @@ def upgrade() -> None:
     inspector = inspect(connection)
     existing_tables = inspector.get_table_names()
     
+    # Vérifier si la table companies existe
+    if 'companies' not in existing_tables:
+        # La table n'existe pas encore, on ne fait rien (elle sera créée par une autre migration)
+        return
+    
     # Vérifier si la colonne code existe déjà
-    if 'companies' in existing_tables:
-        existing_columns = [col['name'] for col in inspector.get_columns('companies')]
-        if 'code' in existing_columns:
-            # La colonne existe déjà, on ne fait rien
-            return
+    existing_columns = [col['name'] for col in inspector.get_columns('companies')]
+    if 'code' in existing_columns:
+        # La colonne existe déjà, on ne fait rien
+        return
     
     # Détecter le type de base de données
     dialect = connection.dialect.name
