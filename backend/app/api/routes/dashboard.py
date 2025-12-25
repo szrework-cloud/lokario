@@ -12,6 +12,7 @@ from app.db.models.task import Task, TaskStatus
 from app.db.models.followup import FollowUp, FollowUpHistory, FollowUpHistoryStatus
 from app.db.models.conversation import Conversation
 from app.api.deps import get_current_active_user
+from app.db.retry import execute_with_retry
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -113,78 +114,86 @@ def get_dashboard_stats(
     # ==================== FACTURES ====================
     # CA mensuel (factures payées ce mois-ci)
     # Utiliser paid_at si disponible, sinon utiliser updated_at si le statut est PAYEE
-    monthly_revenue_query = db.query(func.sum(Invoice.total_ttc)).filter(
-        Invoice.company_id == current_user.company_id,
-        Invoice.status == InvoiceStatus.PAYEE,
-        or_(
-            and_(
-                Invoice.paid_at.isnot(None),
-                func.date(Invoice.paid_at) >= first_day_this_month
-            ),
-            and_(
-                Invoice.paid_at.is_(None),
-                func.date(Invoice.updated_at) >= first_day_this_month
+    def _get_monthly_revenue():
+        return db.query(func.sum(Invoice.total_ttc)).filter(
+            Invoice.company_id == current_user.company_id,
+            Invoice.status == InvoiceStatus.PAYEE,
+            or_(
+                and_(
+                    Invoice.paid_at.isnot(None),
+                    func.date(Invoice.paid_at) >= first_day_this_month
+                ),
+                and_(
+                    Invoice.paid_at.is_(None),
+                    func.date(Invoice.updated_at) >= first_day_this_month
+                )
             )
-        )
-    )
-    monthly_revenue = monthly_revenue_query.scalar() or Decimal('0')
+        ).scalar() or Decimal('0')
+    monthly_revenue = execute_with_retry(db, _get_monthly_revenue, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # CA mois dernier
-    monthly_revenue_last_month_query = db.query(func.sum(Invoice.total_ttc)).filter(
-        Invoice.company_id == current_user.company_id,
-        Invoice.status == InvoiceStatus.PAYEE,
-        or_(
-            and_(
-                Invoice.paid_at.isnot(None),
-                func.date(Invoice.paid_at) >= first_day_last_month,
-                func.date(Invoice.paid_at) <= last_day_last_month
-            ),
-            and_(
-                Invoice.paid_at.is_(None),
-                func.date(Invoice.updated_at) >= first_day_last_month,
-                func.date(Invoice.updated_at) <= last_day_last_month
+    def _get_monthly_revenue_last_month():
+        return db.query(func.sum(Invoice.total_ttc)).filter(
+            Invoice.company_id == current_user.company_id,
+            Invoice.status == InvoiceStatus.PAYEE,
+            or_(
+                and_(
+                    Invoice.paid_at.isnot(None),
+                    func.date(Invoice.paid_at) >= first_day_last_month,
+                    func.date(Invoice.paid_at) <= last_day_last_month
+                ),
+                and_(
+                    Invoice.paid_at.is_(None),
+                    func.date(Invoice.updated_at) >= first_day_last_month,
+                    func.date(Invoice.updated_at) <= last_day_last_month
+                )
             )
-        )
-    )
-    monthly_revenue_last_month = monthly_revenue_last_month_query.scalar() or Decimal('0')
+        ).scalar() or Decimal('0')
+    monthly_revenue_last_month = execute_with_retry(db, _get_monthly_revenue_last_month, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Factures en retard (statut IMPAYEE avec due_date passée)
     # Inclure aussi les factures ENVOYEE en retard pour être plus complet
-    overdue_invoices = db.query(Invoice).filter(
-        Invoice.company_id == current_user.company_id,
-        Invoice.status.in_([InvoiceStatus.IMPAYEE, InvoiceStatus.ENVOYEE]),
-        Invoice.due_date.isnot(None),
-        func.date(Invoice.due_date) < today
-    ).all()
+    def _get_overdue_invoices():
+        return db.query(Invoice).filter(
+            Invoice.company_id == current_user.company_id,
+            Invoice.status.in_([InvoiceStatus.IMPAYEE, InvoiceStatus.ENVOYEE]),
+            Invoice.due_date.isnot(None),
+            func.date(Invoice.due_date) < today
+        ).all()
+    overdue_invoices = execute_with_retry(db, _get_overdue_invoices, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     overdue_invoices_count = len(overdue_invoices)
     overdue_invoices_amount = sum(float(inv.total_ttc or inv.amount or 0) for inv in overdue_invoices)
     
     # ==================== RELANCES ====================
     # Relances envoyées ce mois-ci
-    followups_sent_this_month = db.query(FollowUpHistory).filter(
-        FollowUpHistory.company_id == current_user.company_id,
-        FollowUpHistory.status == FollowUpHistoryStatus.ENVOYE,
-        func.date(FollowUpHistory.sent_at) >= first_day_this_month
-    ).count()
+    def _get_followups_sent_this_month():
+        return db.query(FollowUpHistory).filter(
+            FollowUpHistory.company_id == current_user.company_id,
+            FollowUpHistory.status == FollowUpHistoryStatus.ENVOYE,
+            func.date(FollowUpHistory.sent_at) >= first_day_this_month
+        ).count()
+    followups_sent_this_month = execute_with_retry(db, _get_followups_sent_this_month, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # ==================== TÂCHES ====================
     # Tâches complétées cette semaine
     # Utiliser completed_at si disponible, sinon utiliser updated_at si le statut est TERMINE
-    tasks_completed_this_week = db.query(Task).filter(
-        Task.company_id == current_user.company_id,
-        Task.status == TaskStatus.TERMINE,
-        or_(
-            and_(
-                Task.completed_at.isnot(None),
-                func.date(Task.completed_at) >= week_start
-            ),
-            and_(
-                Task.completed_at.is_(None),
-                func.date(Task.updated_at) >= week_start
+    def _get_tasks_completed_this_week():
+        return db.query(Task).filter(
+            Task.company_id == current_user.company_id,
+            Task.status == TaskStatus.TERMINE,
+            or_(
+                and_(
+                    Task.completed_at.isnot(None),
+                    func.date(Task.completed_at) >= week_start
+                ),
+                and_(
+                    Task.completed_at.is_(None),
+                    func.date(Task.updated_at) >= week_start
+                )
             )
-        )
-    ).count()
+        ).count()
+    tasks_completed_this_week = execute_with_retry(db, _get_tasks_completed_this_week, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # ==================== GRAPHIQUES ====================
     # Montants facturés par mois (6 derniers mois)
@@ -234,12 +243,14 @@ def get_dashboard_stats(
         if week_end_date > today:
             week_end_date = today
         
-        week_quotes_count = db.query(Quote).filter(
-            Quote.company_id == current_user.company_id,
-            Quote.status.in_([QuoteStatus.ENVOYE, QuoteStatus.VU, QuoteStatus.ACCEPTE, QuoteStatus.REFUSE]),
-            func.date(Quote.sent_at) >= week_start_date,
-            func.date(Quote.sent_at) <= week_end_date
-        ).count()
+        def _get_week_quotes_count():
+            return db.query(Quote).filter(
+                Quote.company_id == current_user.company_id,
+                Quote.status.in_([QuoteStatus.ENVOYE, QuoteStatus.VU, QuoteStatus.ACCEPTE, QuoteStatus.REFUSE]),
+                func.date(Quote.sent_at) >= week_start_date,
+                func.date(Quote.sent_at) <= week_end_date
+            ).count()
+        week_quotes_count = execute_with_retry(db, _get_week_quotes_count, max_retries=3, initial_delay=0.5, max_delay=2.0)
         
         weekly_quotes.append({
             "label": f"Sem {4-i}",
@@ -250,24 +261,30 @@ def get_dashboard_stats(
     # Calculer le temps gagné basé sur les actions automatisées
     
     # Trouver la première activité automatisée pour calculer le nombre réel de jours
-    first_auto_followup = db.query(func.min(FollowUpHistory.sent_at)).join(
-        FollowUp, FollowUpHistory.followup_id == FollowUp.id
-    ).filter(
-        FollowUpHistory.company_id == current_user.company_id,
-        FollowUpHistory.status == FollowUpHistoryStatus.ENVOYE,
-        FollowUp.auto_enabled == True
-    ).scalar()
+    def _get_first_auto_followup():
+        return db.query(func.min(FollowUpHistory.sent_at)).join(
+            FollowUp, FollowUpHistory.followup_id == FollowUp.id
+        ).filter(
+            FollowUpHistory.company_id == current_user.company_id,
+            FollowUpHistory.status == FollowUpHistoryStatus.ENVOYE,
+            FollowUp.auto_enabled == True
+        ).scalar()
+    first_auto_followup = execute_with_retry(db, _get_first_auto_followup, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
-    first_auto_reply = db.query(func.min(Conversation.last_message_at)).filter(
-        Conversation.company_id == current_user.company_id,
-        Conversation.auto_reply_sent == True,
-        Conversation.last_message_at.isnot(None)
-    ).scalar()
+    def _get_first_auto_reply():
+        return db.query(func.min(Conversation.last_message_at)).filter(
+            Conversation.company_id == current_user.company_id,
+            Conversation.auto_reply_sent == True,
+            Conversation.last_message_at.isnot(None)
+        ).scalar()
+    first_auto_reply = execute_with_retry(db, _get_first_auto_reply, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
-    first_auto_task = db.query(func.min(Task.created_at)).filter(
-        Task.company_id == current_user.company_id,
-        Task.origin == "checklist"
-    ).scalar()
+    def _get_first_auto_task():
+        return db.query(func.min(Task.created_at)).filter(
+            Task.company_id == current_user.company_id,
+            Task.origin == "checklist"
+        ).scalar()
+    first_auto_task = execute_with_retry(db, _get_first_auto_task, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Trouver la date la plus ancienne parmi toutes les activités
     first_activity_date = None
@@ -293,38 +310,44 @@ def get_dashboard_stats(
     
     # 1. Relances automatiques envoyées
     # Estimation : 2 minutes par relance automatique
-    auto_followups_30d = db.query(FollowUpHistory).join(
-        FollowUp, FollowUpHistory.followup_id == FollowUp.id
-    ).filter(
-        FollowUpHistory.company_id == current_user.company_id,
-        FollowUpHistory.status == FollowUpHistoryStatus.ENVOYE,
-        FollowUp.auto_enabled == True,
-        func.date(FollowUpHistory.sent_at) >= activity_start_date
-    ).count()
+    def _get_auto_followups_30d():
+        return db.query(FollowUpHistory).join(
+            FollowUp, FollowUpHistory.followup_id == FollowUp.id
+        ).filter(
+            FollowUpHistory.company_id == current_user.company_id,
+            FollowUpHistory.status == FollowUpHistoryStatus.ENVOYE,
+            FollowUp.auto_enabled == True,
+            func.date(FollowUpHistory.sent_at) >= activity_start_date
+        ).count()
+    auto_followups_30d = execute_with_retry(db, _get_auto_followups_30d, max_retries=3, initial_delay=0.5, max_delay=2.0)
     time_from_auto_followups_30d = auto_followups_30d * 2  # minutes
     
     # 2. Réponses automatiques inbox
     # Estimation : 2 minutes par réponse automatique
-    auto_replies_30d = db.query(Conversation).filter(
-        Conversation.company_id == current_user.company_id,
-        Conversation.auto_reply_sent == True,
-        Conversation.last_message_at.isnot(None),
-        func.date(Conversation.last_message_at) >= activity_start_date
-    ).count()
+    def _get_auto_replies_30d():
+        return db.query(Conversation).filter(
+            Conversation.company_id == current_user.company_id,
+            Conversation.auto_reply_sent == True,
+            Conversation.last_message_at.isnot(None),
+            func.date(Conversation.last_message_at) >= activity_start_date
+        ).count()
+    auto_replies_30d = execute_with_retry(db, _get_auto_replies_30d, max_retries=3, initial_delay=0.5, max_delay=2.0)
     time_from_auto_replies_30d = auto_replies_30d * 2  # minutes
     
     # 3. Tâches créées automatiquement depuis les checklists
     # Estimation : 1 minute par tâche programmée (création manuelle simplifiée)
     # Ne compter que les tâches dont la date d'échéance est passée ou aujourd'hui (pas les tâches futures)
-    auto_tasks_30d = db.query(Task).filter(
-        Task.company_id == current_user.company_id,
-        Task.origin == "checklist",
-        func.date(Task.created_at) >= activity_start_date,
-        or_(
-            Task.due_date.is_(None),  # Tâches sans date d'échéance
-            func.date(Task.due_date) <= today  # Tâches dont l'échéance est passée ou aujourd'hui
-        )
-    ).count()
+    def _get_auto_tasks_30d():
+        return db.query(Task).filter(
+            Task.company_id == current_user.company_id,
+            Task.origin == "checklist",
+            func.date(Task.created_at) >= activity_start_date,
+            or_(
+                Task.due_date.is_(None),  # Tâches sans date d'échéance
+                func.date(Task.due_date) <= today  # Tâches dont l'échéance est passée ou aujourd'hui
+            )
+        ).count()
+    auto_tasks_30d = execute_with_retry(db, _get_auto_tasks_30d, max_retries=3, initial_delay=0.5, max_delay=2.0)
     time_from_auto_tasks_30d = auto_tasks_30d * 1  # minutes (réduit à 1 min pour les tâches programmées)
     
     # Total temps gagné en minutes (calcul initial)
