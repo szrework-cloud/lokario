@@ -102,6 +102,9 @@ class AIReplyService:
                 {"role": "system", "content": system_prompt}
             ] + messages_context
             
+            # Throttle pour éviter les rate limits
+            throttle_openai_request()
+            
             # Appel à l'API OpenAI
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",  # Modèle plus économique
