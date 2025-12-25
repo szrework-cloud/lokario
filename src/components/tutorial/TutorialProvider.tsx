@@ -68,7 +68,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       {
         target: "[data-tutorial='settings-link']",
         title: "⚙️ Paramètres",
-        content: "Dans les Paramètres, configurez votre entreprise :\n\n• Infos entreprise : Nom, logo, coordonnées, SIRET/SIREN - À remplir en priorité pour personnaliser vos documents\n• Facturation : Design des devis (couleurs, logo), numérotation personnalisée, taux de TVA, signature - Pour personnaliser vos devis et factures\n• Modules activés : Activez/désactivez les fonctionnalités (Rendez-vous, Inbox, Projets, etc.)\n• Intelligence artificielle : Configurez les réponses automatiques et la classification des messages\n\nCliquez sur 'Paramètres' dans la sidebar pour commencer.",
+        content: "Dans les Paramètres, configurez votre entreprise. Voici ce qu'il faut remplir dans chaque section :\n\n• Infos entreprise : Nom, logo, email, adresse, SIRET/SIREN - À remplir en priorité pour personnaliser vos documents\n• Facturation : Design des devis (couleurs, logo), numérotation personnalisée, taux de TVA, signature de l'entreprise - Pour personnaliser vos devis et factures\n• Modules activés : Activez/désactivez les fonctionnalités (Rendez-vous, Inbox, Projets, etc.) selon votre abonnement\n• Intelligence artificielle : Configurez les réponses automatiques et la classification des messages\n• Équipe : Gérez les membres et leurs permissions\n• Abonnement : Consultez votre plan et vos quotas d'utilisation\n• Intégrations : Connectez vos emails et SMS\n\nCliquez sur 'Paramètres' dans la sidebar pour commencer.",
         placement: "right",
       },
     ];
