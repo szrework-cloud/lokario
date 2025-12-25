@@ -416,18 +416,13 @@ function InboxIntegrationsTabComponent() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
-                      {!integration.is_primary && (
+                      {!integration.is_primary && integration.integration_type !== "sms" && (
                         <Button
                           type="button"
                           onClick={async () => {
                             try {
                               await updateIntegration(integration.id, { is_primary: true }, token);
-                              showToast(
-                                integration.integration_type === "sms" 
-                                  ? "Intégration SMS définie comme principale" 
-                                  : "Boîte mail définie comme principale", 
-                                "success"
-                              );
+                              showToast("Boîte mail définie comme principale", "success");
                               await loadIntegrations();
                             } catch (err: any) {
                               showToast(err.message || "Erreur lors de la mise à jour", "error");
