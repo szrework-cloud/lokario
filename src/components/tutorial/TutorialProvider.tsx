@@ -185,11 +185,11 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       {/* Tooltip du tutoriel */}
       {tutorialState.isRunning && currentStep && position && (
         <div
-          className="fixed z-[10000] bg-white rounded-lg shadow-2xl max-w-sm p-6 animate-in fade-in slide-in-from-bottom-2"
+          className="fixed z-[10000] bg-white rounded-lg shadow-2xl max-w-sm p-6"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
-            transform: `translate(-50%, ${currentStep.placement === "bottom" ? "0" : currentStep.placement === "top" ? "-100%" : "0"})`,
+            transform: `translate(${position.transformX}, ${position.transformY})`,
           }}
         >
           {/* Indicateur de progression */}
