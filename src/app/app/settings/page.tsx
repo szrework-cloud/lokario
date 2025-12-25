@@ -3629,6 +3629,36 @@ export default function SettingsPage() {
       )}
 
 
+      {/* Modal de confirmation de suppression de template de ligne de facturation */}
+      <ConfirmModal
+        isOpen={deleteTemplateModal.isOpen}
+        title="Supprimer la ligne de facturation"
+        message={`Êtes-vous sûr de vouloir supprimer la ligne "${deleteTemplateModal.templateDescription}" ? Cette action est irréversible.`}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        onConfirm={async () => {
+          if (!token || !deleteTemplateModal.templateId) return;
+          try {
+            await deleteBillingLineTemplate(token, deleteTemplateModal.templateId);
+            const templates = await getBillingLineTemplates(token);
+            setBillingLineTemplates(templates);
+            // Ajuster la page si nécessaire
+            const maxPage = Math.ceil(templates.length / itemsPerPage);
+            if (currentPage > maxPage && maxPage > 0) {
+              setCurrentPage(maxPage);
+            } else if (templates.length === 0) {
+              setCurrentPage(1);
+            }
+            setDeleteTemplateModal({ isOpen: false, templateId: null, templateDescription: "" });
+            showToast("Ligne supprimée avec succès", "success");
+          } catch (err: any) {
+            showToast(err.message || "Erreur lors de la suppression", "error");
+          }
+        }}
+        onClose={() => setDeleteTemplateModal({ isOpen: false, templateId: null, templateDescription: "" })}
+        variant="danger"
+      />
+
       {/* Modal de confirmation de suppression d'utilisateur */}
       <ConfirmModal
         isOpen={deleteConfirmModal.isOpen}
