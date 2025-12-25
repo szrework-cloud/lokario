@@ -197,3 +197,4 @@ python scripts/test_vonage_sms.py
 
 Ou vérifier les logs lors de l'envoi d'une relance SMS pour voir si toutes les vérifications passent.
 
+

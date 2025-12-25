@@ -1,6 +1,6 @@
 # Guide d'intégration Inbox - Réception des messages
 
-Ce guide explique comment configurer la réception des messages (email, WhatsApp, Messenger) dans le module Inbox.
+Ce guide explique comment configurer la réception des messages (email, SMS) dans le module Inbox.
 
 ## 📧 Email
 
@@ -85,28 +85,6 @@ POST https://votre-backend.com/inbox/webhooks/whatsapp
   "to": "+33123456789",
   "message": "Contenu du message",
   "message_id": "whatsapp_message_id",
-  "company_code": "123456"
-}
-```
-
-## 💬 Facebook Messenger
-
-### Configuration Messenger
-
-1. Créer une app Facebook
-2. Configurer le webhook dans Facebook Developer Console
-3. URL du webhook : `https://votre-backend.com/inbox/webhooks/messenger`
-4. Token de vérification : Configurer `MESSENGER_VERIFY_TOKEN` dans `.env`
-
-**Format du payload :**
-```json
-{
-  "from": {
-    "id": "facebook_user_id",
-    "name": "Nom du client"
-  },
-  "message": "Contenu du message",
-  "message_id": "messenger_message_id",
   "company_code": "123456"
 }
 ```

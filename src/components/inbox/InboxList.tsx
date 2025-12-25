@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { InboxConversation } from "./InboxConversation";
 import { InboxItem } from "./types";
 import { ClassificationStatusBadge } from "./ClassificationStatusBadge";
@@ -13,7 +14,7 @@ interface InboxListProps {
   onToggleSelection?: (id: number) => void;
 }
 
-export function InboxList({
+function InboxListComponent({
   conversations,
   selectedId,
   onSelect,
@@ -65,4 +66,7 @@ export function InboxList({
     </div>
   );
 }
+
+// Memoization pour éviter les re-renders inutiles
+export const InboxList = memo(InboxListComponent);
 

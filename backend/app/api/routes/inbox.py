@@ -110,17 +110,18 @@ def get_conversations(
     if source:
         query = query.filter(Conversation.source == source)
     
-    # Recherche dans sujet et messages
+    # Recherche dans sujet et messages - Optimisé avec EXISTS au lieu de sous-requête IN
     if search:
         search_term = f"%{search.lower()}%"
+        # Utiliser EXISTS pour de meilleures performances que IN avec sous-requête
+        from sqlalchemy import exists
+        subquery = db.query(InboxMessage.conversation_id).filter(
+            InboxMessage.content.ilike(search_term)
+        ).exists()
         query = query.filter(
             or_(
                 Conversation.subject.ilike(search_term),
-                Conversation.id.in_(
-                    db.query(InboxMessage.conversation_id).filter(
-                        InboxMessage.content.ilike(search_term)
-                    )
-                )
+                subquery
             )
         )
     

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Tag } from "@/components/ui/Tag";
 import { TaskRow } from "./TaskRow";
 
@@ -15,7 +16,7 @@ interface TasksTableProps {
   onTaskClick?: (task: Task) => void;
 }
 
-export function TasksTable({ tasks, onTaskClick }: TasksTableProps) {
+function TasksTableComponent({ tasks, onTaskClick }: TasksTableProps) {
   return (
     <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
@@ -49,4 +50,7 @@ export function TasksTable({ tasks, onTaskClick }: TasksTableProps) {
     </div>
   );
 }
+
+// Memoization pour éviter les re-renders inutiles
+export const TasksTable = memo(TasksTableComponent);
 

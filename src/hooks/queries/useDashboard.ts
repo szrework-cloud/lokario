@@ -13,7 +13,8 @@ export function useDashboardStats() {
     queryKey: ["dashboard", "stats"],
     queryFn: () => getDashboardStats(token || ""),
     enabled: !!token,
-    staleTime: 1000 * 60 * 2, // 2 minutes - les stats changent souvent
+    staleTime: 1000 * 60 * 2, // 2 minutes - les stats changent peu fréquemment
+    gcTime: 1000 * 60 * 5, // 5 minutes (ancien cacheTime)
   });
 }
 

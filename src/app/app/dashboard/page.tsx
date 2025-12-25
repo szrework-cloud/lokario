@@ -25,7 +25,8 @@ export default function DashboardPage() {
     queryKey: ["tasks", "all"],
     queryFn: () => getTasks(token, {}),
     enabled: !!token,
-    staleTime: 1000 * 60 * 1,
+    staleTime: 1000 * 60 * 2, // 2 minutes - les tâches changent peu fréquemment
+    gcTime: 1000 * 60 * 5, // 5 minutes (ancien cacheTime)
   });
 
   // Date du jour formatée

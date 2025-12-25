@@ -11,9 +11,10 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { SectionCard } from "@/components/dashboard/SectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
-import { CreateTaskModal, TaskFormData } from "@/components/tasks/CreateTaskModal";
-import { CreateChecklistModal, ChecklistFormData } from "@/components/tasks/CreateChecklistModal";
-import { RecurringTasksModal } from "@/components/tasks/RecurringTasksModal";
+// Lazy load des modals pour réduire le bundle initial
+import { CreateTaskModal, TaskFormData } from "@/components/tasks/CreateTaskModal.lazy";
+import { CreateChecklistModal, ChecklistFormData } from "@/components/tasks/CreateChecklistModal.lazy";
+import { RecurringTasksModal } from "@/components/tasks/RecurringTasksModal.lazy";
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
 import {

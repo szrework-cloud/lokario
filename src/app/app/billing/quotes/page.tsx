@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { PageTitle } from "@/components/layout/PageTitle";
 import { Quote, QuoteStatus, Invoice, InvoiceStatus, BillingLine } from "@/components/billing/types";
@@ -12,9 +12,11 @@ import { getQuoteStatusColor, getInvoiceStatusColor, formatAmount, isInvoiceOver
 import { useAuth } from "@/hooks/useAuth";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
-import { getQuotes, downloadQuotePDF, convertQuoteToInvoice, Quote as QuoteAPI } from "@/services/quotesService";
-import { getInvoices, Invoice as InvoiceAPI, InvoiceLine } from "@/services/invoicesService";
-import { getClients, Client } from "@/services/clientsService";
+import { downloadQuotePDF, convertQuoteToInvoice, Quote as QuoteAPI } from "@/services/quotesService";
+import { Invoice as InvoiceAPI } from "@/services/invoicesService";
+import { useQuotes } from "@/hooks/queries/useQuotes";
+import { useInvoices } from "@/hooks/queries/useInvoices";
+import { useClients } from "@/hooks/queries/useClients";
 import Link from "next/link";
 import { logger } from "@/lib/logger";
 
@@ -47,138 +49,101 @@ export default function BillingPage() {
   const [invoiceAmountMax, setInvoiceAmountMax] = useState<string>("");
   const [showInvoiceFilters, setShowInvoiceFilters] = useState(false);
   
-  // Données
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // États locaux (modals, etc.)
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [quoteToConvert, setQuoteToConvert] = useState<Quote | null>(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Charger les clients pour les filtres
-  useEffect(() => {
-    const loadClients = async () => {
-      if (!token) return;
-      try {
-        const data = await getClients(token);
-        setClients(data);
-      } catch (err) {
-        console.error("Erreur lors du chargement des clients:", err);
-      }
-    };
-    loadClients();
-  }, [token]);
+  // Charger les clients avec React Query (cache automatique)
+  const { data: clients = [] } = useClients();
 
-  // Charger les devis
-  useEffect(() => {
-    const loadQuotes = async () => {
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
+  // Charger les devis avec React Query (cache automatique)
+  const {
+    data: quotesData = [],
+    isLoading: isLoadingQuotes,
+    error: quotesError,
+  } = useQuotes({
+    status: quoteStatusFilter !== "all" ? quoteStatusFilter : undefined,
+  });
 
-      try {
-        setIsLoading(true);
-        setError(null);
-        const data = await getQuotes(token, {
-          status: quoteStatusFilter !== "all" ? quoteStatusFilter : undefined,
-        });
-        
-        const adaptedQuotes: Quote[] = data.map((q) => ({
-          ...q,
-          client_name: q.client_name || "",
-          lines: (q.lines || []).map((line) => ({
-            id: line.id || 0,
-            description: line.description,
-            quantity: Number(line.quantity) || 0,
-            unitPrice: Number(line.unit_price_ht) || 0,
-            taxRate: Number(line.tax_rate) || 0,
-            total: Number(line.total_ttc) || 0,
-          })),
-          subtotal: Number(q.subtotal_ht) || 0,
-          tax: Number(q.total_tax) || 0,
-          total: Number(q.total_ttc) || Number(q.amount) || 0,
-          timeline: [],
-          history: [],
-        }));
-        
-        setQuotes(adaptedQuotes);
-      } catch (err: any) {
-        console.error("Erreur lors du chargement des devis:", err);
-        setError(err.message || "Erreur lors du chargement des devis");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Charger les factures avec React Query (cache automatique)
+  const {
+    data: invoicesData = [],
+    isLoading: isLoadingInvoices,
+    error: invoicesError,
+  } = useInvoices({
+    status: invoiceStatusFilter !== "all" ? invoiceStatusFilter : undefined,
+    client_id: invoiceClientFilter !== "all" ? invoiceClientFilter : undefined,
+    search: invoiceSearchQuery || undefined,
+  });
 
-    loadQuotes();
-  }, [token, quoteStatusFilter]);
+  // Adapter les données des devis (même logique qu'avant, maintenant dans useMemo pour performance)
+  const quotes = useMemo<Quote[]>(() => {
+    return quotesData.map((q: QuoteAPI) => ({
+      ...q,
+      client_name: q.client_name || "",
+      lines: (q.lines || []).map((line) => ({
+        id: line.id || 0,
+        description: line.description,
+        quantity: Number(line.quantity) || 0,
+        unitPrice: Number(line.unit_price_ht) || 0,
+        taxRate: Number(line.tax_rate) || 0,
+        total: Number(line.total_ttc) || 0,
+      })),
+      subtotal: Number(q.subtotal_ht) || 0,
+      tax: Number(q.total_tax) || 0,
+      total: Number(q.total_ttc) || Number(q.amount) || 0,
+      timeline: [],
+      history: [],
+    })) as Quote[];
+  }, [quotesData]);
 
-  // Charger les factures
-  useEffect(() => {
-    const loadInvoices = async () => {
-      if (!token) {
-        return;
-      }
+  // Adapter les données des factures (même logique qu'avant, maintenant dans useMemo pour performance)
+  const invoices = useMemo<Invoice[]>(() => {
+    return invoicesData.map((inv: InvoiceAPI) => {
+      const adaptedLines: BillingLine[] = (inv.lines || []).map((line) => ({
+        id: line.id || 0,
+        description: line.description,
+        quantity: Number(line.quantity) || 0,
+        unitPrice: Number(line.unit_price_ht) || 0,
+        taxRate: Number(line.tax_rate) || 0,
+        total: Number(line.total_ttc) || 0,
+      }));
 
-      try {
-        setError(null);
-        const data: InvoiceAPI[] = await getInvoices(token, {
-          status: invoiceStatusFilter !== "all" ? invoiceStatusFilter : undefined,
-          client_id: invoiceClientFilter !== "all" ? invoiceClientFilter : undefined,
-          search: invoiceSearchQuery || undefined,
-        });
-        
-        const adaptedInvoices: Invoice[] = data.map((inv) => {
-          const adaptedLines: BillingLine[] = (inv.lines || []).map((line) => ({
-            id: line.id || 0,
-            description: line.description,
-            quantity: Number(line.quantity) || 0,
-            unitPrice: Number(line.unit_price_ht) || 0,
-            taxRate: Number(line.tax_rate) || 0,
-            total: Number(line.total_ttc) || 0,
-          }));
+      // Valider operation_category pour s'assurer qu'il correspond au type attendu
+      const validOperationCategory =
+        inv.operation_category &&
+        (inv.operation_category === "vente" ||
+          inv.operation_category === "prestation" ||
+          inv.operation_category === "les deux")
+          ? (inv.operation_category as "vente" | "prestation" | "les deux")
+          : undefined;
 
-          // Valider operation_category pour s'assurer qu'il correspond au type attendu
-          const validOperationCategory = inv.operation_category && 
-            (inv.operation_category === "vente" || 
-             inv.operation_category === "prestation" || 
-             inv.operation_category === "les deux")
-            ? inv.operation_category as "vente" | "prestation" | "les deux"
-            : undefined;
+      return {
+        ...inv,
+        client_name: inv.client_name || "",
+        due_date: inv.due_date || new Date().toISOString().split("T")[0],
+        operation_category: validOperationCategory,
+        vat_on_debit: inv.vat_on_debit ?? false,
+        vat_applicable: inv.vat_applicable ?? true,
+        amount: inv.amount || inv.total_ttc || 0,
+        lines: adaptedLines,
+        amount_paid: 0,
+        amount_remaining: Number(inv.total_ttc) || Number(inv.amount) || 0,
+        subtotal: Number(inv.subtotal_ht) || 0,
+        tax: Number(inv.total_tax) || 0,
+        total: Number(inv.total_ttc) || Number(inv.amount) || 0,
+        timeline: [],
+        history: [],
+        payments: [],
+      } as Invoice;
+    });
+  }, [invoicesData]);
 
-          return {
-            ...inv,
-            client_name: inv.client_name || "",
-            due_date: inv.due_date || new Date().toISOString().split('T')[0],
-            operation_category: validOperationCategory,
-            vat_on_debit: inv.vat_on_debit ?? false,
-            vat_applicable: inv.vat_applicable ?? true,
-            amount: inv.amount || inv.total_ttc || 0,
-            lines: adaptedLines,
-            amount_paid: 0,
-            amount_remaining: Number(inv.total_ttc) || Number(inv.amount) || 0,
-            subtotal: Number(inv.subtotal_ht) || 0,
-            tax: Number(inv.total_tax) || 0,
-            total: Number(inv.total_ttc) || Number(inv.amount) || 0,
-            timeline: [],
-            history: [],
-            payments: [],
-          };
-        });
-        
-        setInvoices(adaptedInvoices);
-      } catch (err: any) {
-        console.error("Erreur lors du chargement des factures:", err);
-        setError(err.message || "Erreur lors du chargement des factures");
-      }
-    };
-
-    loadInvoices();
-  }, [token, invoiceStatusFilter, invoiceClientFilter, invoiceSearchQuery]);
+  // États de chargement et erreur combinés (pour compatibilité avec le code existant)
+  const isLoading = activeTab === "quotes" ? isLoadingQuotes : isLoadingInvoices;
+  const error: string | null = quotesError?.message || invoicesError?.message || null;
 
   // Filtrer les devis
   const filteredQuotes = useMemo(() => {

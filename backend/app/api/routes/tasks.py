@@ -146,7 +146,8 @@ def get_today_tasks(
         # SQLite ne supporte pas nullslast(), donc on utilise une approche différente
         tasks = query.order_by(Task.priority.desc()).all()
         
-        # Calculer le statut "En retard"
+        # Calculer le statut "En retard" - Batch commit pour optimiser les performances
+        tasks_to_update = []
         for task in tasks:
             try:
                 new_status = _calculate_late_status(task)
@@ -155,11 +156,16 @@ def get_today_tasks(
                 new_status_value = new_status.value  # new_status est toujours un Enum maintenant
                 if new_status_value != current_status_value:
                     task.status = new_status
-                    db.commit()
-                    db.refresh(task)
+                    tasks_to_update.append(task)
             except Exception as e:
                 # Si erreur lors du calcul du statut, continuer avec la tâche suivante
                 continue
+        
+        # Commit unique pour toutes les mises à jour (optimisation performance)
+        if tasks_to_update:
+            db.commit()
+            for task in tasks_to_update:
+                db.refresh(task)
         
         return [TaskRead.from_orm_with_relations(task) for task in tasks]
     except Exception as e:
@@ -198,7 +204,8 @@ def get_recent_tasks(
         
         tasks = query.all()
         
-        # Calculer le statut "En retard" pour chaque tâche
+        # Calculer le statut "En retard" pour chaque tâche - Batch commit pour optimiser les performances
+        tasks_to_update = []
         for task in tasks:
             try:
                 new_status = _calculate_late_status(task)
@@ -206,10 +213,15 @@ def get_recent_tasks(
                 new_status_value = new_status.value
                 if new_status_value != current_status_value:
                     task.status = new_status
-                    db.commit()
-                    db.refresh(task)
+                    tasks_to_update.append(task)
             except Exception as e:
                 continue
+        
+        # Commit unique pour toutes les mises à jour (optimisation performance)
+        if tasks_to_update:
+            db.commit()
+            for task in tasks_to_update:
+                db.refresh(task)
         
         return [TaskRead.from_orm_with_relations(task) for task in tasks]
     except Exception as e:
@@ -273,6 +285,8 @@ def get_priority_tasks(
             }
             return priority_map.get(priority_lower, "normal")
         
+        # Batch commit pour optimiser les performances
+        tasks_to_update = []
         for task in tasks:
             try:
                 new_status = _calculate_late_status(task)
@@ -281,8 +295,7 @@ def get_priority_tasks(
                 new_status_value = new_status.value  # new_status est toujours un Enum maintenant
                 if new_status_value != current_status_value:
                     task.status = new_status
-                    db.commit()
-                    db.refresh(task)
+                    tasks_to_update.append(task)
                 
                 # Normaliser la priorité vers MVP V1
                 normalized_priority = normalize_priority(task.priority)
@@ -290,6 +303,12 @@ def get_priority_tasks(
             except Exception as e:
                 # Si erreur avec une tâche, continuer avec la suivante
                 continue
+        
+        # Commit unique pour toutes les mises à jour (optimisation performance)
+        if tasks_to_update:
+            db.commit()
+            for task in tasks_to_update:
+                db.refresh(task)
         
         # Calculer les alertes admin (uniquement pour admin/owner)
         admin_alerts = {}
@@ -371,7 +390,8 @@ def get_task_stats(
         
         all_tasks = query.all()
         
-        # Calculer le statut "En retard" pour toutes les tâches
+        # Calculer le statut "En retard" pour toutes les tâches - Batch commit pour optimiser les performances
+        tasks_to_update = []
         for task in all_tasks:
             try:
                 new_status = _calculate_late_status(task)
@@ -380,11 +400,16 @@ def get_task_stats(
                 new_status_value = new_status.value  # new_status est toujours un Enum maintenant
                 if new_status_value != current_status_value:
                     task.status = new_status
-                    db.commit()
-                    db.refresh(task)
+                    tasks_to_update.append(task)
             except Exception as e:
                 # Si erreur avec une tâche, continuer avec la suivante
                 continue
+        
+        # Commit unique pour toutes les mises à jour (optimisation performance)
+        if tasks_to_update:
+            db.commit()
+            for task in tasks_to_update:
+                db.refresh(task)
         
         # Statistiques simplifiées pour MVP V1
         def _get_status_value(status):
@@ -531,7 +556,8 @@ def get_tasks(
     # Calculer le statut "En retard" pour chaque tâche
     tasks = query.order_by(Task.due_date.asc(), Task.priority.desc()).offset(skip).limit(limit).all()
     
-    # Mettre à jour le statut si nécessaire (même logique que get_priority_tasks)
+    # Mettre à jour le statut si nécessaire (même logique que get_priority_tasks) - Batch commit pour optimiser les performances
+    tasks_to_update = []
     for task in tasks:
         try:
             new_status = _calculate_late_status(task)
@@ -540,11 +566,16 @@ def get_tasks(
             new_status_value = new_status.value  # new_status est toujours un Enum maintenant
             if new_status_value != current_status_value:
                 task.status = new_status
-                db.commit()
-                db.refresh(task)
+                tasks_to_update.append(task)
         except Exception as e:
             # Si erreur avec une tâche, continuer avec la suivante
             continue
+    
+    # Commit unique pour toutes les mises à jour (optimisation performance)
+    if tasks_to_update:
+        db.commit()
+        for task in tasks_to_update:
+            db.refresh(task)
     
     return [TaskRead.from_orm_with_relations(task) for task in tasks]
 

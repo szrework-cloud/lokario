@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import React from "react";
+import Image from "next/image";
 import { PageTitle } from "@/components/layout/PageTitle";
 import { ProjectList } from "@/components/projects/ProjectList";
 import { ProjectTimeline } from "@/components/projects/ProjectTimeline";
@@ -94,11 +95,14 @@ function ImagePreview({ documentId, getImageUrl }: { documentId: number; getImag
   }
 
   return (
-    <img
+    <Image
       src={imageUrl}
       alt="Aperçu"
+      width={800}
+      height={192}
       className="w-full h-48 object-cover"
       onError={() => setError(true)}
+      unoptimized={imageUrl.startsWith('blob:')} // Les blob URLs ne peuvent pas être optimisées
     />
   );
 }
