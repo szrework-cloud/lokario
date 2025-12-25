@@ -101,6 +101,64 @@ def get_public_employees(
     ]
 
 
+@router.get("/public/settings")
+def get_public_appointment_settings(
+    slug: str = Query(..., description="Company slug (code)"),
+    db: Session = Depends(get_db)
+):
+    """Récupère les paramètres de rendez-vous d'une entreprise (endpoint public)"""
+    from app.db.models.company import Company
+    from app.db.models.company_settings import CompanySettings
+    
+    # Trouver l'entreprise par son slug ou son code
+    company = db.query(Company).filter(
+        or_(Company.slug == slug, Company.code == slug),
+        Company.is_active == True
+    ).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    
+    # Valeurs par défaut
+    default_settings = {
+        "work_start_time": "09:00",
+        "work_end_time": "18:00",
+        "breaks_enabled": False,
+        "breaks": [],
+    }
+    
+    try:
+        company_settings = db.query(CompanySettings).filter(
+            CompanySettings.company_id == company.id
+        ).first()
+        
+        if not company_settings:
+            return default_settings
+        
+        settings_dict = company_settings.settings
+        appointment_settings = settings_dict.get("appointments", {})
+        
+        if not appointment_settings:
+            return default_settings
+        
+        # Extraire uniquement les paramètres nécessaires pour le calcul des créneaux
+        result = {
+            "work_start_time": appointment_settings.get("work_start_time", "09:00"),
+            "work_end_time": appointment_settings.get("work_end_time", "18:00"),
+            "breaks_enabled": appointment_settings.get("breaks_enabled", False),
+            "breaks": appointment_settings.get("breaks", []),
+        }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in get_public_appointment_settings: {e}", exc_info=True)
+        return default_settings
+
+
 @router.get("/public/appointments")
 def get_public_appointments(
     slug: str = Query(..., description="Company slug (code)"),
@@ -556,8 +614,7 @@ def get_appointment_settings(
         "work_start_time": "09:00",
         "work_end_time": "18:00",
         "breaks_enabled": False,
-        "break_count": 1,
-        "break_duration": 15,
+        "breaks": [],
     }
     
     try:
@@ -711,8 +768,8 @@ def get_appointment_settings(
         cleaned_settings["auto_no_show_message_enabled"] = bool(cleaned_settings["auto_no_show_message_enabled"])
         cleaned_settings["max_reminder_relances"] = int(cleaned_settings.get("max_reminder_relances", 1))
         cleaned_settings["breaks_enabled"] = bool(cleaned_settings.get("breaks_enabled", False))
-        cleaned_settings["break_count"] = int(cleaned_settings.get("break_count", 1))
-        cleaned_settings["break_duration"] = int(cleaned_settings.get("break_duration", 15))
+        if "breaks" not in cleaned_settings:
+            cleaned_settings["breaks"] = []
         if "reminder_relances" not in cleaned_settings:
             cleaned_settings["reminder_relances"] = []
         if "work_start_time" not in cleaned_settings:

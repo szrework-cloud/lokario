@@ -150,6 +150,15 @@ class AppointmentReminderTemplate(BaseModel):
     content: str  # Template du message avec variables
 
 
+class WorkBreak(BaseModel):
+    """Schéma pour une pause de travail avec heure de début et de fin"""
+    start_time: str = Field(..., description="Heure de début de la pause (format HH:MM, ex: '12:00')")
+    end_time: str = Field(..., description="Heure de fin de la pause (format HH:MM, ex: '13:00')")
+    
+    class Config:
+        from_attributes = True
+
+
 class AppointmentSettings(BaseModel):
     auto_reminder_enabled: bool = True
     auto_reminder_offset_hours: int = Field(default=4, ge=1)
@@ -163,8 +172,7 @@ class AppointmentSettings(BaseModel):
     work_start_time: Optional[str] = Field(default="09:00", description="Heure de début du travail (format HH:MM)")
     work_end_time: Optional[str] = Field(default="18:00", description="Heure de fin du travail (format HH:MM)")
     breaks_enabled: bool = Field(default=False, description="Activer les pauses entre les rendez-vous")
-    break_count: int = Field(default=1, ge=0, le=5, description="Nombre de pauses")
-    break_duration: int = Field(default=15, ge=5, le=120, description="Durée des pauses en minutes")
+    breaks: List[WorkBreak] = Field(default_factory=list, description="Liste des pauses avec heure de début et de fin")
     
     class Config:
         from_attributes = True
@@ -177,6 +185,12 @@ class AppointmentReminderTemplateUpdate(BaseModel):
     content: str  # Template du message
 
 
+class WorkBreakUpdate(BaseModel):
+    """Schéma pour mettre à jour une pause de travail"""
+    start_time: str = Field(..., description="Heure de début de la pause (format HH:MM)")
+    end_time: str = Field(..., description="Heure de fin de la pause (format HH:MM)")
+
+
 class AppointmentSettingsUpdate(BaseModel):
     """Schéma pour mettre à jour les paramètres de rendez-vous (tous les champs optionnels)"""
     auto_reminder_enabled: Optional[bool] = None
@@ -186,8 +200,7 @@ class AppointmentSettingsUpdate(BaseModel):
     work_start_time: Optional[str] = None
     work_end_time: Optional[str] = None
     breaks_enabled: Optional[bool] = None
-    break_count: Optional[int] = Field(default=None, ge=0, le=5)
-    break_duration: Optional[int] = Field(default=None, ge=5, le=120)
+    breaks: Optional[List[WorkBreakUpdate]] = None
     reschedule_base_url: Optional[str] = None
     max_reminder_relances: Optional[int] = Field(default=None, ge=1, le=3)
     reminder_relances: Optional[List[AppointmentReminderTemplateUpdate]] = None

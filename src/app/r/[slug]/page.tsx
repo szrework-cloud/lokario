@@ -10,6 +10,7 @@ import {
   getPublicAppointments,
   getPublicEmployees,
   createPublicAppointment,
+  getPublicAppointmentSettings,
 } from "@/services/appointmentsService";
 import { useToast } from "@/components/ui/Toast";
 import { logger } from "@/lib/logger";
@@ -48,6 +49,8 @@ export default function PublicBookingPage() {
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [employees, setEmployees] = useState<Array<{ id: number; name: string }>>([]);
   const [existingAppointments, setExistingAppointments] = useState<Appointment[]>([]);
+  const [workHours, setWorkHours] = useState<{ start: number; end: number }>({ start: 9, end: 18 });
+  const [breaks, setBreaks] = useState<Array<{ startTime: string; endTime: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRescheduling, setIsRescheduling] = useState(false);
@@ -122,9 +125,11 @@ export default function PublicBookingPage() {
       selectedType,
       existingAppointments,
       employees,
-      selectedDate
+      selectedDate,
+      workHours,
+      breaks
     );
-  }, [selectedType, selectedDate, existingAppointments, employees]);
+  }, [selectedType, selectedDate, existingAppointments, employees, workHours, breaks]);
 
   const handleTypeSelect = (type: AppointmentType) => {
     setSelectedType(type);

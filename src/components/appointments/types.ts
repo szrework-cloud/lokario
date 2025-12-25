@@ -41,6 +41,11 @@ export interface AppointmentReminderTemplate {
   content: string; // Template du message
 }
 
+export interface WorkBreak {
+  startTime: string; // Heure de début de la pause (format HH:MM, ex: "12:00")
+  endTime: string; // Heure de fin de la pause (format HH:MM, ex: "13:00")
+}
+
 export interface AppointmentSettings {
   autoReminderEnabled: boolean; // Activer le rappel 4h avant
   autoReminderOffsetHours: number; // ex : 4 (pour compatibilité, sera remplacé par reminderRelances)
@@ -53,6 +58,5 @@ export interface AppointmentSettings {
   workStartTime?: string; // Heure de début (format HH:MM, ex: "09:00")
   workEndTime?: string; // Heure de fin (format HH:MM, ex: "18:00")
   breaksEnabled?: boolean; // Activer les pauses entre les rendez-vous
-  breakCount?: number; // Nombre de pauses (0-5)
-  breakDuration?: number; // Durée des pauses en minutes (5-120)
+  breaks?: WorkBreak[]; // Liste des pauses avec heure de début et de fin
 }

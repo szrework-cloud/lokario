@@ -218,8 +218,7 @@ export default function SettingsPage() {
     workStartTime?: string;
     workEndTime?: string;
     breaksEnabled?: boolean;
-    breakCount?: number;
-    breakDuration?: number;
+    breaks?: Array<{ startTime: string; endTime: string }>;
   }>({
     autoReminderEnabled: true,
     autoReminderOffsetHours: 4,
@@ -231,8 +230,7 @@ export default function SettingsPage() {
     workStartTime: "09:00",
     workEndTime: "18:00",
     breaksEnabled: false,
-    breakCount: 1,
-    breakDuration: 15,
+    breaks: [],
   });
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
 
@@ -1833,54 +1831,80 @@ export default function SettingsPage() {
                                 Activer les pauses entre les rendez-vous
                               </p>
                               <p className="text-xs text-[#64748B] mt-1">
-                                Définir des pauses automatiques entre les rendez-vous pour permettre une transition.
+                                Définir les heures de pause pour exclure ces créneaux des rendez-vous disponibles.
                               </p>
                             </div>
                           </label>
 
                           {appointmentSettings.breaksEnabled && (
-                            <div className="pl-8 space-y-3">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                                    Nombre de pauses
-                                  </label>
-                                  <input
-                                    type="number"
-                                    value={appointmentSettings.breakCount || 1}
-                                    onChange={(e) =>
-                                      setAppointmentSettings((prev) => ({
-                                        ...prev,
-                                        breakCount: Math.max(0, Math.min(5, parseInt(e.target.value) || 1)),
-                                      }))
-                                    }
-                                    min="0"
-                                    max="5"
-                                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                                  />
-                                  <p className="text-xs text-[#64748B] mt-1">Entre 0 et 5 pauses</p>
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
-                                    Durée des pauses (minutes)
-                                  </label>
-                                  <input
-                                    type="number"
-                                    value={appointmentSettings.breakDuration || 15}
-                                    onChange={(e) =>
-                                      setAppointmentSettings((prev) => ({
-                                        ...prev,
-                                        breakDuration: Math.max(5, Math.min(120, parseInt(e.target.value) || 15)),
-                                      }))
-                                    }
-                                    min="5"
-                                    max="120"
-                                    step="5"
-                                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                                  />
-                                  <p className="text-xs text-[#64748B] mt-1">Entre 5 et 120 minutes</p>
-                                </div>
+                            <div className="pl-8 space-y-4">
+                              <div className="space-y-3">
+                                {(appointmentSettings.breaks || []).map((breakItem, index) => (
+                                  <div key={index} className="border border-[#E5E7EB] rounded-lg p-4 space-y-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <label className="text-sm font-medium text-[#0F172A]">
+                                        Pause {index + 1}
+                                      </label>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newBreaks = [...(appointmentSettings.breaks || [])];
+                                          newBreaks.splice(index, 1);
+                                          setAppointmentSettings((prev) => ({ ...prev, breaks: newBreaks }));
+                                        }}
+                                        className="text-xs text-red-600 hover:text-red-700 font-medium"
+                                      >
+                                        Supprimer
+                                      </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                                          Heure de début
+                                        </label>
+                                        <input
+                                          type="time"
+                                          value={breakItem.startTime}
+                                          onChange={(e) => {
+                                            const newBreaks = [...(appointmentSettings.breaks || [])];
+                                            newBreaks[index] = { ...newBreaks[index], startTime: e.target.value };
+                                            setAppointmentSettings((prev) => ({ ...prev, breaks: newBreaks }));
+                                          }}
+                                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                                          Heure de fin
+                                        </label>
+                                        <input
+                                          type="time"
+                                          value={breakItem.endTime}
+                                          onChange={(e) => {
+                                            const newBreaks = [...(appointmentSettings.breaks || [])];
+                                            newBreaks[index] = { ...newBreaks[index], endTime: e.target.value };
+                                            setAppointmentSettings((prev) => ({ ...prev, breaks: newBreaks }));
+                                          }}
+                                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newBreaks = [...(appointmentSettings.breaks || []), { startTime: "12:00", endTime: "13:00" }];
+                                  setAppointmentSettings((prev) => ({ ...prev, breaks: newBreaks }));
+                                }}
+                                className="text-sm text-[#F97316] hover:text-[#EA580C] font-medium"
+                              >
+                                + Ajouter une pause
+                              </button>
+                              <p className="text-xs text-[#64748B]">
+                                Les créneaux de pause seront exclus de la réservation de rendez-vous.
+                              </p>
                             </div>
                           )}
                         </div>

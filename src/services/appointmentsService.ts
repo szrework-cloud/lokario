@@ -101,8 +101,7 @@ interface AppointmentSettingsAPIResponse {
   work_start_time?: string;
   work_end_time?: string;
   breaks_enabled?: boolean;
-  break_count?: number;
-  break_duration?: number;
+  breaks?: Array<{ start_time: string; end_time: string }>;
 }
 
 /**
@@ -437,8 +436,7 @@ export async function getAppointmentSettings(
       workStartTime: "09:00",
       workEndTime: "18:00",
       breaksEnabled: false,
-      breakCount: 1,
-      breakDuration: 15,
+      breaks: [],
     };
 
   try {
@@ -472,8 +470,10 @@ export async function getAppointmentSettings(
       workStartTime: settings.work_start_time || "09:00",
       workEndTime: settings.work_end_time || "18:00",
       breaksEnabled: settings.breaks_enabled ?? false,
-      breakCount: settings.break_count ?? 1,
-      breakDuration: settings.break_duration ?? 15,
+      breaks: (settings.breaks || []).map((b: any) => ({
+        startTime: b.start_time || b.startTime || "12:00",
+        endTime: b.end_time || b.endTime || "13:00",
+      })),
     };
   } catch (error: any) {
     // Pour les erreurs 422, utiliser les valeurs par défaut sans logger d'erreur
@@ -516,8 +516,10 @@ export async function updateAppointmentSettings(
       work_start_time: settings.workStartTime,
       work_end_time: settings.workEndTime,
       breaks_enabled: settings.breaksEnabled,
-      break_count: settings.breakCount,
-      break_duration: settings.breakDuration,
+      breaks: settings.breaks?.map((b) => ({
+        start_time: b.startTime,
+        end_time: b.endTime,
+      })) || [],
     },
     token
   );
@@ -538,8 +540,40 @@ export async function updateAppointmentSettings(
     workStartTime: updated.work_start_time || "09:00",
     workEndTime: updated.work_end_time || "18:00",
     breaksEnabled: updated.breaks_enabled ?? false,
-    breakCount: updated.break_count ?? 1,
-    breakDuration: updated.break_duration ?? 15,
+    breaks: (updated.breaks || []).map((b: any) => ({
+      startTime: b.start_time || b.startTime || "12:00",
+      endTime: b.end_time || b.endTime || "13:00",
+    })),
+  };
+}
+
+/**
+ * Récupère les paramètres de rendez-vous d'une entreprise (endpoint public)
+ */
+export async function getPublicAppointmentSettings(slug: string): Promise<{
+  workStartTime: string;
+  workEndTime: string;
+  breaksEnabled: boolean;
+  breaks: Array<{ startTime: string; endTime: string }>;
+}> {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/appointments/public/settings?slug=${encodeURIComponent(slug)}`
+  );
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch appointment settings: ${response.statusText}`);
+  }
+  
+  const data = await response.json();
+  
+  return {
+    workStartTime: data.work_start_time || "09:00",
+    workEndTime: data.work_end_time || "18:00",
+    breaksEnabled: data.breaks_enabled || false,
+    breaks: (data.breaks || []).map((b: any) => ({
+      startTime: b.start_time || b.startTime || "12:00",
+      endTime: b.end_time || b.endTime || "13:00",
+    })),
   };
 }
 

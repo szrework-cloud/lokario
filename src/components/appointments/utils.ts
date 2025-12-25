@@ -16,7 +16,8 @@ export function calculateAvailableSlots(
   existingAppointments: Appointment[],
   employees: Array<{ id: number; name: string }>,
   date: Date,
-  workHours: { start: number; end: number } = { start: 9, end: 18 } // 9h-18h par défaut
+  workHours: { start: number; end: number } = { start: 9, end: 18 }, // 9h-18h par défaut
+  breaks: Array<{ startTime: string; endTime: string }> = [] // Pauses à exclure
 ): TimeSlot[] {
   const slots: TimeSlot[] = [];
   const totalDuration = 
@@ -78,6 +79,25 @@ export function calculateAvailableSlots(
         continue;
       }
 
+      // Vérifier si le créneau est dans une pause
+      const isInBreak = breaks.some((breakItem) => {
+        const [breakStartHour, breakStartMin] = breakItem.startTime.split(":").map(Number);
+        const [breakEndHour, breakEndMin] = breakItem.endTime.split(":").map(Number);
+        
+        const breakStart = new Date(date);
+        breakStart.setHours(breakStartHour, breakStartMin, 0, 0);
+        
+        const breakEnd = new Date(date);
+        breakEnd.setHours(breakEndHour, breakEndMin, 0, 0);
+        
+        // Vérifier si le créneau chevauche la pause
+        return (
+          (slotStart >= breakStart && slotStart < breakEnd) ||
+          (slotEnd > breakStart && slotEnd <= breakEnd) ||
+          (slotStart <= breakStart && slotEnd >= breakEnd)
+        );
+      });
+
       // Vérifier si le créneau est disponible (pas de conflit avec un RDV existant)
       const hasConflict = existingAppointments.some((apt) => {
         if (apt.status === "cancelled") return false; // Les RDV annulés ne bloquent pas
@@ -94,7 +114,7 @@ export function calculateAvailableSlots(
         );
       });
 
-      if (!hasConflict) {
+      if (!hasConflict && !isInBreak) {
         slots.push({
           start: slotStart,
           end: slotEnd,
