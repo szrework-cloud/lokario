@@ -289,7 +289,7 @@ def fetch_emails_imap(
         search_criteria = f'(SINCE {date_str})'
         status, messages = mail.search(None, search_criteria)
         email_ids = messages[0].split() if messages[0] else []
-        print(f"[IMAP] {len(email_ids)} email(s) trouvé(s) sur les 14 derniers jours")
+        print(f"[IMAP] {len(email_ids)} email(s) trouvé(s) ({period_str})")
         
         parsed_emails = []
         
