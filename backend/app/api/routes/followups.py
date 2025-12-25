@@ -1366,7 +1366,7 @@ def send_followup(
             from app.core.vonage_service import VonageSMSService
             from app.core.encryption_service import get_encryption_service
             
-            if request.method == "email":
+            if send_method == "email":
                 try:
                     if not primary_integration:
                         logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer l'email: aucune intégration email trouvée")
