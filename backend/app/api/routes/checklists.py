@@ -64,7 +64,13 @@ def get_checklist_templates(
             joinedload(ChecklistTemplate.default_assigned_to)
         ).order_by(ChecklistTemplate.created_at.desc())
         
-        templates = query.all()
+        # Utiliser execute_with_retry pour gérer les erreurs SSL
+        from app.db.retry import execute_with_retry
+        
+        def _get_templates():
+            return query.all()
+        
+        templates = execute_with_retry(db, _get_templates)
         return [ChecklistTemplateRead.from_orm_with_relations(t) for t in templates]
     except Exception as e:
         logger.error(f"Error getting checklist templates: {str(e)}")
