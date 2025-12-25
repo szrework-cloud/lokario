@@ -212,6 +212,23 @@ function LoginForm() {
         logger.log("🔄 Redirection vers /admin/companies");
         window.location.href = "/admin/companies";
       } else {
+        // Vérifier si l'onboarding est complété
+        try {
+          const onboardingStatus = await apiGet<{ onboarding_completed: boolean }>(
+            "/companies/me/onboarding/status",
+            savedToken
+          );
+          
+          if (!onboardingStatus.onboarding_completed) {
+            logger.log("🔄 Onboarding non complété, redirection vers /onboarding");
+            window.location.href = "/onboarding";
+            return;
+          }
+        } catch (err) {
+          // Si erreur, continuer vers le dashboard (l'utilisateur pourra être redirigé depuis le layout)
+          logger.log("⚠️ Erreur lors de la vérification de l'onboarding:", err);
+        }
+        
         logger.log("🔄 Redirection vers /app/dashboard");
         window.location.href = "/app/dashboard";
       }

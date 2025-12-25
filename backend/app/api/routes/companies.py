@@ -27,6 +27,22 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
+
+class OnboardingStep1Request(BaseModel):
+    discovery_source: str  # réseaux_sociaux, recommandation, recherche_google, publicité, autre
+
+
+class OnboardingStep2Request(BaseModel):
+    sector: str  # commerce, restauration, services, artisan_btp, independant, autre
+
+
+class OnboardingStep3Request(BaseModel):
+    motivation: str  # mieux_organiser, centraliser_messages, ne_rien_oublier, gagner_temps, tester_ia, autre
+
+
+class OnboardingStep4Request(BaseModel):
+    plan: str  # starter ou professional
+
 UPLOAD_DIR = Path(settings.UPLOAD_DIR)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1141,4 +1157,153 @@ def delete_company(
     db.delete(company)
     db.commit()
     return None
+
+
+@router.post("/me/onboarding/step1")
+def onboarding_step1(
+    data: OnboardingStep1Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Sauvegarde l'étape 1 de l'onboarding (découverte)"""
+    if not current_user.company_id:
+        raise HTTPException(status_code=404, detail="User has no company")
+    
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company.discovery_source = data.discovery_source
+    db.commit()
+    db.refresh(company)
+    
+    return {"message": "Étape 1 sauvegardée", "discovery_source": company.discovery_source}
+
+
+@router.post("/me/onboarding/step2")
+def onboarding_step2(
+    data: OnboardingStep2Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Sauvegarde l'étape 2 de l'onboarding (secteur)"""
+    if not current_user.company_id:
+        raise HTTPException(status_code=404, detail="User has no company")
+    
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company.sector = data.sector
+    db.commit()
+    db.refresh(company)
+    
+    return {"message": "Étape 2 sauvegardée", "sector": company.sector}
+
+
+@router.post("/me/onboarding/step3")
+def onboarding_step3(
+    data: OnboardingStep3Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Sauvegarde l'étape 3 de l'onboarding (motivation)"""
+    if not current_user.company_id:
+        raise HTTPException(status_code=404, detail="User has no company")
+    
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    company.onboarding_motivation = data.motivation
+    db.commit()
+    db.refresh(company)
+    
+    return {"message": "Étape 3 sauvegardée", "motivation": company.onboarding_motivation}
+
+
+@router.post("/me/onboarding/step4")
+def onboarding_step4(
+    data: OnboardingStep4Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Sauvegarde l'étape 4 de l'onboarding (choix du plan) et finalise l'onboarding"""
+    from app.db.models.subscription import Subscription, SubscriptionStatus, SubscriptionPlan
+    from datetime import timedelta, timezone
+    
+    if not current_user.company_id:
+        raise HTTPException(status_code=404, detail="User has no company")
+    
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Valider le plan
+    if data.plan not in ["starter", "professional"]:
+        raise HTTPException(status_code=400, detail="Plan invalide. Doit être 'starter' ou 'professional'")
+    
+    # Récupérer ou créer l'abonnement
+    subscription = db.query(Subscription).filter(Subscription.company_id == company.id).first()
+    if not subscription:
+        # Créer l'abonnement d'essai
+        trial_start = datetime.now(timezone.utc)
+        trial_end = trial_start + timedelta(days=14)
+        subscription = Subscription(
+            company_id=company.id,
+            plan=SubscriptionPlan(data.plan),
+            status=SubscriptionStatus.TRIALING,
+            trial_start=trial_start,
+            trial_end=trial_end,
+            current_period_start=trial_start,
+            current_period_end=trial_end,
+            amount=0,  # Gratuit pendant l'essai
+            currency="eur"
+        )
+        db.add(subscription)
+    else:
+        # Mettre à jour le plan et les dates d'essai
+        subscription.plan = SubscriptionPlan(data.plan)
+        if not subscription.trial_start:
+            trial_start = datetime.now(timezone.utc)
+            trial_end = trial_start + timedelta(days=14)
+            subscription.trial_start = trial_start
+            subscription.trial_end = trial_end
+            subscription.current_period_start = trial_start
+            subscription.current_period_end = trial_end
+        subscription.status = SubscriptionStatus.TRIALING
+        subscription.amount = 0  # Gratuit pendant l'essai
+    
+    # Finaliser l'onboarding
+    company.onboarding_completed = True
+    db.commit()
+    db.refresh(company)
+    db.refresh(subscription)
+    
+    return {
+        "message": "Onboarding terminé",
+        "plan": subscription.plan.value,
+        "trial_end": subscription.trial_end.isoformat() if subscription.trial_end else None
+    }
+
+
+@router.get("/me/onboarding/status")
+def get_onboarding_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récupère le statut de l'onboarding"""
+    if not current_user.company_id:
+        raise HTTPException(status_code=404, detail="User has no company")
+    
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    return {
+        "onboarding_completed": company.onboarding_completed,
+        "discovery_source": company.discovery_source,
+        "sector": company.sector,
+        "motivation": company.onboarding_motivation
+    }
 

@@ -14,6 +14,11 @@ class Company(Base):
     sector = Column(String, nullable=True)  # commerce / beauté / resto, etc.
     is_active = Column(Boolean, default=True, nullable=False)
     
+    # Données d'onboarding
+    onboarding_completed = Column(Boolean, default=False, nullable=False)  # Onboarding terminé ou non
+    discovery_source = Column(String, nullable=True)  # réseaux_sociaux, recommandation, recherche_google, publicité, autre
+    onboarding_motivation = Column(String, nullable=True)  # mieux_organiser, centraliser_messages, ne_rien_oublier, gagner_temps, tester_ia, autre
+    
     # Gestion TVA et auto-entrepreneurs (l'entreprise qui crée les factures)
     is_auto_entrepreneur = Column(Boolean, default=False, nullable=False)
     vat_exempt = Column(Boolean, default=False, nullable=False)  # Exonération TVA

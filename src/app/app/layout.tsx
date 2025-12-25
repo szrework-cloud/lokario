@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import { FloatingChatWidget } from "@/components/chatbot/FloatingChatWidget";
 import { logger } from "@/lib/logger";
+import { apiGet } from "@/lib/api";
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { title, subtitle, rightContent } = usePage();
@@ -114,9 +115,33 @@ export default function AppLayout({
         }
         setIsCheckingDeletion(false);
       } else {
-        // Vérifier le statut de suppression pour les utilisateurs normaux
-        // BLOQUER l'accès jusqu'à ce que la vérification soit terminée
-        checkDeletionStatus();
+        // Vérifier si l'onboarding est complété
+        const checkOnboarding = async () => {
+          try {
+            const onboardingStatus = await apiGet<{ onboarding_completed: boolean }>(
+              "/companies/me/onboarding/status",
+              token
+            );
+            
+            if (!onboardingStatus.onboarding_completed) {
+              logger.log("🔄 Onboarding non complété, redirection vers /onboarding");
+              router.replace("/onboarding");
+              setIsCheckingDeletion(false);
+              return;
+            }
+          } catch (err) {
+            // Si erreur 404, c'est normal (pas encore de données), continuer
+            if (err instanceof Error && !err.message.includes("404")) {
+              logger.log("⚠️ Erreur lors de la vérification de l'onboarding:", err);
+            }
+          }
+          
+          // Vérifier le statut de suppression pour les utilisateurs normaux
+          // BLOQUER l'accès jusqu'à ce que la vérification soit terminée
+          checkDeletionStatus();
+        };
+        
+        checkOnboarding();
       }
     } else if (!isLoading && !token) {
       setIsCheckingDeletion(false);

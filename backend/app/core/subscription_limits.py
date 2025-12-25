@@ -95,14 +95,17 @@ def check_quotes_limit(db: Session, company_id: int) -> tuple[bool, Optional[str
     Returns:
         (is_allowed, error_message)
     """
-    # Vérifier si c'est un essai gratuit (pas encore payé)
     subscription = db.query(Subscription).filter(
         Subscription.company_id == company_id
     ).first()
     
-    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet sans limite
+    # Si c'est un essai gratuit (trialing avec amount = 0)
     if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
-        return True, None
+        # Pendant l'essai, appliquer les restrictions selon le plan choisi
+        # Si plan Pro, accès complet. Si plan Essentiel, appliquer les limites.
+        if subscription.plan == SubscriptionPlan.PROFESSIONAL:
+            return True, None  # Accès complet pour Pro pendant l'essai
+        # Sinon, continuer avec les limites du plan Essentiel (voir plus bas)
     
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
@@ -134,14 +137,16 @@ def check_invoices_limit(db: Session, company_id: int) -> tuple[bool, Optional[s
     Returns:
         (is_allowed, error_message)
     """
-    # Vérifier si c'est un essai gratuit (pas encore payé)
     subscription = db.query(Subscription).filter(
         Subscription.company_id == company_id
     ).first()
     
-    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet sans limite
+    # Si c'est un essai gratuit (trialing avec amount = 0)
     if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
-        return True, None
+        # Pendant l'essai, appliquer les restrictions selon le plan choisi
+        if subscription.plan == SubscriptionPlan.PROFESSIONAL:
+            return True, None  # Accès complet pour Pro pendant l'essai
+        # Sinon, continuer avec les limites du plan Essentiel
     
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
@@ -173,14 +178,16 @@ def check_clients_limit(db: Session, company_id: int) -> tuple[bool, Optional[st
     Returns:
         (is_allowed, error_message)
     """
-    # Vérifier si c'est un essai gratuit (pas encore payé)
     subscription = db.query(Subscription).filter(
         Subscription.company_id == company_id
     ).first()
     
-    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet sans limite
+    # Si c'est un essai gratuit (trialing avec amount = 0)
     if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
-        return True, None
+        # Pendant l'essai, appliquer les restrictions selon le plan choisi
+        if subscription.plan == SubscriptionPlan.PROFESSIONAL:
+            return True, None  # Accès complet pour Pro pendant l'essai
+        # Sinon, continuer avec les limites du plan Essentiel
     
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
@@ -208,14 +215,16 @@ def check_followups_limit(db: Session, company_id: int) -> tuple[bool, Optional[
     Returns:
         (is_allowed, error_message)
     """
-    # Vérifier si c'est un essai gratuit (pas encore payé)
     subscription = db.query(Subscription).filter(
         Subscription.company_id == company_id
     ).first()
     
-    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet sans limite
+    # Si c'est un essai gratuit (trialing avec amount = 0)
     if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
-        return True, None
+        # Pendant l'essai, appliquer les restrictions selon le plan choisi
+        if subscription.plan == SubscriptionPlan.PROFESSIONAL:
+            return True, None  # Accès complet pour Pro pendant l'essai
+        # Sinon, continuer avec les limites du plan Essentiel
     
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
@@ -249,14 +258,16 @@ def is_feature_enabled(db: Session, company_id: int, feature_name: str) -> bool:
     Args:
         feature_name: Nom de la fonctionnalité (ex: "excel_export", "custom_branding")
     """
-    # Vérifier si c'est un essai gratuit (pas encore payé)
     subscription = db.query(Subscription).filter(
         Subscription.company_id == company_id
     ).first()
     
-    # Si c'est un essai gratuit (trialing avec amount = 0), accès complet à toutes les fonctionnalités
+    # Si c'est un essai gratuit (trialing avec amount = 0)
     if subscription and subscription.status == SubscriptionStatus.TRIALING and subscription.amount == 0:
-        return True
+        # Pendant l'essai, appliquer les restrictions selon le plan choisi
+        if subscription.plan == SubscriptionPlan.PROFESSIONAL:
+            return True  # Toutes les fonctionnalités pour Pro pendant l'essai
+        # Sinon, continuer avec les restrictions du plan Essentiel
     
     plan = get_subscription_plan(db, company_id)
     limits = get_plan_limits(plan)
