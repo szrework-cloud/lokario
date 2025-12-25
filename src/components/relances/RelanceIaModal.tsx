@@ -28,7 +28,7 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
     stopOnInvoicePaid: true,
     stopOnQuoteRefused: true,
   });
-  const [messages, setMessages] = useState<Array<{ id: number; type: string; content: string }>>([]);
+  const [messages, setMessages] = useState<Array<{ id: number; type: string; content: string; method?: string }>>([]);
   // Relances avant la date d'échéance
   const [enableRelancesBefore, setEnableRelancesBefore] = useState(false);
   const [daysBeforeDue, setDaysBeforeDue] = useState<number | null>(null);
@@ -56,7 +56,7 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
         setDaysBeforeDue(settings.days_before_due ?? null);
         setHoursBeforeDue(settings.hours_before_due ?? null);
       } catch (error: any) {
-        console.error("Erreur lors du chargement des paramètres:", error);
+        logger.error("Erreur lors du chargement des paramètres:", error);
         showToast("Erreur lors du chargement des paramètres", "error");
       } finally {
         setIsLoading(false);
@@ -115,7 +115,8 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
         .map(msg => ({
           id: msg.id,
           type: msg.type,
-          content: msg.content
+          content: msg.content,
+          method: msg.method || "email"
         }));
 
       const settingsToSave = {
@@ -147,7 +148,7 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
       showToast("Configuration sauvegardée avec succès", "success");
       onClose();
     } catch (error: any) {
-      console.error("Erreur lors de la sauvegarde:", error);
+      logger.error("Erreur lors de la sauvegarde:", error);
       showToast("Erreur lors de la sauvegarde de la configuration", "error");
     } finally {
       setIsSaving(false);
@@ -377,20 +378,93 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
             ].map((followupType) => {
               const template = messages.find(m => m.type === followupType.value);
               const templateContent = template?.content || "";
+              const templateMethod = template?.method || "email";
               
               return (
                 <div key={followupType.value} className="border border-[#E5E7EB] rounded-lg">
                   <div className="p-4">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-3">
                       <label className="text-sm font-medium text-[#0F172A]">
                         {followupType.label}
                       </label>
-                      {templateContent && (
-                        <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
-                          Template configuré
+                      <div className="flex items-center gap-2">
+                        {templateContent && (
+                          <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                            Template configuré
+                          </span>
+                        )}
+                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                          {templateMethod === "sms" ? "SMS" : "Email"}
                         </span>
-                      )}
+                      </div>
                     </div>
+                    
+                    {/* Sélecteur de méthode (Email/SMS) */}
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-[#64748B] mb-2">
+                        Méthode d'envoi
+                      </label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`method-${followupType.value}`}
+                            value="email"
+                            checked={templateMethod === "email"}
+                            onChange={(e) => {
+                              const updatedMessages = [...messages];
+                              const existingIndex = updatedMessages.findIndex(m => m.type === followupType.value);
+                              
+                              if (existingIndex >= 0) {
+                                updatedMessages[existingIndex] = { ...updatedMessages[existingIndex], method: e.target.value };
+                              } else {
+                                const newId = Math.max(0, ...updatedMessages.map(m => m.id), 0) + 1;
+                                updatedMessages.push({
+                                  id: newId,
+                                  type: followupType.value,
+                                  content: "",
+                                  method: e.target.value
+                                });
+                              }
+                              setMessages(updatedMessages);
+                            }}
+                            className="w-4 h-4 text-[#F97316] border-[#E5E7EB] focus:ring-[#F97316] focus:ring-2"
+                          />
+                          <span className="text-sm text-[#0F172A]">📧 Email</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`method-${followupType.value}`}
+                            value="sms"
+                            checked={templateMethod === "sms"}
+                            onChange={(e) => {
+                              const updatedMessages = [...messages];
+                              const existingIndex = updatedMessages.findIndex(m => m.type === followupType.value);
+                              
+                              if (existingIndex >= 0) {
+                                updatedMessages[existingIndex] = { ...updatedMessages[existingIndex], method: e.target.value };
+                              } else {
+                                const newId = Math.max(0, ...updatedMessages.map(m => m.id), 0) + 1;
+                                updatedMessages.push({
+                                  id: newId,
+                                  type: followupType.value,
+                                  content: "",
+                                  method: e.target.value
+                                });
+                              }
+                              setMessages(updatedMessages);
+                            }}
+                            className="w-4 h-4 text-[#F97316] border-[#E5E7EB] focus:ring-[#F97316] focus:ring-2"
+                          />
+                          <span className="text-sm text-[#0F172A]">📱 SMS</span>
+                        </label>
+                      </div>
+                      <p className="mt-1 text-xs text-[#64748B]">
+                        La relance sera envoyée via {templateMethod === "sms" ? "SMS (Vonage)" : "email"}
+                      </p>
+                    </div>
+                    
                     <textarea
                       value={templateContent}
                       onChange={(e) => {
@@ -400,11 +474,12 @@ export function RelanceIaModal({ isOpen, onClose }: RelanceIaModalProps) {
                         if (existingIndex >= 0) {
                           updatedMessages[existingIndex] = { ...updatedMessages[existingIndex], content: e.target.value };
                         } else {
-                          const newId = Math.max(0, ...updatedMessages.map(m => m.id)) + 1;
+                          const newId = Math.max(0, ...updatedMessages.map(m => m.id), 0) + 1;
                           updatedMessages.push({
                             id: newId,
                             type: followupType.value,
-                            content: e.target.value
+                            content: e.target.value,
+                            method: templateMethod
                           });
                         }
                         setMessages(updatedMessages);
