@@ -215,6 +215,11 @@ export default function SettingsPage() {
     rescheduleBaseUrl: string;
     maxReminderRelances?: number;
     reminderRelances?: Array<{ id: number; relance_number: number; hours_before: number; content: string }>;
+    workStartTime?: string;
+    workEndTime?: string;
+    breaksEnabled?: boolean;
+    breakCount?: number;
+    breakDuration?: number;
   }>({
     autoReminderEnabled: true,
     autoReminderOffsetHours: 4,
@@ -223,6 +228,11 @@ export default function SettingsPage() {
     rescheduleBaseUrl: typeof window !== "undefined" ? `${window.location.origin}/r/{slugEntreprise}` : "https://lokario.fr/r/{slugEntreprise}",
     maxReminderRelances: 1,
     reminderRelances: [],
+    workStartTime: "09:00",
+    workEndTime: "18:00",
+    breaksEnabled: false,
+    breakCount: 1,
+    breakDuration: 15,
   });
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
 
@@ -255,6 +265,11 @@ export default function SettingsPage() {
         setAppointmentSettings({
           ...settingsData,
           rescheduleBaseUrl: settingsData.rescheduleBaseUrl || (typeof window !== "undefined" ? `${window.location.origin}/r/{slugEntreprise}` : "https://lokario.fr/r/{slugEntreprise}"),
+          workStartTime: settingsData.workStartTime || "09:00",
+          workEndTime: settingsData.workEndTime || "18:00",
+          breaksEnabled: settingsData.breaksEnabled || false,
+          breakCount: settingsData.breakCount || 1,
+          breakDuration: settingsData.breakDuration || 15,
         });
       } catch (err) {
         console.error("Erreur lors du chargement des paramètres de rendez-vous:", err);
@@ -1765,6 +1780,109 @@ export default function SettingsPage() {
                             className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
                             placeholder={`${typeof window !== "undefined" ? window.location.origin : "https://lokario.fr"}/r/{slugEntreprise}`}
                           />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Horaires de travail */}
+                    <div className="pt-4 border-t border-[#E5E7EB]">
+                      <h3 className="text-base font-semibold text-[#0F172A] mb-4">Horaires de travail</h3>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                              Heure de début
+                            </label>
+                            <input
+                              type="time"
+                              value={appointmentSettings.workStartTime || "09:00"}
+                              onChange={(e) =>
+                                setAppointmentSettings((prev) => ({ ...prev, workStartTime: e.target.value }))
+                              }
+                              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                              Heure de fin
+                            </label>
+                            <input
+                              type="time"
+                              value={appointmentSettings.workEndTime || "18:00"}
+                              onChange={(e) =>
+                                setAppointmentSettings((prev) => ({ ...prev, workEndTime: e.target.value }))
+                              }
+                              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Pauses entre rendez-vous */}
+                        <div className="space-y-3">
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={appointmentSettings.breaksEnabled || false}
+                              onChange={(e) =>
+                                setAppointmentSettings((prev) => ({ ...prev, breaksEnabled: e.target.checked }))
+                              }
+                              className="mt-1 rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-[#0F172A]">
+                                Activer les pauses entre les rendez-vous
+                              </p>
+                              <p className="text-xs text-[#64748B] mt-1">
+                                Définir des pauses automatiques entre les rendez-vous pour permettre une transition.
+                              </p>
+                            </div>
+                          </label>
+
+                          {appointmentSettings.breaksEnabled && (
+                            <div className="pl-8 space-y-3">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                                    Nombre de pauses
+                                  </label>
+                                  <input
+                                    type="number"
+                                    value={appointmentSettings.breakCount || 1}
+                                    onChange={(e) =>
+                                      setAppointmentSettings((prev) => ({
+                                        ...prev,
+                                        breakCount: Math.max(0, Math.min(5, parseInt(e.target.value) || 1)),
+                                      }))
+                                    }
+                                    min="0"
+                                    max="5"
+                                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                                  />
+                                  <p className="text-xs text-[#64748B] mt-1">Entre 0 et 5 pauses</p>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                                    Durée des pauses (minutes)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    value={appointmentSettings.breakDuration || 15}
+                                    onChange={(e) =>
+                                      setAppointmentSettings((prev) => ({
+                                        ...prev,
+                                        breakDuration: Math.max(5, Math.min(120, parseInt(e.target.value) || 15)),
+                                      }))
+                                    }
+                                    min="5"
+                                    max="120"
+                                    step="5"
+                                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                                  />
+                                  <p className="text-xs text-[#64748B] mt-1">Entre 5 et 120 minutes</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
