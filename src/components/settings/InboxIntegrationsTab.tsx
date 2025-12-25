@@ -635,16 +635,6 @@ function InboxIntegrationsTabComponent() {
             {/* Champs pour Vonage SMS */}
             {formData.integration_type === "sms" && (
               <>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-              <h4 className="text-sm font-semibold text-green-900 mb-2">✅ Compte Vonage Centralisé</h4>
-              <p className="text-xs text-green-800">
-                Les SMS sont maintenant envoyés via un compte Vonage centralisé. Vos SMS seront automatiquement envoyés avec le <strong>nom de votre entreprise</strong> comme expéditeur (ex: "MASUPERENT" au lieu d'un numéro).
-              </p>
-              <p className="text-xs text-green-800 mt-2">
-                <strong>Plus besoin de configurer vos credentials API</strong> - tout est géré automatiquement par la plateforme.
-              </p>
-            </div>
-
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="text-sm font-semibold text-blue-900 mb-2">📋 Configuration du Webhook (pour recevoir les SMS)</h4>
               <p className="text-xs text-blue-800 mb-2">
@@ -652,6 +642,9 @@ function InboxIntegrationsTabComponent() {
               </p>
               <p className="text-xs text-blue-700 mt-2 italic">
                 Le webhook est configuré une seule fois pour toutes les entreprises utilisant la plateforme.
+              </p>
+              <p className="text-xs text-blue-800 mt-2">
+                <strong>Note :</strong> Les SMS seront envoyés avec le nom de votre entreprise (depuis Paramètres → Informations de l'entreprise) comme expéditeur (ex: "MASUPERENT").
               </p>
             </div>
               </>
