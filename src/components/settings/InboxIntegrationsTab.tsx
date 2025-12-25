@@ -198,10 +198,10 @@ function InboxIntegrationsTabComponent() {
         dataToSend.email_password = formData.email_password || undefined;
         dataToSend.use_ssl = formData.use_ssl;
       } else if (formData.integration_type === "sms") {
-        // Si c'est une intégration SMS
+        // Si c'est une intégration SMS (compte centralisé - pas de credentials nécessaires)
+        // phone_number optionnel pour compatibilité rétroactive uniquement
         dataToSend.phone_number = formData.phone_number?.trim() || undefined;
-        dataToSend.api_key = formData.api_key || undefined;
-        dataToSend.webhook_secret = formData.webhook_secret || undefined;
+        // api_key et webhook_secret ne sont plus nécessaires (compte centralisé)
       }
 
       if (editingIntegration) {
@@ -521,7 +521,7 @@ function InboxIntegrationsTabComponent() {
               </Select>
               <p className="text-xs text-[#64748B] mt-1">
                 {formData.integration_type === "sms"
-                  ? "Configuration pour recevoir et envoyer des SMS via Vonage"
+                  ? "Configuration pour recevoir et envoyer des SMS via Vonage (compte centralisé - les SMS seront envoyés avec le nom de votre entreprise)"
                   : "Configuration pour recevoir des emails via IMAP"}
               </p>
             </div>
@@ -635,86 +635,23 @@ function InboxIntegrationsTabComponent() {
             {/* Champs pour Vonage SMS */}
             {formData.integration_type === "sms" && (
               <>
-            <div>
-              <Label htmlFor="phone_number">Numéro Vonage *</Label>
-              <Input
-                id="phone_number"
-                value={formData.phone_number || ""}
-                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                placeholder="33612345678 ou +33612345678"
-                required
-                disabled={isSubmitting}
-              />
-              <p className="text-xs text-[#64748B] mt-1">
-                Numéro de téléphone Vonage depuis lequel envoyer les SMS (format international, avec ou sans +)
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <h4 className="text-sm font-semibold text-green-900 mb-2">✅ Compte Vonage Centralisé</h4>
+              <p className="text-xs text-green-800">
+                Les SMS sont maintenant envoyés via un compte Vonage centralisé. Vos SMS seront automatiquement envoyés avec le <strong>nom de votre entreprise</strong> comme expéditeur (ex: "MASUPERENT" au lieu d'un numéro).
               </p>
-            </div>
-
-            <div>
-              <Label htmlFor="api_key">
-                API Key Vonage *
-              </Label>
-              <Input
-                id="api_key"
-                type="password"
-                value={formData.api_key || ""}
-                onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
-                placeholder="Votre API Key Vonage"
-                required={!editingIntegration}
-                disabled={isSubmitting}
-              />
-              <p className="text-xs text-[#64748B] mt-1">
-                Votre API Key Vonage
-                {editingIntegration && " Laissez vide pour ne pas modifier."}
-              </p>
-              <p className="text-xs text-[#64748B] mt-1">
-                Trouvez-la dans votre{" "}
-                <a 
-                  href="https://dashboard.nexmo.com/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[#F97316] hover:underline"
-                >
-                  Dashboard Vonage
-                </a>
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="webhook_secret">
-                API Secret Vonage *
-              </Label>
-              <Input
-                id="webhook_secret"
-                type="password"
-                value={formData.webhook_secret || ""}
-                onChange={(e) => setFormData({ ...formData, webhook_secret: e.target.value })}
-                placeholder="Votre API Secret Vonage"
-                required={!editingIntegration}
-                disabled={isSubmitting}
-              />
-              <p className="text-xs text-[#64748B] mt-1">
-                Votre API Secret Vonage (utilisé pour l'authentification)
-                {editingIntegration && " Laissez vide pour ne pas modifier."}
+              <p className="text-xs text-green-800 mt-2">
+                <strong>Plus besoin de configurer vos credentials API</strong> - tout est géré automatiquement par la plateforme.
               </p>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-blue-900 mb-2">📋 Configuration du Webhook</h4>
+              <h4 className="text-sm font-semibold text-blue-900 mb-2">📋 Configuration du Webhook (pour recevoir les SMS)</h4>
               <p className="text-xs text-blue-800 mb-2">
-                Pour recevoir les SMS, configurez un webhook dans votre Dashboard Vonage :
+                Pour recevoir les SMS dans l'application, le webhook doit être configuré par l'administrateur de la plateforme sur le compte Vonage centralisé.
               </p>
-              <ol className="text-xs text-blue-800 list-decimal list-inside space-y-1">
-                <li>Allez dans <strong>Settings</strong> → <strong>API Settings</strong></li>
-                <li>Configurez l'URL du webhook :</li>
-              </ol>
-              <code className="block mt-2 p-2 bg-blue-100 rounded text-xs text-blue-900 break-all">
-                {typeof window !== 'undefined' 
-                  ? `${window.location.protocol}//${window.location.hostname}:8000/inbox/webhooks/sms`
-                  : 'https://votre-domaine.com/inbox/webhooks/sms'}
-              </code>
-              <p className="text-xs text-blue-800 mt-2">
-                <strong>HTTP Method</strong> : <code>POST</code>
+              <p className="text-xs text-blue-700 mt-2 italic">
+                Le webhook est configuré une seule fois pour toutes les entreprises utilisant la plateforme.
               </p>
             </div>
               </>

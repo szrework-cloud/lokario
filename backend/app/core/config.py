@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None  # Service Role Key (pour accès admin au Storage)
     SUPABASE_STORAGE_BUCKET: str = "company-assets"  # Nom du bucket pour les fichiers d'entreprise
     
+    # Configuration Vonage (compte centralisé pour SMS)
+    VONAGE_API_KEY: Optional[str] = None  # API Key du compte Vonage centralisé
+    VONAGE_API_SECRET: Optional[str] = None  # API Secret du compte Vonage centralisé
+    
     class Config:
         env_file = ".env"
 
@@ -103,4 +107,16 @@ if sendgrid_configured or smtp_configured:
 else:
     print("\n⚠️  Aucune configuration email (SMTP ou SendGrid) - Les emails ne seront pas envoyés (mode MOCK)")
     print("   💡 Configurez SENDGRID_API_KEY (recommandé) ou SMTP_HOST pour activer l'envoi d'emails\n")
+
+# Debug: Afficher la configuration Vonage au démarrage
+vonage_configured = hasattr(settings, 'VONAGE_API_KEY') and settings.VONAGE_API_KEY and hasattr(settings, 'VONAGE_API_SECRET') and settings.VONAGE_API_SECRET
+
+if vonage_configured:
+    print(f"\n📱 Configuration Vonage chargée:")
+    print(f"   ✅ API Key: Configuré ({len(settings.VONAGE_API_KEY)} caractères)")
+    print(f"   ✅ API Secret: Configuré ({len(settings.VONAGE_API_SECRET)} caractères)")
+    print(f"   💡 Compte Vonage centralisé activé - Les SMS utiliseront le nom d'entreprise comme expéditeur\n")
+else:
+    print("\n⚠️  Configuration Vonage non détectée - Les SMS utiliseront les intégrations par entreprise si disponibles")
+    print("   💡 Configurez VONAGE_API_KEY et VONAGE_API_SECRET pour utiliser le compte centralisé\n")
 

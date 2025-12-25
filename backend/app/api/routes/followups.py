@@ -1318,7 +1318,7 @@ def send_followup(
                 else:
                     logger.warning(f"[FOLLOWUP SEND/{followup_id}] ⚠️ Aucune intégration email active trouvée")
             elif send_method in ["sms", "whatsapp"]:
-                # Chercher d'abord une intégration SMS (type "sms")
+                # Chercher d'abord une intégration SMS (type "sms") pour compatibilité rétroactive
                 vonage_integration = db.query(InboxIntegration).filter(
                     InboxIntegration.company_id == current_user.company_id,
                     InboxIntegration.integration_type == "sms",
@@ -1333,11 +1333,16 @@ def send_followup(
                         InboxIntegration.is_active == True
                     ).first()
                 
-                if vonage_integration:
-                    from_phone = vonage_integration.phone_number
-                    logger.info(f"[FOLLOWUP SEND/{followup_id}] Intégration SMS/WhatsApp trouvée: {from_phone}")
-                else:
-                    logger.warning(f"[FOLLOWUP SEND/{followup_id}] ⚠️ Aucune intégration SMS/WhatsApp active trouvée")
+                # Déterminer l'expéditeur (nom d'entreprise normalisé si compte centralisé, sinon phone_number)
+                from app.core.vonage_service import get_vonage_credentials_and_sender
+                _, _, from_phone = get_vonage_credentials_and_sender(
+                    company_name=company_name,
+                    company_id=current_user.company_id,
+                    db=db,
+                    vonage_integration=vonage_integration
+                )
+                
+                logger.info(f"[FOLLOWUP SEND/{followup_id}] Expéditeur SMS déterminé: {from_phone}")
             
             # Créer directement le message dans la conversation (pas besoin de MessageCreate ici)
             inbox_message = InboxMessage(
@@ -1363,7 +1368,7 @@ def send_followup(
             # Envoyer l'email/SMS via la logique inbox (comme dans create_message)
             # Le système inbox enverra automatiquement car is_from_client=False
             from app.core.smtp_service import send_email_smtp, get_smtp_config
-            from app.core.vonage_service import VonageSMSService
+            from app.core.vonage_service import VonageSMSService, get_vonage_credentials_and_sender
             from app.core.encryption_service import get_encryption_service
             
             if send_method == "email":
@@ -1404,37 +1409,33 @@ def send_followup(
             
             elif send_method in ["sms", "whatsapp"]:
                 try:
-                    if not vonage_integration:
-                        logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: aucune intégration SMS trouvée")
-                    elif not vonage_integration.api_key:
-                        logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: pas de clé API dans l'intégration")
-                    elif not vonage_integration.webhook_secret:
-                        logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: pas d'API Secret (webhook_secret) dans l'intégration")
-                    elif not vonage_integration.phone_number:
-                        logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: pas de numéro de téléphone dans l'intégration")
-                    elif not followup.client or not followup.client.phone:
+                    if not followup.client or not followup.client.phone:
                         logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: pas de téléphone client")
                     else:
-                        encryption_service = get_encryption_service()
-                        api_key = encryption_service.decrypt(vonage_integration.api_key) if vonage_integration.api_key else None
-                        api_secret = encryption_service.decrypt(vonage_integration.webhook_secret) if vonage_integration.webhook_secret else None
+                        # Récupérer les credentials Vonage (centralisé en priorité, fallback intégration)
+                        api_key, api_secret, from_number = get_vonage_credentials_and_sender(
+                            company_name=company_name,
+                            company_id=current_user.company_id,
+                            db=db,
+                            vonage_integration=vonage_integration
+                        )
                         
                         if not api_key or not api_secret:
-                            logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible de décrypter les credentials Vonage")
+                            logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: aucune configuration Vonage disponible (centralisée ou intégration)")
                         else:
                             vonage_service = VonageSMSService(api_key=api_key, api_secret=api_secret)
-                            logger.info(f"[FOLLOWUP SEND/{followup_id}] 📱 Envoi du SMS de {vonage_integration.phone_number} à {followup.client.phone}")
+                            logger.info(f"[FOLLOWUP SEND/{followup_id}] 📱 Envoi du SMS de {from_number} à {followup.client.phone}")
                             result = vonage_service.send_sms(
                                 to=followup.client.phone,
                                 message=message,
-                                from_number=vonage_integration.phone_number
+                                from_number=from_number
                             )
                             if result.get("success"):
                                 inbox_message.external_id = result.get("message_id")
                                 inbox_message.external_metadata = {"vonage_message_id": result.get("message_id"), "provider": "vonage"}
                                 db.commit()  # Sauvegarder l'external_id
                                 sms_sent = True
-                                logger.info(f"[FOLLOWUP SEND/{followup_id}] ✅ SMS envoyé avec succès à {followup.client.phone}")
+                                logger.info(f"[FOLLOWUP SEND/{followup_id}] ✅ SMS envoyé avec succès à {followup.client.phone} depuis {from_number}")
                             else:
                                 logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Échec de l'envoi SMS: {result.get('error', 'Erreur inconnue')}")
                 except Exception as e:

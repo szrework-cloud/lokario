@@ -487,6 +487,13 @@ def send_followup_via_inbox(followup: FollowUp, message: str, method: str, db: S
             conversation_id = conversation.id
             logger.info(f"Relance {followup.id}: Nouvelle conversation créée: {conversation_id}")
         
+        # Récupérer le nom de l'entreprise pour l'expéditeur SMS
+        company_name = "Notre entreprise"
+        from app.db.models.company import Company
+        company = db.query(Company).filter(Company.id == followup.company_id).first()
+        if company:
+            company_name = company.name
+        
         # Récupérer l'adresse email ou téléphone de l'expéditeur
         from_email = None
         from_phone = None
@@ -503,7 +510,7 @@ def send_followup_via_inbox(followup: FollowUp, message: str, method: str, db: S
                 from_email = primary_integration.email_address
                 from_name = primary_integration.name or from_name
         elif method in ["sms", "whatsapp"]:
-            # Chercher d'abord une intégration SMS (type "sms")
+            # Chercher d'abord une intégration SMS (type "sms") pour compatibilité rétroactive
             vonage_integration = db.query(InboxIntegration).filter(
                 InboxIntegration.company_id == followup.company_id,
                 InboxIntegration.integration_type == "sms",
@@ -518,8 +525,14 @@ def send_followup_via_inbox(followup: FollowUp, message: str, method: str, db: S
                     InboxIntegration.is_active == True
                 ).first()
             
-            if vonage_integration:
-                from_phone = vonage_integration.phone_number
+            # Déterminer l'expéditeur (nom d'entreprise normalisé si compte centralisé, sinon phone_number)
+            from app.core.vonage_service import get_vonage_credentials_and_sender
+            _, _, from_phone = get_vonage_credentials_and_sender(
+                company_name=company_name,
+                company_id=followup.company_id,
+                db=db,
+                vonage_integration=vonage_integration
+            )
         
         # Ajouter le message dans la conversation
         inbox_message = InboxMessage(
@@ -575,52 +588,33 @@ def send_followup_via_inbox(followup: FollowUp, message: str, method: str, db: S
         
         elif method in ["sms", "whatsapp"] and conversation.source in ["sms", "whatsapp"]:
             try:
-                # Chercher d'abord une intégration SMS (type "sms")
-                vonage_integration = db.query(InboxIntegration).filter(
-                    InboxIntegration.company_id == followup.company_id,
-                    InboxIntegration.integration_type == "sms",
-                    InboxIntegration.is_active == True
-                ).first()
-                
-                # Si pas trouvé, chercher une intégration WhatsApp (rétrocompatibilité)
-                if not vonage_integration:
-                    vonage_integration = db.query(InboxIntegration).filter(
-                        InboxIntegration.company_id == followup.company_id,
-                        InboxIntegration.integration_type == "whatsapp",
-                        InboxIntegration.is_active == True
-                    ).first()
-                
-                # Vérifier toutes les conditions nécessaires
-                if not vonage_integration:
-                    logger.error(f"Relance {followup.id}: ❌ Aucune intégration SMS trouvée")
-                elif not vonage_integration.api_key:
-                    logger.error(f"Relance {followup.id}: ❌ API Key manquante dans l'intégration SMS")
-                elif not vonage_integration.webhook_secret:
-                    logger.error(f"Relance {followup.id}: ❌ API Secret (webhook_secret) manquant dans l'intégration SMS")
-                elif not vonage_integration.phone_number:
-                    logger.error(f"Relance {followup.id}: ❌ Numéro de téléphone manquant dans l'intégration SMS")
-                elif not followup.client or not followup.client.phone:
+                if not followup.client or not followup.client.phone:
                     logger.error(f"Relance {followup.id}: ❌ Numéro de téléphone client manquant")
                 else:
-                    # Toutes les conditions sont remplies, on peut envoyer
-                    encryption_service = get_encryption_service()
-                    api_key = encryption_service.decrypt(vonage_integration.api_key) if vonage_integration.api_key else None
-                    api_secret = encryption_service.decrypt(vonage_integration.webhook_secret) if vonage_integration.webhook_secret else None
+                    # Récupérer les credentials Vonage (centralisé en priorité, fallback intégration)
+                    from app.core.vonage_service import get_vonage_credentials_and_sender
+                    api_key, api_secret, from_number = get_vonage_credentials_and_sender(
+                        company_name=company_name,
+                        company_id=followup.company_id,
+                        db=db,
+                        vonage_integration=vonage_integration
+                    )
                     
                     if not api_key or not api_secret:
-                        logger.error(f"Relance {followup.id}: ❌ Impossible de décrypter les credentials Vonage")
+                        logger.error(f"Relance {followup.id}: ❌ Impossible d'envoyer le SMS: aucune configuration Vonage disponible (centralisée ou intégration)")
                     else:
                         vonage_service = VonageSMSService(api_key=api_key, api_secret=api_secret)
+                        logger.info(f"Relance {followup.id}: 📱 Envoi du SMS de {from_number} à {followup.client.phone}")
                         result = vonage_service.send_sms(
                             to=followup.client.phone,
                             message=message,
-                            from_number=vonage_integration.phone_number
+                            from_number=from_number
                         )
                         if result.get("success"):
                             inbox_message.external_id = result.get("message_id")
                             inbox_message.external_metadata = {"vonage_message_id": result.get("message_id"), "provider": "vonage"}
                             success = True
-                            logger.info(f"✅ SMS envoyé via inbox à {followup.client.phone} pour la relance {followup.id}")
+                            logger.info(f"✅ SMS envoyé via inbox à {followup.client.phone} depuis {from_number} pour la relance {followup.id}")
                         else:
                             logger.error(f"Relance {followup.id}: ❌ Échec de l'envoi SMS: {result.get('error', 'Erreur inconnue')}")
             except Exception as e:

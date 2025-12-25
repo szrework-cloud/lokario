@@ -27,7 +27,7 @@ from app.db.models.company_settings import CompanySettings
 from app.core.imap_service import delete_email_imap_async
 from app.core.smtp_service import send_email_smtp, get_smtp_config
 from app.core.conversation_classifier import auto_classify_conversation_status
-from app.core.vonage_service import VonageSMSService
+from app.core.vonage_service import VonageSMSService, get_vonage_credentials_and_sender
 from app.core.ai_reply_service import ai_reply_service
 from app.api.schemas.inbox import (
     ConversationCreate,
@@ -493,28 +493,37 @@ def create_conversation(
                 InboxIntegration.integration_type == "sms"
             ).first()
             
-            if sms_integration and sms_integration.account_id and sms_integration.api_key and sms_integration.phone_number:
-                # Trouver le destinataire (le client de la conversation ou from_email dans first_message)
-                to_phone = None
-                if conversation.client and conversation.client.phone:
-                    to_phone = conversation.client.phone
-                elif conversation_data.first_message.from_phone:
-                    to_phone = conversation_data.first_message.from_phone
+            # Récupérer le nom de l'entreprise
+            company_name = current_user.company.name if current_user.company else "Notre entreprise"
+            
+            # Trouver le destinataire (le client de la conversation ou from_phone dans first_message)
+            to_phone = None
+            if conversation.client and conversation.client.phone:
+                to_phone = conversation.client.phone
+            elif conversation_data.first_message.from_phone:
+                to_phone = conversation_data.first_message.from_phone
+            
+            if to_phone:
+                # Récupérer les credentials Vonage (centralisé en priorité, fallback intégration)
+                api_key, api_secret, from_number = get_vonage_credentials_and_sender(
+                    company_name=company_name,
+                    company_id=current_user.company_id,
+                    db=db,
+                    vonage_integration=sms_integration
+                )
                 
-                if to_phone:
+                if not api_key or not api_secret:
+                    print(f"[INBOX CREATE] ❌ Impossible d'envoyer le SMS: aucune configuration Vonage disponible (centralisée ou intégration)")
+                else:
                     # Initialiser le service SMS avec les credentials Vonage
-                    # api_key = API Key Vonage, webhook_secret = API Secret Vonage
-                    sms_service = VonageSMSService(
-                        api_key=sms_integration.api_key,
-                        api_secret=sms_integration.webhook_secret or ""  # Utiliser webhook_secret pour stocker api_secret
-                    )
+                    sms_service = VonageSMSService(api_key=api_key, api_secret=api_secret)
                     
                     # Envoyer le SMS
-                    print(f"[INBOX CREATE] Envoi du SMS via Vonage de {sms_integration.phone_number} à {to_phone}")
+                    print(f"[INBOX CREATE] Envoi du SMS via Vonage de {from_number} à {to_phone}")
                     result = sms_service.send_sms(
                         to=to_phone,
                         message=conversation_data.first_message.content,
-                        from_number=sms_integration.phone_number
+                        from_number=from_number
                     )
                     
                     if result.get("success"):
@@ -527,13 +536,11 @@ def create_conversation(
                         }
                         db.commit()
                         db.refresh(message)
-                        print(f"[INBOX CREATE] SMS envoyé avec succès: {result.get('message_id')}")
+                        print(f"[INBOX CREATE] SMS envoyé avec succès depuis {from_number}: {result.get('message_id')}")
                     else:
                         print(f"[INBOX CREATE] Erreur lors de l'envoi du SMS: {result.get('error')}")
-                else:
-                    print(f"[INBOX CREATE] Impossible d'envoyer le SMS: destinataire non trouvé")
             else:
-                print(f"[INBOX CREATE] Impossible d'envoyer le SMS: aucune intégration SMS configurée")
+                print(f"[INBOX CREATE] Impossible d'envoyer le SMS: destinataire non trouvé")
         except Exception as e:
             # On log l'erreur mais on ne fait pas échouer la création de la conversation
             print(f"[INBOX CREATE] Erreur lors de l'envoi du SMS via Vonage: {e}")
@@ -1100,36 +1107,45 @@ def create_message(
                 InboxIntegration.integration_type == "sms"
             ).first()
             
-            if sms_integration and sms_integration.account_id and sms_integration.api_key and sms_integration.phone_number:
-                # Trouver le destinataire (le client de la conversation)
-                to_phone = None
-                if conversation.client and conversation.client.phone:
-                    to_phone = conversation.client.phone
-                else:
-                    # Sinon, chercher dans les messages précédents de la conversation
-                    previous_message = db.query(InboxMessage).filter(
-                        InboxMessage.conversation_id == conversation_id,
-                        InboxMessage.is_from_client == True,
-                        InboxMessage.from_phone.isnot(None)
-                    ).order_by(InboxMessage.created_at.desc()).first()
-                    
-                    if previous_message:
-                        to_phone = previous_message.from_phone
+            # Récupérer le nom de l'entreprise
+            company_name = current_user.company.name if current_user.company else "Notre entreprise"
+            
+            # Trouver le destinataire (le client de la conversation)
+            to_phone = None
+            if conversation.client and conversation.client.phone:
+                to_phone = conversation.client.phone
+            else:
+                # Sinon, chercher dans les messages précédents de la conversation
+                previous_message = db.query(InboxMessage).filter(
+                    InboxMessage.conversation_id == conversation_id,
+                    InboxMessage.is_from_client == True,
+                    InboxMessage.from_phone.isnot(None)
+                ).order_by(InboxMessage.created_at.desc()).first()
                 
-                if to_phone:
+                if previous_message:
+                    to_phone = previous_message.from_phone
+            
+            if to_phone:
+                # Récupérer les credentials Vonage (centralisé en priorité, fallback intégration)
+                api_key, api_secret, from_number = get_vonage_credentials_and_sender(
+                    company_name=company_name,
+                    company_id=current_user.company_id,
+                    db=db,
+                    vonage_integration=sms_integration
+                )
+                
+                if not api_key or not api_secret:
+                    print(f"[INBOX] ❌ Impossible d'envoyer le SMS: aucune configuration Vonage disponible (centralisée ou intégration)")
+                else:
                     # Initialiser le service SMS avec les credentials Vonage
-                    # api_key = API Key Vonage, webhook_secret = API Secret Vonage
-                    sms_service = VonageSMSService(
-                        api_key=sms_integration.api_key,
-                        api_secret=sms_integration.webhook_secret or ""  # Utiliser webhook_secret pour stocker api_secret
-                    )
+                    sms_service = VonageSMSService(api_key=api_key, api_secret=api_secret)
                     
                     # Envoyer le SMS
-                    print(f"[INBOX] Envoi du SMS via Vonage de {sms_integration.phone_number} à {to_phone}")
+                    print(f"[INBOX] Envoi du SMS via Vonage de {from_number} à {to_phone}")
                     result = sms_service.send_sms(
                         to=to_phone,
                         message=message_data.content,
-                        from_number=sms_integration.phone_number
+                        from_number=from_number
                     )
                     
                     if result.get("success"):
@@ -1141,13 +1157,11 @@ def create_message(
                             "provider": "vonage"
                         }
                         db.commit()
-                        print(f"[INBOX] SMS envoyé avec succès: {result.get('message_id')}")
+                        print(f"[INBOX] SMS envoyé avec succès depuis {from_number}: {result.get('message_id')}")
                     else:
                         print(f"[INBOX] Erreur lors de l'envoi du SMS: {result.get('error')}")
-                else:
-                    print(f"[INBOX] Impossible d'envoyer le SMS: destinataire non trouvé")
             else:
-                print(f"[INBOX] Impossible d'envoyer le SMS: aucune intégration SMS configurée")
+                print(f"[INBOX] Impossible d'envoyer le SMS: destinataire non trouvé")
         except Exception as e:
             # On log l'erreur mais on ne fait pas échouer la création du message
             print(f"[INBOX] Erreur lors de l'envoi du SMS via Twilio: {e}")

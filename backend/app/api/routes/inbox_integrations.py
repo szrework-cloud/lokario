@@ -439,9 +439,11 @@ def create_integration(
         email_address=integration_data.email_address,
         email_password=get_encryption_service().encrypt(integration_data.email_password) if integration_data.email_password else None,
         use_ssl=integration_data.use_ssl,
-        api_key=get_encryption_service().encrypt(integration_data.api_key) if integration_data.api_key else None,
+        # Pour les intégrations SMS, les credentials sont optionnels (compte centralisé)
+        # Si fournis, on les chiffre pour compatibilité rétroactive
+        api_key=get_encryption_service().encrypt(integration_data.api_key) if integration_data.api_key and integration_data.integration_type != "sms" else (get_encryption_service().encrypt(integration_data.api_key) if integration_data.api_key else None),
         webhook_url=integration_data.webhook_url,
-        webhook_secret=get_encryption_service().encrypt(integration_data.webhook_secret) if integration_data.webhook_secret else None,
+        webhook_secret=get_encryption_service().encrypt(integration_data.webhook_secret) if integration_data.webhook_secret and integration_data.integration_type != "sms" else (get_encryption_service().encrypt(integration_data.webhook_secret) if integration_data.webhook_secret else None),
         account_id=integration_data.account_id,
         phone_number=integration_data.phone_number,
     )

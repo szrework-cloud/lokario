@@ -7,8 +7,129 @@ import requests
 import logging
 from datetime import datetime
 import base64
+import unicodedata
+import re
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_company_name_for_sms(company_name: str) -> str:
+    """
+    Normalise le nom d'entreprise pour l'utiliser comme expéditeur SMS (Alphanumeric Sender ID).
+    
+    Règles :
+    - Maximum 11 caractères (limite Vonage)
+    - Alphanumérique uniquement (A-Z, 0-9)
+    - En majuscules
+    - Pas d'espaces, accents, caractères spéciaux
+    
+    Args:
+        company_name: Nom de l'entreprise (ex: "Ma Super Entreprise")
+    
+    Returns:
+        Nom normalisé (ex: "MASUPERENT")
+    """
+    if not company_name:
+        return "LOKARIO"  # Fallback par défaut
+    
+    try:
+        # Étape 1: Normaliser les accents (é → e, à → a, etc.)
+        normalized = unicodedata.normalize('NFD', company_name)
+        ascii_text = normalized.encode('ascii', 'ignore').decode('ascii')
+        
+        # Étape 2: Garder uniquement les caractères alphanumériques
+        alphanumeric = re.sub(r'[^A-Za-z0-9]', '', ascii_text)
+        
+        # Étape 3: Convertir en majuscules
+        alphanumeric = alphanumeric.upper()
+        
+        # Étape 4: Limiter à 11 caractères (limite Vonage)
+        result = alphanumeric[:11] if alphanumeric else "LOKARIO"
+        
+        logger.debug(f"[VONAGE] Normalisation nom entreprise: '{company_name}' → '{result}'")
+        
+        return result
+    except Exception as e:
+        logger.error(f"[VONAGE] Erreur lors de la normalisation du nom d'entreprise '{company_name}': {e}")
+        return "LOKARIO"  # Fallback en cas d'erreur
+
+
+def get_vonage_credentials_and_sender(
+    company_name: str,
+    company_id: Optional[int] = None,
+    db: Optional[any] = None,
+    vonage_integration: Optional[any] = None
+) -> tuple[Optional[str], Optional[str], str]:
+    """
+    Récupère les credentials Vonage et l'expéditeur SMS avec fallback.
+    
+    Ordre de priorité :
+    1. Credentials centralisés (VONAGE_API_KEY, VONAGE_API_SECRET) + nom d'entreprise normalisé ✅ NOUVEAU
+    2. Intégration par entreprise (InboxIntegration) + phone_number (compatibilité)
+    
+    Args:
+        company_name: Nom de l'entreprise (pour normaliser comme expéditeur)
+        company_id: ID de l'entreprise (optionnel, pour logging)
+        db: Session SQLAlchemy (optionnel, pour fallback intégration)
+        vonage_integration: InboxIntegration existante (optionnel, pour éviter requête DB)
+    
+    Returns:
+        Tuple (api_key, api_secret, from_number)
+        - api_key: API Key Vonage (None si non disponible)
+        - api_secret: API Secret Vonage (None si non disponible)
+        - from_number: Expéditeur (nom d'entreprise normalisé ou phone_number)
+    """
+    from app.core.config import settings
+    from app.core.encryption_service import get_encryption_service
+    
+    # Priorité 1: Credentials centralisés (compte Vonage centralisé)
+    if settings.VONAGE_API_KEY and settings.VONAGE_API_SECRET:
+        normalized_name = normalize_company_name_for_sms(company_name)
+        logger.info(f"[VONAGE] Utilisation du compte centralisé avec expéditeur: {normalized_name}")
+        return settings.VONAGE_API_KEY, settings.VONAGE_API_SECRET, normalized_name
+    
+    # Priorité 2: Intégration par entreprise (compatibilité rétroactive)
+    if vonage_integration:
+        if vonage_integration.api_key and vonage_integration.webhook_secret:
+            encryption_service = get_encryption_service()
+            api_key = encryption_service.decrypt(vonage_integration.api_key) if vonage_integration.api_key else None
+            api_secret = encryption_service.decrypt(vonage_integration.webhook_secret) if vonage_integration.webhook_secret else None
+            
+            if api_key and api_secret:
+                from_number = vonage_integration.phone_number or normalize_company_name_for_sms(company_name)
+                logger.info(f"[VONAGE] Utilisation de l'intégration par entreprise avec expéditeur: {from_number}")
+                return api_key, api_secret, from_number
+    
+    # Si pas d'intégration fournie mais company_id et db disponibles, chercher une intégration
+    if company_id and db:
+        from app.db.models.inbox_integration import InboxIntegration
+        
+        integration = db.query(InboxIntegration).filter(
+            InboxIntegration.company_id == company_id,
+            InboxIntegration.integration_type == "sms",
+            InboxIntegration.is_active == True
+        ).first()
+        
+        if not integration:
+            integration = db.query(InboxIntegration).filter(
+                InboxIntegration.company_id == company_id,
+                InboxIntegration.integration_type == "whatsapp",
+                InboxIntegration.is_active == True
+            ).first()
+        
+        if integration and integration.api_key and integration.webhook_secret:
+            encryption_service = get_encryption_service()
+            api_key = encryption_service.decrypt(integration.api_key) if integration.api_key else None
+            api_secret = encryption_service.decrypt(integration.webhook_secret) if integration.webhook_secret else None
+            
+            if api_key and api_secret:
+                from_number = integration.phone_number or normalize_company_name_for_sms(company_name)
+                logger.info(f"[VONAGE] Utilisation de l'intégration par entreprise (trouvée) avec expéditeur: {from_number}")
+                return api_key, api_secret, from_number
+    
+    # Aucune configuration trouvée
+    logger.warning(f"[VONAGE] Aucune configuration Vonage trouvée (centralisée ou intégration)")
+    return None, None, normalize_company_name_for_sms(company_name)
 
 
 class VonageSMSService:
