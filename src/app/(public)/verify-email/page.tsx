@@ -15,6 +15,14 @@ function VerifyEmailForm() {
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0); // Timer en secondes
 
+  // Forcer le fond noir sur le body
+  useEffect(() => {
+    document.body.style.backgroundColor = "#000000";
+    return () => {
+      document.body.style.backgroundColor = "";
+    };
+  }, []);
+
   // Timer de cooldown
   useEffect(() => {
     if (cooldown > 0) {
@@ -67,8 +75,8 @@ function VerifyEmailForm() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]">
-      <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-black">
+      <div className="w-full max-w-md rounded-2xl border border-[#374151] bg-[#111827] p-8 shadow-sm">
         <div className="text-center mb-6">
           <div className="mx-auto w-16 h-16 bg-[#F97316]/10 rounded-full flex items-center justify-center mb-4">
             <svg
@@ -85,14 +93,14 @@ function VerifyEmailForm() {
               />
             </svg>
           </div>
-          <h1 className="text-2xl font-semibold text-[#0F172A] mb-2">
+          <h1 className="text-2xl font-semibold text-white mb-2">
             Vérifiez votre email
           </h1>
-          <p className="text-sm text-[#64748B]">
+          <p className="text-sm text-gray-300">
             {email ? (
               <>
                 Nous avons envoyé un lien de vérification à{" "}
-                <span className="font-medium text-[#0F172A]">{email}</span>
+                <span className="font-medium text-white">{email}</span>
               </>
             ) : (
               "Un email de vérification vous a été envoyé"
@@ -101,11 +109,11 @@ function VerifyEmailForm() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4">
-            <p className="text-sm text-[#64748B] mb-2">
-              <strong className="text-[#0F172A]">Instructions :</strong>
+          <div className="rounded-lg border border-[#374151] bg-[#1F2937] p-4">
+            <p className="text-sm text-gray-300 mb-2">
+              <strong className="text-white">Instructions :</strong>
             </p>
-            <ol className="text-sm text-[#64748B] space-y-1 list-decimal list-inside">
+            <ol className="text-sm text-gray-300 space-y-1 list-decimal list-inside">
               <li>Ouvrez votre boîte de réception</li>
               <li>Cliquez sur le lien de vérification dans l'email</li>
               <li>Vous serez automatiquement redirigé vers la connexion</li>
@@ -126,8 +134,8 @@ function VerifyEmailForm() {
             </div>
           )}
 
-          <div className="border-t border-[#E5E7EB] pt-4">
-            <p className="text-sm text-[#64748B] mb-3">
+          <div className="border-t border-[#374151] pt-4">
+            <p className="text-sm text-gray-300 mb-3">
               Vous n'avez pas reçu l'email ? Renvoyez-le :
             </p>
             <div className="space-y-3">
@@ -147,8 +155,8 @@ function VerifyEmailForm() {
               {cooldown > 0 && (
                 <div className="text-center pt-2">
                   <div className="inline-flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-2 text-sm text-[#64748B]">
-                      <div className="w-32 h-2 bg-[#E5E7EB] rounded-full overflow-hidden">
+                    <div className="flex items-center gap-2 text-sm text-gray-300">
+                      <div className="w-32 h-2 bg-[#374151] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-[#F97316] transition-all duration-1000 ease-linear"
                           style={{ width: `${((60 - cooldown) / 60) * 100}%` }}
@@ -156,7 +164,7 @@ function VerifyEmailForm() {
                       </div>
                       <span className="font-medium text-[#F97316] min-w-[3rem]">{cooldown}s</span>
                     </div>
-                    <p className="text-xs text-[#64748B]">
+                    <p className="text-xs text-gray-300">
                       Vous pourrez renvoyer l'email dans {cooldown} seconde{cooldown > 1 ? 's' : ''}
                     </p>
                   </div>
@@ -181,7 +189,7 @@ function VerifyEmailForm() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]"><div className="text-[#64748B]">Chargement...</div></div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-black"><div className="text-gray-300">Chargement...</div></div>}>
       <VerifyEmailForm />
     </Suspense>
   );

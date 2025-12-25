@@ -13,6 +13,14 @@ export default function VerifyEmailTokenPage() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
 
+  // Forcer le fond noir sur le body
+  useEffect(() => {
+    document.body.style.backgroundColor = "#000000";
+    return () => {
+      document.body.style.backgroundColor = "";
+    };
+  }, []);
+
   useEffect(() => {
     const verifyEmail = async () => {
       if (!token) {
@@ -53,8 +61,8 @@ export default function VerifyEmailTokenPage() {
   }, [token, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]">
-      <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-black">
+      <div className="w-full max-w-md rounded-2xl border border-[#374151] bg-[#111827] p-8 shadow-sm">
         <div className="text-center">
           {status === "loading" && (
             <>
@@ -73,10 +81,10 @@ export default function VerifyEmailTokenPage() {
                   />
                 </svg>
               </div>
-              <h1 className="text-2xl font-semibold text-[#0F172A] mb-2">
+              <h1 className="text-2xl font-semibold text-white mb-2">
                 Vérification en cours...
               </h1>
-              <p className="text-sm text-[#64748B]">
+              <p className="text-sm text-gray-300">
                 Veuillez patienter pendant que nous vérifions votre email.
               </p>
             </>
@@ -99,11 +107,11 @@ export default function VerifyEmailTokenPage() {
                   />
                 </svg>
               </div>
-              <h1 className="text-2xl font-semibold text-[#0F172A] mb-2">
+              <h1 className="text-2xl font-semibold text-white mb-2">
                 Email vérifié !
               </h1>
-              <p className="text-sm text-[#64748B] mb-4">{message}</p>
-              <p className="text-xs text-[#64748B]">
+              <p className="text-sm text-gray-300 mb-4">{message}</p>
+              <p className="text-xs text-gray-300">
                 Redirection vers la page de connexion...
               </p>
             </>
@@ -126,10 +134,10 @@ export default function VerifyEmailTokenPage() {
                   />
                 </svg>
               </div>
-              <h1 className="text-2xl font-semibold text-[#0F172A] mb-2">
+              <h1 className="text-2xl font-semibold text-white mb-2">
                 Erreur de vérification
               </h1>
-              <p className="text-sm text-red-600 mb-4">{message}</p>
+              <p className="text-sm text-red-400 mb-4">{message}</p>
               <div className="space-y-2">
                 <Link
                   href="/login"

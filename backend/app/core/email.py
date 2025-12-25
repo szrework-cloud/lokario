@@ -78,18 +78,18 @@ L'équipe Lokario"""
             html_content = f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="font-family: Arial, sans-serif;">
+<body style="font-family: Arial, sans-serif; background-color: #000000; margin: 0; padding: 0;">
     <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background-color: #F97316; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
             <h1>Bienvenue sur Lokario</h1>
         </div>
-        <div style="background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
-            <p>Bonjour {full_name or 'Utilisateur'},</p>
-            <p>Merci de vous être inscrit sur Lokario !</p>
+        <div style="background-color: #000000; color: white; padding: 30px; border-radius: 0 0 8px 8px;">
+            <p style="color: white;">Bonjour {full_name or 'Utilisateur'},</p>
+            <p style="color: white;">Merci de vous être inscrit sur Lokario !</p>
             <p style="text-align: center;">
                 <a href="{verification_url}" style="display: inline-block; padding: 12px 24px; background-color: #F97316; color: white; text-decoration: none; border-radius: 6px;">Vérifier mon email</a>
             </p>
-            <p><strong>Ce lien est valide pendant 24 heures.</strong></p>
+            <p style="color: white;"><strong>Ce lien est valide pendant 24 heures.</strong></p>
         </div>
     </div>
 </body>
