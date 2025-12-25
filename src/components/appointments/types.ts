@@ -49,4 +49,10 @@ export interface AppointmentSettings {
   rescheduleBaseUrl?: string; // ex: "https://mon-saas.com/r/{slugEntreprise}"
   maxReminderRelances?: number; // Nombre max de relances (1 à 3)
   reminderRelances?: AppointmentReminderTemplate[]; // Templates pour chaque relance
+  // Horaires de travail
+  workStartTime?: string; // Heure de début (format HH:MM, ex: "09:00")
+  workEndTime?: string; // Heure de fin (format HH:MM, ex: "18:00")
+  breaksEnabled?: boolean; // Activer les pauses entre les rendez-vous
+  breakCount?: number; // Nombre de pauses (0-5)
+  breakDuration?: number; // Durée des pauses en minutes (5-120)
 }

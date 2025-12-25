@@ -159,6 +159,12 @@ class AppointmentSettings(BaseModel):
     # Configuration des relances multiples
     max_reminder_relances: int = Field(default=1, ge=1, le=3)  # Nombre max de relances (1 à 3)
     reminder_relances: List[AppointmentReminderTemplate] = Field(default_factory=list)  # Templates pour chaque relance
+    # Horaires de travail
+    work_start_time: Optional[str] = Field(default="09:00", description="Heure de début du travail (format HH:MM)")
+    work_end_time: Optional[str] = Field(default="18:00", description="Heure de fin du travail (format HH:MM)")
+    breaks_enabled: bool = Field(default=False, description="Activer les pauses entre les rendez-vous")
+    break_count: int = Field(default=1, ge=0, le=5, description="Nombre de pauses")
+    break_duration: int = Field(default=15, ge=5, le=120, description="Durée des pauses en minutes")
     
     class Config:
         from_attributes = True
@@ -177,6 +183,11 @@ class AppointmentSettingsUpdate(BaseModel):
     auto_reminder_offset_hours: Optional[int] = Field(default=None, ge=1)
     include_reschedule_link_in_reminder: Optional[bool] = None
     auto_no_show_message_enabled: Optional[bool] = None
+    work_start_time: Optional[str] = None
+    work_end_time: Optional[str] = None
+    breaks_enabled: Optional[bool] = None
+    break_count: Optional[int] = Field(default=None, ge=0, le=5)
+    break_duration: Optional[int] = Field(default=None, ge=5, le=120)
     reschedule_base_url: Optional[str] = None
     max_reminder_relances: Optional[int] = Field(default=None, ge=1, le=3)
     reminder_relances: Optional[List[AppointmentReminderTemplateUpdate]] = None

@@ -44,6 +44,12 @@ export interface AppointmentSettings {
   rescheduleBaseUrl?: string;
   maxReminderRelances?: number; // Nombre max de relances (1 à 3)
   reminderRelances?: AppointmentReminderTemplate[]; // Templates pour chaque relance
+  // Horaires de travail
+  workStartTime?: string; // Heure de début (format HH:MM, ex: "09:00")
+  workEndTime?: string; // Heure de fin (format HH:MM, ex: "18:00")
+  breaksEnabled?: boolean; // Activer les pauses entre les rendez-vous
+  breakCount?: number; // Nombre de pauses (0-5)
+  breakDuration?: number; // Durée des pauses en minutes (5-120)
 }
 
 // Types API
@@ -85,6 +91,18 @@ interface AppointmentSettingsAPIResponse {
   include_reschedule_link_in_reminder: boolean;
   auto_no_show_message_enabled: boolean;
   reschedule_base_url?: string | null;
+  max_reminder_relances?: number;
+  reminder_relances?: Array<{
+    id: number;
+    relance_number: number;
+    hours_before: number;
+    content: string;
+  }>;
+  work_start_time?: string;
+  work_end_time?: string;
+  breaks_enabled?: boolean;
+  break_count?: number;
+  break_duration?: number;
 }
 
 /**
@@ -416,6 +434,11 @@ export async function getAppointmentSettings(
       rescheduleBaseUrl: undefined,
       maxReminderRelances: 1,
       reminderRelances: [],
+      workStartTime: "09:00",
+      workEndTime: "18:00",
+      breaksEnabled: false,
+      breakCount: 1,
+      breakDuration: 15,
     };
 
   try {
@@ -446,6 +469,11 @@ export async function getAppointmentSettings(
         hours_before: r.hours_before || r.hoursBefore || 4,
         content: r.content || "",
       })),
+      workStartTime: settings.work_start_time || "09:00",
+      workEndTime: settings.work_end_time || "18:00",
+      breaksEnabled: settings.breaks_enabled ?? false,
+      breakCount: settings.break_count ?? 1,
+      breakDuration: settings.break_duration ?? 15,
     };
   } catch (error: any) {
     // Pour les erreurs 422, utiliser les valeurs par défaut sans logger d'erreur
@@ -485,6 +513,11 @@ export async function updateAppointmentSettings(
       include_reschedule_link_in_reminder: settings.includeRescheduleLinkInReminder,
       auto_no_show_message_enabled: settings.autoNoShowMessageEnabled,
       reschedule_base_url: settings.rescheduleBaseUrl,
+      work_start_time: settings.workStartTime,
+      work_end_time: settings.workEndTime,
+      breaks_enabled: settings.breaksEnabled,
+      break_count: settings.breakCount,
+      break_duration: settings.breakDuration,
     },
     token
   );
@@ -495,6 +528,18 @@ export async function updateAppointmentSettings(
     includeRescheduleLinkInReminder: updated.include_reschedule_link_in_reminder,
     autoNoShowMessageEnabled: updated.auto_no_show_message_enabled,
     rescheduleBaseUrl: updated.reschedule_base_url || undefined,
+    maxReminderRelances: updated.max_reminder_relances,
+    reminderRelances: (updated.reminder_relances || []).map((r: any) => ({
+      id: r.id || 0,
+      relance_number: r.relance_number || r.relanceNumber || 1,
+      hours_before: r.hours_before || r.hoursBefore || 4,
+      content: r.content || "",
+    })),
+    workStartTime: updated.work_start_time || "09:00",
+    workEndTime: updated.work_end_time || "18:00",
+    breaksEnabled: updated.breaks_enabled ?? false,
+    breakCount: updated.break_count ?? 1,
+    breakDuration: updated.break_duration ?? 15,
   };
 }
 

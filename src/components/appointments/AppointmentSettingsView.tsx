@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AppointmentSettings } from "./types";
+import { AppointmentSettings } from "@/services/appointmentsService";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
@@ -20,6 +20,11 @@ export function AppointmentSettingsView() {
     includeRescheduleLinkInReminder: true,
     autoNoShowMessageEnabled: true,
     rescheduleBaseUrl: typeof window !== "undefined" ? `${window.location.origin}/r/{slugEntreprise}` : "https://lokario.fr/r/{slugEntreprise}",
+    workStartTime: "09:00",
+    workEndTime: "18:00",
+    breaksEnabled: false,
+    breakCount: 1,
+    breakDuration: 15,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +61,11 @@ export function AppointmentSettingsView() {
           includeRescheduleLinkInReminder: true,
           autoNoShowMessageEnabled: true,
           rescheduleBaseUrl: `${typeof window !== "undefined" ? window.location.origin : "https://lokario.fr"}/r/{slugEntreprise}`,
+          workStartTime: "09:00",
+          workEndTime: "18:00",
+          breaksEnabled: false,
+          breakCount: 1,
+          breakDuration: 15,
         });
       } finally {
         setIsLoading(false);
@@ -217,6 +227,109 @@ export function AppointmentSettingsView() {
               <p className="text-xs text-[#64748B]">
                 Partagez cette URL avec vos clients ou intégrez-la sur votre site web pour qu'ils puissent prendre rendez-vous en ligne.
               </p>
+            </div>
+          </div>
+
+          {/* Horaires de travail */}
+          <div className="pt-4 border-t border-[#E5E7EB]">
+            <h3 className="text-base font-semibold text-[#0F172A] mb-4">Horaires de travail</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Heure de début
+                  </label>
+                  <input
+                    type="time"
+                    value={settings.workStartTime || "09:00"}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, workStartTime: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                    Heure de fin
+                  </label>
+                  <input
+                    type="time"
+                    value={settings.workEndTime || "18:00"}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, workEndTime: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                  />
+                </div>
+              </div>
+
+              {/* Pauses entre rendez-vous */}
+              <div className="space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.breaksEnabled || false}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, breaksEnabled: e.target.checked }))
+                    }
+                    className="mt-1 rounded border-[#E5E7EB] text-[#F97316] focus:ring-[#F97316]"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-[#0F172A]">
+                      Activer les pauses entre les rendez-vous
+                    </p>
+                    <p className="text-xs text-[#64748B] mt-1">
+                      Définir des pauses automatiques entre les rendez-vous pour permettre une transition.
+                    </p>
+                  </div>
+                </label>
+
+                {settings.breaksEnabled && (
+                  <div className="pl-8 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                          Nombre de pauses
+                        </label>
+                        <input
+                          type="number"
+                          value={settings.breakCount || 1}
+                          onChange={(e) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              breakCount: Math.max(0, Math.min(5, parseInt(e.target.value) || 1)),
+                            }))
+                          }
+                          min="0"
+                          max="5"
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        />
+                        <p className="text-xs text-[#64748B] mt-1">Entre 0 et 5 pauses</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[#0F172A] mb-1">
+                          Durée des pauses (minutes)
+                        </label>
+                        <input
+                          type="number"
+                          value={settings.breakDuration || 15}
+                          onChange={(e) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              breakDuration: Math.max(5, Math.min(120, parseInt(e.target.value) || 15)),
+                            }))
+                          }
+                          min="5"
+                          max="120"
+                          step="5"
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                        />
+                        <p className="text-xs text-[#64748B] mt-1">Entre 5 et 120 minutes</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
