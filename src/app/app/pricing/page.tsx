@@ -173,6 +173,7 @@ export default function PricingPage() {
           {filteredPlans.map((plan) => {
             const planName = plan.id.split("_")[0]; // "starter" ou "professional"
             // Ne considérer comme plan actuel que si c'est un abonnement payant actif
+            // Si c'est un essai gratuit (trialing + amount=0), ne pas marquer comme plan actuel
             const isCurrentPlan = isPaidActive && currentPlan === planName;
             
             return (
@@ -180,7 +181,7 @@ export default function PricingPage() {
                 key={plan.id}
                 plan={plan}
                 isPopular={plan.id.includes("professional")} // Marquer le plan Pro comme populaire
-                currentPlan={currentPlan}
+                currentPlan={isPaidActive ? currentPlan : null}
                 onSelect={() => {
                   if (!isCurrentPlan) {
                     handleSelectPlan(plan);
