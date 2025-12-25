@@ -307,9 +307,15 @@ export default function NewQuotePage() {
           throw apiError; // Relancer l'erreur pour qu'elle soit gérée par le catch externe
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating quote:", error);
-      const errorMessage = (error as any).message || "Erreur lors de la création du devis";
+      let errorMessage = error?.message || "Erreur lors de la création du devis";
+      
+      // Si c'est une erreur 403, c'est probablement une limite de quota atteinte
+      if (error?.status === 403 || errorMessage.includes("limite")) {
+        errorMessage = errorMessage || "Vous avez atteint la limite de votre plan. Veuillez passer au plan supérieur pour continuer.";
+      }
+      
       alert(`Erreur: ${errorMessage}`);
     } finally {
       setIsSaving(false);

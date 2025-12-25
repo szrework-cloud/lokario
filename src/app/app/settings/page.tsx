@@ -3764,6 +3764,9 @@ function SubscriptionTab() {
 
   return (
     <div className="space-y-6">
+      {/* Affichage des quotas */}
+      <QuotaDisplay />
+
       <Card>
         <CardHeader>
           <h2 className="text-xl font-semibold text-[#0F172A]">Gestion de l'abonnement</h2>
