@@ -296,11 +296,7 @@ export default function DashboardPage() {
   if (isLoading || !stats) {
     return (
       <>
-        <PageTitle 
-        title="Dashboard" 
-        subtitle={`${formattedDate}`}
-        data-tutorial="dashboard-overview"
-      />
+        <PageTitle title="Dashboard" subtitle={`${formattedDate}`} />
         <div className="space-y-6 animate-fade-in">
           <CardSkeleton />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -317,11 +313,7 @@ export default function DashboardPage() {
   if (statsError) {
     return (
       <>
-        <PageTitle 
-        title="Dashboard" 
-        subtitle={`${formattedDate}`}
-        data-tutorial="dashboard-overview"
-      />
+        <PageTitle title="Dashboard" subtitle={`${formattedDate}`} />
         <div className="space-y-6">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="p-6">
@@ -337,11 +329,7 @@ export default function DashboardPage() {
 
   return (
     <PageTransition>
-      <PageTitle 
-        title="Dashboard" 
-        subtitle={`${formattedDate}`}
-        data-tutorial="dashboard-overview"
-      />
+      <PageTitle title="Dashboard" subtitle={`${formattedDate}`} />
       <div className="space-y-6">
         {/* Temps gagné - Section principale */}
         <Card className="bg-gradient-to-br from-[#F97316]/10 via-white to-[#EA580C]/10 border-2 border-[#F97316]/20">
