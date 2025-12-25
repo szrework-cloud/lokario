@@ -277,13 +277,22 @@ def generate_followup_message(followup: FollowUp, db: Session) -> str:
                     # Ne pas écraser le nom de l'entreprise avec primary_integration.name
                     # Le nom doit venir de company.name
             
-            # Si pas de téléphone dans settings, utiliser l'intégration WhatsApp/Vonage (priorité 2)
+            # Si pas de téléphone dans settings, utiliser l'intégration SMS/Vonage (priorité 2)
             if not company_phone:
+                # Chercher d'abord une intégration SMS (type "sms")
                 vonage_integration = db.query(InboxIntegration).filter(
                     InboxIntegration.company_id == followup.company_id,
-                    InboxIntegration.integration_type == "whatsapp",
+                    InboxIntegration.integration_type == "sms",
                     InboxIntegration.is_active == True
                 ).first()
+                
+                # Si pas trouvé, chercher une intégration WhatsApp (rétrocompatibilité)
+                if not vonage_integration:
+                    vonage_integration = db.query(InboxIntegration).filter(
+                        InboxIntegration.company_id == followup.company_id,
+                        InboxIntegration.integration_type == "whatsapp",
+                        InboxIntegration.is_active == True
+                    ).first()
                 
                 if vonage_integration and vonage_integration.phone_number:
                     company_phone = vonage_integration.phone_number
@@ -292,6 +301,7 @@ def generate_followup_message(followup: FollowUp, db: Session) -> str:
         
         # Récupérer le template pour ce type de relance
         template_content = None
+        template_method = None
         try:
             company_settings = db.query(CompanySettings).filter(
                 CompanySettings.company_id == followup.company_id
@@ -307,6 +317,7 @@ def generate_followup_message(followup: FollowUp, db: Session) -> str:
                 for msg_template in messages:
                     if isinstance(msg_template, dict) and msg_template.get("type") == followup_type_str:
                         template_content = msg_template.get("content")
+                        template_method = msg_template.get("method", "email")  # Récupérer la méthode du template
                         break
                 
                 # Si aucun template trouvé dans les settings, utiliser les templates par défaut
@@ -492,11 +503,21 @@ def send_followup_via_inbox(followup: FollowUp, message: str, method: str, db: S
                 from_email = primary_integration.email_address
                 from_name = primary_integration.name or from_name
         elif method in ["sms", "whatsapp"]:
+            # Chercher d'abord une intégration SMS (type "sms")
             vonage_integration = db.query(InboxIntegration).filter(
                 InboxIntegration.company_id == followup.company_id,
-                InboxIntegration.integration_type == "whatsapp",
+                InboxIntegration.integration_type == "sms",
                 InboxIntegration.is_active == True
             ).first()
+            
+            # Si pas trouvé, chercher une intégration WhatsApp (rétrocompatibilité)
+            if not vonage_integration:
+                vonage_integration = db.query(InboxIntegration).filter(
+                    InboxIntegration.company_id == followup.company_id,
+                    InboxIntegration.integration_type == "whatsapp",
+                    InboxIntegration.is_active == True
+                ).first()
+            
             if vonage_integration:
                 from_phone = vonage_integration.phone_number
         
@@ -554,18 +575,41 @@ def send_followup_via_inbox(followup: FollowUp, message: str, method: str, db: S
         
         elif method in ["sms", "whatsapp"] and conversation.source in ["sms", "whatsapp"]:
             try:
+                # Chercher d'abord une intégration SMS (type "sms")
                 vonage_integration = db.query(InboxIntegration).filter(
                     InboxIntegration.company_id == followup.company_id,
-                    InboxIntegration.integration_type == "whatsapp",
+                    InboxIntegration.integration_type == "sms",
                     InboxIntegration.is_active == True
                 ).first()
                 
-                if vonage_integration and vonage_integration.api_key and followup.client.phone:
+                # Si pas trouvé, chercher une intégration WhatsApp (rétrocompatibilité)
+                if not vonage_integration:
+                    vonage_integration = db.query(InboxIntegration).filter(
+                        InboxIntegration.company_id == followup.company_id,
+                        InboxIntegration.integration_type == "whatsapp",
+                        InboxIntegration.is_active == True
+                    ).first()
+                
+                # Vérifier toutes les conditions nécessaires
+                if not vonage_integration:
+                    logger.error(f"Relance {followup.id}: ❌ Aucune intégration SMS trouvée")
+                elif not vonage_integration.api_key:
+                    logger.error(f"Relance {followup.id}: ❌ API Key manquante dans l'intégration SMS")
+                elif not vonage_integration.webhook_secret:
+                    logger.error(f"Relance {followup.id}: ❌ API Secret (webhook_secret) manquant dans l'intégration SMS")
+                elif not vonage_integration.phone_number:
+                    logger.error(f"Relance {followup.id}: ❌ Numéro de téléphone manquant dans l'intégration SMS")
+                elif not followup.client or not followup.client.phone:
+                    logger.error(f"Relance {followup.id}: ❌ Numéro de téléphone client manquant")
+                else:
+                    # Toutes les conditions sont remplies, on peut envoyer
                     encryption_service = get_encryption_service()
                     api_key = encryption_service.decrypt(vonage_integration.api_key) if vonage_integration.api_key else None
                     api_secret = encryption_service.decrypt(vonage_integration.webhook_secret) if vonage_integration.webhook_secret else None
                     
-                    if api_key and api_secret:
+                    if not api_key or not api_secret:
+                        logger.error(f"Relance {followup.id}: ❌ Impossible de décrypter les credentials Vonage")
+                    else:
                         vonage_service = VonageSMSService(api_key=api_key, api_secret=api_secret)
                         result = vonage_service.send_sms(
                             to=followup.client.phone,
@@ -577,6 +621,8 @@ def send_followup_via_inbox(followup: FollowUp, message: str, method: str, db: S
                             inbox_message.external_metadata = {"vonage_message_id": result.get("message_id"), "provider": "vonage"}
                             success = True
                             logger.info(f"✅ SMS envoyé via inbox à {followup.client.phone} pour la relance {followup.id}")
+                        else:
+                            logger.error(f"Relance {followup.id}: ❌ Échec de l'envoi SMS: {result.get('error', 'Erreur inconnue')}")
             except Exception as e:
                 logger.error(f"Erreur lors de l'envoi du SMS pour la relance {followup.id}: {e}", exc_info=True)
         
@@ -832,12 +878,22 @@ def process_automatic_followups():
                     stats["skipped"] += 1
                     continue
                 
-                # Récupérer la configuration pour déterminer la méthode d'envoi
+                # Récupérer la configuration pour déterminer la méthode d'envoi depuis le template
                 settings = get_followup_settings(db, followup.company_id)
-                methods = settings.get("relance_methods", ["email"]) if settings else ["email"]
+                template_method = None
                 
-                # Utiliser la première méthode disponible
-                method = methods[0] if methods else "email"
+                # Récupérer la méthode du template pour ce type de relance
+                if settings:
+                    messages = settings.get("messages", [])
+                    followup_type_str = str(followup.type) if followup.type else ""
+                    for msg_template in messages:
+                        if isinstance(msg_template, dict) and msg_template.get("type") == followup_type_str:
+                            template_method = msg_template.get("method", "email")
+                            break
+                
+                # Utiliser la méthode du template, ou "email" par défaut
+                method = template_method if template_method else "email"
+                logger.info(f"Relance {followup.id}: Méthode d'envoi déterminée depuis le template: {method}")
                 
                 # Générer le message
                 message = generate_followup_message(followup, db)

@@ -1121,13 +1121,22 @@ def send_followup(
             if primary_integration and primary_integration.email_address:
                 company_email = primary_integration.email_address
         
-        # Si pas de téléphone dans settings, utiliser l'intégration WhatsApp/Vonage (priorité 2)
+        # Si pas de téléphone dans settings, utiliser l'intégration SMS/Vonage (priorité 2)
         if not company_phone:
+            # Chercher d'abord une intégration SMS (type "sms")
             vonage_integration = db.query(InboxIntegration).filter(
                 InboxIntegration.company_id == current_user.company_id,
-                InboxIntegration.integration_type == "whatsapp",
+                InboxIntegration.integration_type == "sms",
                 InboxIntegration.is_active == True
             ).first()
+            
+            # Si pas trouvé, chercher une intégration WhatsApp (rétrocompatibilité)
+            if not vonage_integration:
+                vonage_integration = db.query(InboxIntegration).filter(
+                    InboxIntegration.company_id == current_user.company_id,
+                    InboxIntegration.integration_type == "whatsapp",
+                    InboxIntegration.is_active == True
+                ).first()
             
             if vonage_integration and vonage_integration.phone_number:
                 company_phone = vonage_integration.phone_number
@@ -1309,11 +1318,21 @@ def send_followup(
                 else:
                     logger.warning(f"[FOLLOWUP SEND/{followup_id}] ⚠️ Aucune intégration email active trouvée")
             elif send_method in ["sms", "whatsapp"]:
+                # Chercher d'abord une intégration SMS (type "sms")
                 vonage_integration = db.query(InboxIntegration).filter(
                     InboxIntegration.company_id == current_user.company_id,
-                    InboxIntegration.integration_type == "whatsapp",
+                    InboxIntegration.integration_type == "sms",
                     InboxIntegration.is_active == True
                 ).first()
+                
+                # Si pas trouvé, chercher une intégration WhatsApp (rétrocompatibilité)
+                if not vonage_integration:
+                    vonage_integration = db.query(InboxIntegration).filter(
+                        InboxIntegration.company_id == current_user.company_id,
+                        InboxIntegration.integration_type == "whatsapp",
+                        InboxIntegration.is_active == True
+                    ).first()
+                
                 if vonage_integration:
                     from_phone = vonage_integration.phone_number
                     logger.info(f"[FOLLOWUP SEND/{followup_id}] Intégration SMS/WhatsApp trouvée: {from_phone}")
@@ -1386,9 +1405,13 @@ def send_followup(
             elif send_method in ["sms", "whatsapp"]:
                 try:
                     if not vonage_integration:
-                        logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: aucune intégration WhatsApp trouvée")
+                        logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: aucune intégration SMS trouvée")
                     elif not vonage_integration.api_key:
                         logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: pas de clé API dans l'intégration")
+                    elif not vonage_integration.webhook_secret:
+                        logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: pas d'API Secret (webhook_secret) dans l'intégration")
+                    elif not vonage_integration.phone_number:
+                        logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: pas de numéro de téléphone dans l'intégration")
                     elif not followup.client or not followup.client.phone:
                         logger.error(f"[FOLLOWUP SEND/{followup_id}] ❌ Impossible d'envoyer le SMS: pas de téléphone client")
                     else:
@@ -1700,13 +1723,22 @@ def generate_followup_message(
                 # Ne pas écraser le nom de l'entreprise avec primary_integration.name
                 # Le nom doit venir de company.name
         
-        # Si pas de téléphone dans settings, utiliser l'intégration WhatsApp/Vonage (priorité 2)
+        # Si pas de téléphone dans settings, utiliser l'intégration SMS/Vonage (priorité 2)
         if not company_phone:
+            # Chercher d'abord une intégration SMS (type "sms")
             vonage_integration = db.query(InboxIntegration).filter(
                 InboxIntegration.company_id == current_user.company_id,
-                InboxIntegration.integration_type == "whatsapp",
+                InboxIntegration.integration_type == "sms",
                 InboxIntegration.is_active == True
             ).first()
+            
+            # Si pas trouvé, chercher une intégration WhatsApp (rétrocompatibilité)
+            if not vonage_integration:
+                vonage_integration = db.query(InboxIntegration).filter(
+                    InboxIntegration.company_id == current_user.company_id,
+                    InboxIntegration.integration_type == "whatsapp",
+                    InboxIntegration.is_active == True
+                ).first()
             
             if vonage_integration and vonage_integration.phone_number:
                 company_phone = vonage_integration.phone_number
