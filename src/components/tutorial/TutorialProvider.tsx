@@ -158,23 +158,39 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         clearTimeout(timeoutId);
         timeoutId = null;
       }
-      checkAndStartTutorial();
+      // Attendre un peu après l'événement pour que le pathname soit à jour
+      setTimeout(() => {
+        checkAndStartTutorial();
+      }, 100);
     };
 
     // Écouter les événements storage (entre onglets) et un événement personnalisé (même onglet)
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener("shouldStartTutorial", handleStorageChange);
 
-    // Vérifier aussi après un court délai pour gérer les cas où localStorage est défini juste avant la navigation
-    const initialTimeoutId = setTimeout(() => {
+    // Vérifier aussi après plusieurs délais pour gérer les cas où localStorage est défini juste avant la navigation
+    const initialTimeoutId1 = setTimeout(() => {
+      console.log("[TUTORIAL] First timeout check (500ms)");
       checkAndStartTutorial();
-    }, 1000);
+    }, 500);
+
+    const initialTimeoutId2 = setTimeout(() => {
+      console.log("[TUTORIAL] Second timeout check (1500ms)");
+      checkAndStartTutorial();
+    }, 1500);
+
+    const initialTimeoutId3 = setTimeout(() => {
+      console.log("[TUTORIAL] Third timeout check (3000ms)");
+      checkAndStartTutorial();
+    }, 3000);
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("shouldStartTutorial", handleStorageChange);
       if (timeoutId) clearTimeout(timeoutId);
-      clearTimeout(initialTimeoutId);
+      clearTimeout(initialTimeoutId1);
+      clearTimeout(initialTimeoutId2);
+      clearTimeout(initialTimeoutId3);
     };
   }, [pathname, initializeTutorial]);
 
