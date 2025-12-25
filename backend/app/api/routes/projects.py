@@ -18,6 +18,7 @@ from app.db.models.client import Client
 from app.api.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead, ProjectHistoryRead, ProjectHistoryCreate, ProjectDocumentRead
 from app.api.deps import get_current_active_user
 from app.core.config import settings
+from app.db.retry import execute_with_retry
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -61,7 +62,9 @@ def get_projects(
         joinedload(Project.documents).joinedload(Document.uploaded_by)
     )
     
-    projects = query.order_by(Project.created_at.desc()).all()
+    def _get_projects():
+        return query.order_by(Project.created_at.desc()).all()
+    projects = execute_with_retry(db, _get_projects, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Les documents sont déjà chargés via joinedload dans la query ci-dessus
     # Pas besoin de requêtes supplémentaires - c'est déjà optimisé avec un JOIN SQL
@@ -77,14 +80,16 @@ def get_project(
     """Récupère un projet par son ID"""
     _check_company_access(current_user)
     
-    project = db.query(Project).options(
-        joinedload(Project.client),
-        joinedload(Project.history).joinedload(ProjectHistory.user),
-        joinedload(Project.documents).joinedload(Document.uploaded_by)
-    ).filter(
-        Project.id == project_id,
-        Project.company_id == current_user.company_id
-    ).first()
+    def _get_project():
+        return db.query(Project).options(
+            joinedload(Project.client),
+            joinedload(Project.history).joinedload(ProjectHistory.user),
+            joinedload(Project.documents).joinedload(Document.uploaded_by)
+        ).filter(
+            Project.id == project_id,
+            Project.company_id == current_user.company_id
+        ).first()
+    project = execute_with_retry(db, _get_project, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not project:
         raise HTTPException(
@@ -105,10 +110,12 @@ def create_project(
     _check_company_access(current_user)
     
     # Vérifier que le client appartient à la même entreprise
-    client = db.query(Client).filter(
-        Client.id == project_data.client_id,
-        Client.company_id == current_user.company_id
-    ).first()
+    def _get_client_for_project():
+        return db.query(Client).filter(
+            Client.id == project_data.client_id,
+            Client.company_id == current_user.company_id
+        ).first()
+    client = execute_with_retry(db, _get_client_for_project, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not client:
         raise HTTPException(
@@ -144,11 +151,13 @@ def create_project(
     db.refresh(project)
     
     # Recharger avec les relations (joinedload = une seule requête SQL avec JOIN, très efficace)
-    project = db.query(Project).options(
-        joinedload(Project.client),
-        joinedload(Project.history).joinedload(ProjectHistory.user),
-        joinedload(Project.documents).joinedload(Document.uploaded_by)
-    ).filter(Project.id == project.id).first()
+    def _get_project_with_relations():
+        return db.query(Project).options(
+            joinedload(Project.client),
+            joinedload(Project.history).joinedload(ProjectHistory.user),
+            joinedload(Project.documents).joinedload(Document.uploaded_by)
+        ).filter(Project.id == project.id).first()
+    project = execute_with_retry(db, _get_project_with_relations, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Les documents sont déjà chargés via joinedload - pas de requête supplémentaire nécessaire
     return ProjectRead.from_orm_with_relations(project)
@@ -164,10 +173,12 @@ def update_project(
     """Met à jour un projet"""
     _check_company_access(current_user)
     
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.company_id == current_user.company_id
-    ).first()
+    def _get_project_for_update():
+        return db.query(Project).filter(
+            Project.id == project_id,
+            Project.company_id == current_user.company_id
+        ).first()
+    project = execute_with_retry(db, _get_project_for_update, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not project:
         raise HTTPException(
@@ -220,11 +231,13 @@ def update_project(
     db.refresh(project)
     
     # Recharger avec les relations (joinedload = une seule requête SQL avec JOIN, très efficace)
-    project = db.query(Project).options(
-        joinedload(Project.client),
-        joinedload(Project.history).joinedload(ProjectHistory.user),
-        joinedload(Project.documents).joinedload(Document.uploaded_by)
-    ).filter(Project.id == project.id).first()
+    def _get_project_with_relations():
+        return db.query(Project).options(
+            joinedload(Project.client),
+            joinedload(Project.history).joinedload(ProjectHistory.user),
+            joinedload(Project.documents).joinedload(Document.uploaded_by)
+        ).filter(Project.id == project.id).first()
+    project = execute_with_retry(db, _get_project_with_relations, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Les documents sont déjà chargés via joinedload - pas de requête supplémentaire nécessaire
     return ProjectRead.from_orm_with_relations(project)
@@ -239,10 +252,12 @@ def delete_project(
     """Supprime un projet"""
     _check_company_access(current_user)
     
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.company_id == current_user.company_id
-    ).first()
+    def _get_project_for_update():
+        return db.query(Project).filter(
+            Project.id == project_id,
+            Project.company_id == current_user.company_id
+        ).first()
+    project = execute_with_retry(db, _get_project_for_update, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not project:
         raise HTTPException(
@@ -269,10 +284,12 @@ def add_project_history(
     """Ajoute un événement à l'historique d'un projet"""
     _check_company_access(current_user)
     
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.company_id == current_user.company_id
-    ).first()
+    def _get_project_for_update():
+        return db.query(Project).filter(
+            Project.id == project_id,
+            Project.company_id == current_user.company_id
+        ).first()
+    project = execute_with_retry(db, _get_project_for_update, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not project:
         raise HTTPException(
@@ -360,10 +377,12 @@ def get_project_documents(
     """Récupère tous les documents d'un projet"""
     _check_company_access(current_user)
     
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.company_id == current_user.company_id
-    ).first()
+    def _get_project_for_update():
+        return db.query(Project).filter(
+            Project.id == project_id,
+            Project.company_id == current_user.company_id
+        ).first()
+    project = execute_with_retry(db, _get_project_for_update, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not project:
         raise HTTPException(
@@ -404,10 +423,12 @@ async def upload_project_document(
     """Upload un document pour un projet"""
     _check_company_access(current_user)
     
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.company_id == current_user.company_id
-    ).first()
+    def _get_project_for_update():
+        return db.query(Project).filter(
+            Project.id == project_id,
+            Project.company_id == current_user.company_id
+        ).first()
+    project = execute_with_retry(db, _get_project_for_update, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not project:
         raise HTTPException(

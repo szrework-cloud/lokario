@@ -10,6 +10,7 @@ from app.db.models.client import Client
 from app.api.schemas.client import ClientCreate, ClientUpdate, ClientRead, ClientWithStats
 from app.api.deps import get_current_active_user
 from app.db.models.user import User
+from app.db.retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -169,8 +170,10 @@ def get_clients(
             (Client.phone.ilike(search_term))
         )
     
-    # Pagination
-    clients = query.order_by(Client.name.asc()).offset(skip).limit(limit).all()
+    # Pagination avec retry pour gérer les erreurs SSL
+    def _get_clients():
+        return query.order_by(Client.name.asc()).offset(skip).limit(limit).all()
+    clients = execute_with_retry(db, _get_clients, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     return clients
 
@@ -191,10 +194,12 @@ def get_client(
             detail="User is not attached to a company"
         )
     
-    client = db.query(Client).filter(
-        Client.id == client_id,
-        Client.company_id == current_user.company_id
-    ).first()
+    def _get_client():
+        return db.query(Client).filter(
+            Client.id == client_id,
+            Client.company_id == current_user.company_id
+        ).first()
+    client = execute_with_retry(db, _get_client, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not client:
         raise HTTPException(
@@ -270,10 +275,12 @@ def update_client(
             detail="User is not attached to a company"
         )
     
-    client = db.query(Client).filter(
-        Client.id == client_id,
-        Client.company_id == current_user.company_id
-    ).first()
+    def _get_client():
+        return db.query(Client).filter(
+            Client.id == client_id,
+            Client.company_id == current_user.company_id
+        ).first()
+    client = execute_with_retry(db, _get_client, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not client:
         raise HTTPException(
@@ -308,10 +315,12 @@ def delete_client(
             detail="User is not attached to a company"
         )
     
-    client = db.query(Client).filter(
-        Client.id == client_id,
-        Client.company_id == current_user.company_id
-    ).first()
+    def _get_client():
+        return db.query(Client).filter(
+            Client.id == client_id,
+            Client.company_id == current_user.company_id
+        ).first()
+    client = execute_with_retry(db, _get_client, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not client:
         raise HTTPException(
@@ -753,25 +762,31 @@ async def import_clients_csv(
                 existing_client = None
                 if normalized_email:
                     # Priorité 1: Chercher par email (le plus fiable, évite les doublons)
-                    existing_client = db.query(Client).filter(
-                        Client.company_id == company_id,
-                        Client.email.ilike(normalized_email)  # Case-insensitive
-                    ).first()
+                    def _get_client_by_email():
+                        return db.query(Client).filter(
+                            Client.company_id == company_id,
+                            Client.email.ilike(normalized_email)  # Case-insensitive
+                        ).first()
+                    existing_client = execute_with_retry(db, _get_client_by_email, max_retries=3, initial_delay=0.5, max_delay=2.0)
                 elif normalized_name:
                     # Priorité 2: Chercher par nom seulement si on n'a pas d'email
                     # (moins fiable car plusieurs clients peuvent avoir le même nom)
-                    existing_client = db.query(Client).filter(
-                        Client.company_id == company_id,
-                        Client.name.ilike(normalized_name),  # Case-insensitive
-                        Client.email.is_(None)  # Seulement si le client n'a pas d'email
-                    ).first()
+                    def _get_client_by_name_no_email():
+                        return db.query(Client).filter(
+                            Client.company_id == company_id,
+                            Client.name.ilike(normalized_name),  # Case-insensitive
+                            Client.email.is_(None)  # Seulement si le client n'a pas d'email
+                        ).first()
+                    existing_client = execute_with_retry(db, _get_client_by_name_no_email, max_retries=3, initial_delay=0.5, max_delay=2.0)
                     
                     # Si pas trouvé avec email=None, chercher par nom seul (même avec email)
                     if not existing_client:
-                        existing_client = db.query(Client).filter(
-                            Client.company_id == company_id,
-                            Client.name.ilike(normalized_name)  # Case-insensitive
-                    ).first()
+                        def _get_client_by_name():
+                            return db.query(Client).filter(
+                                Client.company_id == company_id,
+                                Client.name.ilike(normalized_name)  # Case-insensitive
+                            ).first()
+                        existing_client = execute_with_retry(db, _get_client_by_name, max_retries=3, initial_delay=0.5, max_delay=2.0)
                 
                 if existing_client:
                     # Mettre à jour le client existant (ne pas recréer)
