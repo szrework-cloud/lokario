@@ -244,44 +244,6 @@ def create_default_folders(db: Session, company_id: int):
 # car les dossiers Spam, Newsletters et Notifications ne sont plus utilisés
 
 
-def cleanup_old_spam_messages(db: Session, company_id: int, days_old: int = 15):
-    """
-    Supprime automatiquement les messages spam/newsletter plus anciens que X jours.
-    Par défaut, supprime les spams de plus de 15 jours.
-    """
-    cutoff_date = datetime.utcnow() - timedelta(days=days_old)
-    
-    # Récupérer le dossier Spam
-    spam_folder = db.query(InboxFolder).filter(
-        InboxFolder.company_id == company_id,
-        InboxFolder.is_system == True,
-        InboxFolder.name == "Spam"
-    ).first()
-    
-    if not spam_folder:
-        return 0
-    
-    # Trouver les conversations spam plus anciennes que cutoff_date
-    old_spam_conversations = db.query(Conversation).filter(
-        Conversation.company_id == company_id,
-        Conversation.folder_id == spam_folder.id,
-        Conversation.status == "Spam",
-        Conversation.last_message_at < cutoff_date
-    ).all()
-    
-    deleted_count = 0
-    for conversation in old_spam_conversations:
-        # Les messages seront supprimés automatiquement grâce à cascade="all, delete-orphan"
-        db.delete(conversation)
-        deleted_count += 1
-    
-    if deleted_count > 0:
-        db.commit()
-        print(f"[CLEANUP] {deleted_count} conversation(s) spam supprimée(s) (plus de {days_old} jours)")
-    
-    return deleted_count
-
-
 # ===== GESTION DES INTÉGRATIONS =====
 
 @router.get("", response_model=List[InboxIntegrationRead])
