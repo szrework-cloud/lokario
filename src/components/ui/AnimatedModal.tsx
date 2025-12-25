@@ -73,7 +73,7 @@ export function AnimatedModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
           {/* Backdrop animé */}
           <motion.div
             variants={backdropVariants}
@@ -94,7 +94,7 @@ export function AnimatedModal({
             className="relative w-full flex justify-center"
           >
             <Card
-              className={`${sizeClasses[size]} max-h-[95vh] overflow-y-auto w-full mx-8 shadow-2xl`}
+              className={`${sizeClasses[size]} max-h-[95vh] overflow-y-auto w-full mx-2 sm:mx-4 lg:mx-8 shadow-2xl`}
             >
               <CardHeader>
                 <div className="flex items-center justify-between relative">

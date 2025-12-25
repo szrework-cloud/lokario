@@ -35,8 +35,7 @@ https://VOTRE-DOMAINE-RAILWAY.app/followups/process-automatic?secret=VOTRE_CRON_
 
 **URL complète :**
 ```
-https://VOTRE-DOMAINE-RAILWAY.app/users/process-account-deletions?secret=VOTRE_CRON_SECRET
-```
+   https://lokario-production.up.railway.app/users/process-account-deletions?secret=VOTRE_CRON_SECRET```
 
 **Méthode :** GET ou POST  
 **Fréquence :** `0 2 * * *` (tous les jours à 2h du matin)
@@ -47,8 +46,7 @@ https://VOTRE-DOMAINE-RAILWAY.app/users/process-account-deletions?secret=VOTRE_C
 
 **URL complète :**
 ```
-https://VOTRE-DOMAINE-RAILWAY.app/cron/check-overdue-and-reminders?secret=VOTRE_CRON_SECRET
-```
+   https://lokario-production.up.railway.app/cron/check-overdue-and-reminders?secret=VOTRE_CRON_SECRET```
 
 **Méthode :** GET ou POST  
 **Fréquence :** `0 * * * *` (toutes les heures)

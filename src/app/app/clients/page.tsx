@@ -89,29 +89,30 @@ export default function ClientsPage() {
   return (
     <PageTransition>
       <PageTitle title="Clients" />
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 md:space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-[#0F172A]">Clients</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A]">Clients</h1>
           </div>
-        <AnimatedButton
-          variant="primary"
-          onClick={handleOpenCreateModal}
-        >
-          + Nouveau client
-        </AnimatedButton>
-      </div>
+          <AnimatedButton
+            variant="primary"
+            onClick={handleOpenCreateModal}
+            className="w-full sm:w-auto"
+          >
+            + Nouveau client
+          </AnimatedButton>
+        </div>
 
-      {/* Search */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          placeholder="Rechercher un client..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-        />
-      </div>
+        {/* Search */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Rechercher un client..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+          />
+        </div>
 
       {/* Client List */}
       {clients.length === 0 ? (

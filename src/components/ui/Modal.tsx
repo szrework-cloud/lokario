@@ -33,7 +33,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 animate-fade-in">
       {/* Overlay noir avec animation */}
       <div 
         className="absolute inset-0 bg-black/50 animate-fade-in"
@@ -43,7 +43,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
         onClick={(e) => e.stopPropagation()} 
         className="relative w-full flex justify-center animate-scale-in"
       >
-        <Card className={`${sizeClasses[size]} max-h-[95vh] overflow-y-auto w-full mx-8 shadow-2xl`}>
+        <Card className={`${sizeClasses[size]} max-h-[95vh] overflow-y-auto w-full mx-2 sm:mx-4 lg:mx-8 shadow-2xl`}>
           <CardHeader>
             <div className="flex items-center justify-between relative">
               <div className="flex-1"></div>

@@ -1058,7 +1058,7 @@ export default function SettingsPage() {
                 disabled={user?.role === "user"}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-[#0F172A] mb-1">
                   Ville
@@ -1099,7 +1099,7 @@ export default function SettingsPage() {
                 disabled={user?.role === "user"}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-[#0F172A] mb-1">
                   SIREN
@@ -1786,7 +1786,7 @@ export default function SettingsPage() {
                     <div className="pt-4 border-t border-[#E5E7EB]">
                       <h3 className="text-base font-semibold text-[#0F172A] mb-4">Horaires de travail</h3>
                       <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-[#0F172A] mb-1">
                               Heure de début
@@ -1857,7 +1857,7 @@ export default function SettingsPage() {
                                         Supprimer
                                       </button>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                       <div>
                                         <label className="block text-sm font-medium text-[#0F172A] mb-1">
                                           Heure de début
@@ -2156,7 +2156,7 @@ export default function SettingsPage() {
                 {/* DEVIS */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-[#0F172A]">Devis</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-[#64748B] mb-1">
                         Préfixe
@@ -2242,7 +2242,7 @@ export default function SettingsPage() {
                 {/* FACTURES */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-[#0F172A]">Factures</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-[#64748B] mb-1">
                         Préfixe
@@ -2328,7 +2328,7 @@ export default function SettingsPage() {
                 {/* AVOIRS */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-[#0F172A]">Avoirs (Notes de crédit)</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-[#64748B] mb-1">
                         Préfixe

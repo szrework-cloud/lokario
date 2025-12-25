@@ -611,7 +611,8 @@ export default function InboxPage() {
             }
           }}
           counts={folderCounts}
-        />
+          />
+        </div>
 
         {/* Contenu principal */}
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -683,7 +684,11 @@ export default function InboxPage() {
             }}
           >
             {/* Liste des conversations */}
-            <div className="w-80 border-r border-[#E5E7EB] bg-white overflow-y-auto flex-shrink-0 h-full">
+            {/* Liste des conversations - pleine largeur sur mobile si pas de conversation sélectionnée, sinon cachée */}
+            <div className={cn(
+              "border-r border-[#E5E7EB] bg-white overflow-y-auto flex-shrink-0 h-full",
+              selectedId ? "hidden lg:block lg:w-80" : "w-full lg:w-80"
+            )}>
               {isLoading ? (
                 <div className="p-4">
                   <Loader text="Chargement..." />
@@ -719,29 +724,40 @@ export default function InboxPage() {
               )}
             </div>
 
-            {/* Vue conversation */}
+            {/* Vue conversation - pleine largeur sur mobile, sinon flex-1 */}
             {selectedConversation ? (
               <>
                 {!isConversationMinimized ? (
                   /* Vue conversation complète */
-                  <div className="flex-1 flex flex-col overflow-hidden relative z-30 bg-white">
+                  <div className={cn(
+                    "flex flex-col overflow-hidden relative z-30 bg-white",
+                    "w-full lg:flex-1"
+                  )}>
                     {/* Header conversation */}
                     <div className="bg-white border-b border-[#E5E7EB] p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-between gap-2">
+                          {/* Bouton retour sur mobile */}
+                          <button
+                            onClick={() => setSelectedId(undefined)}
+                            className="lg:hidden p-2 text-[#64748B] hover:text-[#0F172A] hover:bg-[#F9FAFB] rounded-lg transition-colors flex-shrink-0"
+                            aria-label="Retour à la liste"
+                          >
+                            ←
+                          </button>
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
                             <button
                               onClick={() => setShowClientPanel(true)}
-                              className="text-left hover:underline"
+                              className="text-left hover:underline flex-1 min-w-0"
                             >
-                              <h3 className="text-sm font-semibold text-[#0F172A]">
+                              <h3 className="text-sm font-semibold text-[#0F172A] truncate">
                                 {selectedConversation.client}
                               </h3>
-                              <p className="text-xs text-[#64748B]">
+                              <p className="text-xs text-[#64748B] truncate">
                                 {selectedConversation.subject}
                               </p>
                             </button>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-shrink-0">
                             {/* Dossier */}
                             <select
                               value={selectedConversation.folderId || ""}

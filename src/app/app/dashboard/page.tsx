@@ -331,7 +331,7 @@ export default function DashboardPage() {
   return (
     <PageTransition>
       <PageTitle title="Dashboard" subtitle={`${formattedDate}`} />
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         {/* Planning du jour */}
         <SectionCard
           data-tutorial="dashboard-overview"
