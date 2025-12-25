@@ -32,6 +32,9 @@
   ],
   "exclude": [
     "node_modules",
+    ".next",
+    "nouvelle-landing-page",
+    "landing page",
     "src/components/landing/src",
     "**/landing modifier/**",
     "src/components/landing/**/*.config.*",
