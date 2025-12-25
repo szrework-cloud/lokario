@@ -217,14 +217,18 @@ def update_my_company_settings(
         settings = execute_with_retry(db, _get_settings)
         
         if not settings:
-            # Créer des settings par défaut si manquants
-            settings = CompanySettings(
-                company_id=current_user.company_id,
-                settings=get_default_settings(),
-            )
-            db.add(settings)
-            db.commit()
-            db.refresh(settings)
+            # Créer des settings par défaut si manquants avec retry
+            def _create_settings():
+                new_settings = CompanySettings(
+                    company_id=current_user.company_id,
+                    settings=get_default_settings(),
+                )
+                db.add(new_settings)
+                db.commit()
+                db.refresh(new_settings)
+                return new_settings
+            
+            settings = execute_with_retry(db, _create_settings)
         
         existing = deepcopy(settings.settings)
         incoming = payload.settings
