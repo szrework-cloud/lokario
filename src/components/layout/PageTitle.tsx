@@ -7,12 +7,14 @@ interface PageTitleProps {
   title: string;
   subtitle?: string;
   rightContent?: React.ReactNode;
+  "data-tutorial"?: string;
 }
 
 export function PageTitle({
   title,
   subtitle,
   rightContent,
+  "data-tutorial": dataTutorial,
 }: PageTitleProps) {
   const { setPageInfo } = usePage();
 

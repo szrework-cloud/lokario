@@ -129,6 +129,8 @@ export default function OnboardingPage() {
   };
 
   const handleVideoComplete = () => {
+    // Marquer qu'on doit lancer le tutoriel après redirection
+    localStorage.setItem("should_start_tutorial", "true");
     // Rediriger vers le dashboard après la vidéo
     router.push("/app/dashboard");
   };

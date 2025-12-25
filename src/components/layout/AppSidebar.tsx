@@ -98,6 +98,11 @@ export function AppSidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                data-tutorial={
+                  item.moduleKey === "inbox" ? "inbox-link" :
+                  item.moduleKey === "billing" ? "billing-link" :
+                  item.href === "/app/settings" ? "settings-link" : undefined
+                }
                 className={cn(
                   "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 relative group",
                   isActive
