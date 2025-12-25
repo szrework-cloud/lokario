@@ -58,12 +58,12 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]">
-        <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="w-full max-w-md rounded-2xl border border-[#374151] bg-[#111827] p-8 shadow-lg">
           <div className="text-center mb-6">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+            <div className="mx-auto w-16 h-16 bg-green-900 rounded-full flex items-center justify-center mb-4">
               <svg
-                className="w-8 h-8 text-green-600"
+                className="w-8 h-8 text-green-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -76,10 +76,10 @@ export default function ResetPasswordPage() {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-semibold text-[#0F172A] mb-2">
+            <h1 className="text-2xl font-semibold text-white mb-2">
               Mot de passe réinitialisé !
             </h1>
-            <p className="text-sm text-[#64748B]">
+            <p className="text-sm text-gray-300">
               Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter.
             </p>
           </div>

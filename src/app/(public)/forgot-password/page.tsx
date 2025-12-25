@@ -44,12 +44,12 @@ export default function ForgotPasswordPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]">
-        <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="w-full max-w-md rounded-2xl border border-[#374151] bg-[#111827] p-8 shadow-lg">
           <div className="text-center mb-6">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+            <div className="mx-auto w-16 h-16 bg-green-900 rounded-full flex items-center justify-center mb-4">
               <svg
-                className="w-8 h-8 text-green-600"
+                className="w-8 h-8 text-green-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -62,20 +62,20 @@ export default function ForgotPasswordPage() {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-semibold text-[#0F172A] mb-2">
+            <h1 className="text-2xl font-semibold text-white mb-2">
               Email envoyé !
             </h1>
-            <p className="text-sm text-[#64748B]">
-              Si un compte existe avec l'adresse <strong>{email}</strong>, vous recevrez un email avec les instructions pour réinitialiser votre mot de passe.
+            <p className="text-sm text-gray-300">
+              Si un compte existe avec l'adresse <strong className="text-white">{email}</strong>, vous recevrez un email avec les instructions pour réinitialiser votre mot de passe.
             </p>
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4">
-              <p className="text-sm text-[#64748B] mb-2">
-                <strong className="text-[#0F172A]">Instructions :</strong>
+            <div className="rounded-lg border border-[#374151] bg-[#1F2937] p-4">
+              <p className="text-sm text-gray-300 mb-2">
+                <strong className="text-white">Instructions :</strong>
               </p>
-              <ol className="text-sm text-[#64748B] space-y-1 list-decimal list-inside">
+              <ol className="text-sm text-gray-300 space-y-1 list-decimal list-inside">
                 <li>Vérifiez votre boîte de réception</li>
                 <li>Cliquez sur le lien dans l'email</li>
                 <li>Créez un nouveau mot de passe</li>
@@ -85,7 +85,7 @@ export default function ForgotPasswordPage() {
             <div className="text-center">
               <Link
                 href="/login"
-                className="text-sm text-[#F97316] hover:underline"
+                className="text-sm text-[#F97316] hover:text-[#EA580C] hover:underline"
               >
                 Retour à la connexion
               </Link>
@@ -97,12 +97,12 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB]">
-      <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-2xl font-semibold text-[#0F172A]">
+    <div className="flex min-h-screen items-center justify-center bg-black">
+      <div className="w-full max-w-md rounded-2xl border border-[#374151] bg-[#111827] p-8 shadow-lg">
+        <h1 className="mb-6 text-2xl font-semibold text-white">
           Mot de passe oublié
         </h1>
-        <p className="mb-6 text-sm text-[#64748B]">
+        <p className="mb-6 text-sm text-gray-300">
           Entrez votre adresse email et nous vous enverrons un lien pour réinitialiser votre mot de passe.
         </p>
 
@@ -110,7 +110,7 @@ export default function ForgotPasswordPage() {
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-[#0F172A]"
+              className="block text-sm font-medium text-gray-200"
             >
               Email
             </label>
@@ -121,15 +121,15 @@ export default function ForgotPasswordPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 block w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+              className="mt-1 block w-full rounded-lg border border-[#374151] bg-[#1F2937] px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
               placeholder="votre@email.com"
               disabled={loading}
             />
           </div>
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="rounded-lg border border-red-800 bg-red-900/20 px-3 py-2">
+              <p className="text-sm text-red-400">{error}</p>
             </div>
           )}
 
@@ -145,7 +145,7 @@ export default function ForgotPasswordPage() {
         <div className="mt-6 text-center">
           <Link
             href="/login"
-            className="text-sm text-[#F97316] hover:underline"
+            className="text-sm text-[#F97316] hover:text-[#EA580C] hover:underline"
           >
             ← Retour à la connexion
           </Link>

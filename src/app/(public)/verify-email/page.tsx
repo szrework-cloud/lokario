@@ -115,7 +115,7 @@ function VerifyEmailForm() {
             </p>
             <ol className="text-sm text-gray-300 space-y-1 list-decimal list-inside">
               <li>Ouvrez votre boîte de réception</li>
-              <li>Cliquez sur le lien de vérification dans l'email</li>
+              <li>Cliquez sur le lien pour <strong>vérifier</strong> votre email</li>
               <li>Vous serez automatiquement redirigé vers la connexion</li>
             </ol>
           </div>
