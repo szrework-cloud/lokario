@@ -450,10 +450,14 @@ def get_employees(
     try:
         _check_company_access(current_user)
         
-        employees = db.query(User).filter(
-            User.company_id == current_user.company_id,
-            User.is_active == True
-        ).order_by(User.full_name.asc(), User.email.asc()).all()
+        # Utiliser execute_with_retry pour gérer les erreurs de connexion SSL
+        def _get_employees_query():
+            return db.query(User).filter(
+                User.company_id == current_user.company_id,
+                User.is_active == True
+            ).order_by(User.full_name.asc(), User.email.asc()).all()
+        
+        employees = execute_with_retry(db, _get_employees_query, max_retries=3, initial_delay=0.5, max_delay=2.0)
         
         return [EmployeeRead.model_validate(emp) for emp in employees]
     except HTTPException:
