@@ -109,6 +109,9 @@ def get_public_appointment_settings(
     """Récupère les paramètres de rendez-vous d'une entreprise (endpoint public)"""
     from app.db.models.company import Company
     from app.db.models.company_settings import CompanySettings
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     # Trouver l'entreprise par son slug ou son code
     company = db.query(Company).filter(
