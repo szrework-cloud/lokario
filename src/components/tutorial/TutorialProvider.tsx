@@ -72,7 +72,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             <p className="text-sm text-[#64748B] mt-2">Ces informations apparaîtront sur vos devis et factures.</p>
           </div>
         ),
-        placement: "right",
+        placement: "top",
         action: "navigate",
         navigateTo: "/app/settings?tab=company",
       },
@@ -92,7 +92,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             </ul>
           </div>
         ),
-        placement: "right",
+        placement: "top",
         action: "click",
       },
       {
@@ -110,7 +110,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             <p className="text-sm text-[#64748B] mt-2">Note : Certains modules peuvent être limités selon votre plan d'abonnement.</p>
           </div>
         ),
-        placement: "right",
+        placement: "top",
         action: "click",
       },
       {
@@ -127,7 +127,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             <p className="text-sm text-[#64748B] mt-2">Ces paramètres aideront l'IA à mieux comprendre votre entreprise.</p>
           </div>
         ),
-        placement: "right",
+        placement: "top",
         action: "click",
       },
       {
@@ -144,7 +144,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             <p className="text-sm text-[#64748B] mt-2">Pendant l'essai gratuit, vous avez accès à toutes les fonctionnalités.</p>
           </div>
         ),
-        placement: "right",
+        placement: "top",
         action: "click",
       },
       {
@@ -161,7 +161,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             <p className="text-sm text-[#64748B] mt-2">Les intégrations permettent de centraliser toutes vos communications dans Lokario.</p>
           </div>
         ),
-        placement: "right",
+        placement: "top",
         action: "click",
       },
       {
@@ -178,7 +178,7 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
             <p className="text-sm text-[#64748B] mt-2">Tous les membres partagent le même abonnement et les mêmes quotas.</p>
           </div>
         ),
-        placement: "right",
+        placement: "top",
         action: "click",
       },
     ];
