@@ -71,12 +71,13 @@ export function VideoSection({
         )}
         
         <div className="max-w-5xl mx-auto">
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-black/20 backdrop-blur-sm flex justify-center items-center">
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-black/20 backdrop-blur-sm">
             <video
               ref={videoRef}
               src={videoUrl}
-              className="w-full h-auto max-h-[80vh] object-contain"
+              className="w-full h-auto object-contain"
               controls
+              controlsList="nodownload"
               playsInline
               loop={loop}
               muted={muted}
