@@ -113,8 +113,16 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     });
   };
 
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+    transformX: string;
+    transformY: string;
+    elementRect: DOMRect;
+  } | null>(null);
+
   // Calculer la position du tooltip
-  const getTooltipPosition = (target: string) => {
+  const getTooltipPosition = useCallback((target: string) => {
     if (typeof window === "undefined") return null;
     
     const element = document.querySelector(target);
@@ -155,12 +163,40 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
     }
 
     return { top, left, transformX, transformY, elementRect: rect };
-  };
+  }, [tutorialState.steps, tutorialState.currentStep]);
+
+  // Recalculer la position quand l'étape change
+  useEffect(() => {
+    if (tutorialState.isRunning && tutorialState.steps.length > 0) {
+      const currentStep = tutorialState.steps[tutorialState.currentStep];
+      if (currentStep) {
+        // Attendre un peu pour que le DOM soit à jour, puis chercher l'élément
+        const findElement = () => {
+          const pos = getTooltipPosition(currentStep.target);
+          if (pos) {
+            setPosition(pos);
+          } else {
+            // Si l'élément n'est pas trouvé, réessayer après un court délai
+            setTimeout(() => {
+              const retryPos = getTooltipPosition(currentStep.target);
+              if (retryPos) {
+                setPosition(retryPos);
+              }
+            }, 100);
+          }
+        };
+
+        // Utiliser requestAnimationFrame pour s'assurer que le DOM est à jour
+        requestAnimationFrame(() => {
+          setTimeout(findElement, 50);
+        });
+      }
+    } else {
+      setPosition(null);
+    }
+  }, [tutorialState.isRunning, tutorialState.currentStep, tutorialState.steps, getTooltipPosition]);
 
   const currentStep = tutorialState.steps[tutorialState.currentStep];
-  const position = tutorialState.isRunning && currentStep
-    ? getTooltipPosition(currentStep.target)
-    : null;
 
   return (
     <>
