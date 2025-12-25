@@ -79,21 +79,16 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
       const shouldStartTutorial = localStorage.getItem("should_start_tutorial") === "true";
       const tutorialCompleted = localStorage.getItem("tutorial_completed") === "true";
 
-      console.log("[TUTORIAL] Checking tutorial start:", {
-        shouldStartTutorial,
-        tutorialCompleted,
-        pathname,
-        isDashboard: pathname === "/app/dashboard",
-      });
-
       // Vérifier aussi le pathname depuis window.location au cas où usePathname n'est pas encore à jour
       const currentPath = typeof window !== "undefined" ? window.location.pathname : pathname;
       const isOnDashboard = pathname === "/app/dashboard" || currentPath === "/app/dashboard";
 
-      console.log("[TUTORIAL] Path check:", {
-        pathname,
-        currentPath,
-        isOnDashboard,
+      console.log("[TUTORIAL] Checking tutorial start:", {
+        shouldStartTutorial: shouldStartTutorial ? "TRUE" : "FALSE",
+        tutorialCompleted: tutorialCompleted ? "TRUE" : "FALSE",
+        pathname: `"${pathname}"`,
+        currentPath: `"${currentPath}"`,
+        isOnDashboard: isOnDashboard ? "TRUE" : "FALSE",
       });
 
       if (shouldStartTutorial && !tutorialCompleted && isOnDashboard) {
@@ -134,13 +129,20 @@ export function TutorialProvider({ children }: TutorialProviderProps) {
         // Commencer à vérifier après un délai initial pour laisser le DOM se charger
         setTimeout(checkElementExists, 800);
       } else {
+        const reason = !shouldStartTutorial ? "should_start_tutorial not set" :
+                      tutorialCompleted ? "tutorial already completed" :
+                      !isOnDashboard ? "not on dashboard" : "unknown";
         console.log("[TUTORIAL] Conditions not met:", {
-          shouldStartTutorial,
-          tutorialCompleted,
-          isOnDashboard,
-          reason: !shouldStartTutorial ? "should_start_tutorial not set" :
-                  tutorialCompleted ? "tutorial already completed" :
-                  !isOnDashboard ? "not on dashboard" : "unknown"
+          shouldStartTutorial: shouldStartTutorial ? "TRUE" : "FALSE",
+          tutorialCompleted: tutorialCompleted ? "TRUE" : "FALSE",
+          isOnDashboard: isOnDashboard ? "TRUE" : "FALSE",
+          pathname: `"${pathname}"`,
+          currentPath: `"${currentPath}"`,
+          reason: reason
+        });
+        console.log("[TUTORIAL] Full localStorage:", {
+          should_start_tutorial: localStorage.getItem("should_start_tutorial"),
+          tutorial_completed: localStorage.getItem("tutorial_completed"),
         });
       }
     };
