@@ -170,38 +170,41 @@ export default function PricingPage() {
           )}
         </div>
 
-        {/* Champ code promo */}
-        <div className="max-w-md mx-auto mb-8">
-          <Card>
-            <CardContent className="p-4">
-              <label htmlFor="promo-code" className="block text-sm font-medium text-[#0F172A] mb-2">
-                Code promo
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="promo-code"
-                  type="text"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                  placeholder="Entrez votre code promo"
-                  className="flex-1 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                />
-                {promoCode && (
-                  <button
-                    onClick={() => setPromoCode("")}
-                    className="px-3 py-2 text-sm text-[#64748B] hover:text-[#0F172A]"
-                    title="Effacer"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Plans disponibles (filtrés par interval) avec code promo à gauche */}
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-[300px_1fr] gap-6 items-start">
+            {/* Champ code promo à gauche */}
+            <div className="mb-8 md:mb-0">
+              <Card>
+                <CardContent className="p-4">
+                  <label htmlFor="promo-code" className="block text-sm font-medium text-[#0F172A] mb-2">
+                    Code promo
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="promo-code"
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                      placeholder="Entrez votre code promo"
+                      className="flex-1 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                    />
+                    {promoCode && (
+                      <button
+                        onClick={() => setPromoCode("")}
+                        className="px-3 py-2 text-sm text-[#64748B] hover:text-[#0F172A]"
+                        title="Effacer"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-        {/* Plans disponibles (filtrés par interval) */}
-        <div className={`grid gap-6 ${filteredPlans.length === 1 ? 'max-w-md mx-auto' : 'md:grid-cols-2 max-w-4xl mx-auto'}`}>
+            {/* Plans disponibles à droite */}
+            <div className={`grid gap-6 ${filteredPlans.length === 1 ? 'max-w-md' : 'md:grid-cols-2'}`}>
           {filteredPlans.map((plan) => {
             const planName = plan.id.split("_")[0]; // "starter" ou "professional"
             // Ne considérer comme plan actuel que si c'est un abonnement payant actif
@@ -223,6 +226,7 @@ export default function PricingPage() {
               />
             );
           })}
+            </div>
         </div>
 
         {/* FAQ ou informations supplémentaires */}
