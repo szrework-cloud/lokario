@@ -134,6 +134,77 @@ def _followup_to_dict(followup: FollowUp, db: Optional[Session] = None) -> dict:
     }
 
 
+@router.get("/process-automatic")
+@router.post("/process-automatic")
+def process_automatic_followups_endpoint(
+    secret: Optional[str] = Query(None, description="Secret pour protéger l'endpoint (variable CRON_SECRET)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint pour déclencher le traitement des relances automatiques.
+    
+    Cet endpoint peut être appelé :
+    - Manuellement via POST/GET /api/followups/process-automatic?secret=YOUR_CRON_SECRET
+    - Via un service externe de cron (cron-job.org, EasyCron, etc.)
+    - Via un webhook périodique
+    
+    Protection : Nécessite le paramètre 'secret' qui doit correspondre à CRON_SECRET
+    """
+    import logging
+    from app.core.config import settings
+    
+    logger = logging.getLogger(__name__)
+    
+    # Vérifier le secret si configuré
+    if settings.CRON_SECRET:
+        if not secret or secret != settings.CRON_SECRET:
+            logger.warning("Tentative d'accès à /process-automatic sans secret valide")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid secret. Provide ?secret=YOUR_CRON_SECRET"
+            )
+    else:
+        # En développement, log un avertissement si pas de secret configuré
+        logger.warning("CRON_SECRET non configuré - l'endpoint est accessible sans protection")
+    
+    try:
+        # Importer directement les fonctions du script (elles sont dans le même projet)
+        import sys
+        from pathlib import Path
+        
+        # Ajouter le répertoire backend au path si nécessaire
+        backend_dir = Path(__file__).parent.parent.parent
+        if str(backend_dir) not in sys.path:
+            sys.path.insert(0, str(backend_dir))
+        
+        # Importer depuis le script (le script gère déjà ses propres imports)
+        from scripts.send_automatic_followups import process_automatic_followups
+        
+        logger.info("🔄 Déclenchement du traitement des relances automatiques via API...")
+        
+        # Exécuter le traitement (le script gère sa propre session DB)
+        process_automatic_followups()
+        
+        return {
+            "success": True,
+            "message": "Traitement des relances automatiques terminé avec succès",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except ImportError as e:
+        logger.error(f"❌ Erreur d'import lors du traitement des relances automatiques: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur d'import: {str(e)}. Vérifiez que le script send_automatic_followups.py existe."
+        )
+    except Exception as e:
+        logger.error(f"❌ Erreur lors du traitement des relances automatiques: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors du traitement: {str(e)}"
+        )
+
+
 @router.get("", response_model=List[FollowUpRead])
 def get_followups(
     status_filter: Optional[str] = Query(None, alias="status", description="Filtrer par statut"),
@@ -1925,74 +1996,3 @@ def get_followup_history(
         result.append(FollowUpHistoryRead(**history_dict))
     
     return result
-
-
-@router.post("/process-automatic")
-@router.get("/process-automatic")
-def process_automatic_followups_endpoint(
-    secret: Optional[str] = Query(None, description="Secret pour protéger l'endpoint (variable CRON_SECRET)"),
-    db: Session = Depends(get_db)
-):
-    """
-    Endpoint pour déclencher le traitement des relances automatiques.
-    
-    Cet endpoint peut être appelé :
-    - Manuellement via POST/GET /api/followups/process-automatic?secret=YOUR_CRON_SECRET
-    - Via un service externe de cron (cron-job.org, EasyCron, etc.)
-    - Via un webhook périodique
-    
-    Protection : Nécessite le paramètre 'secret' qui doit correspondre à CRON_SECRET
-    """
-    import logging
-    from app.core.config import settings
-    
-    logger = logging.getLogger(__name__)
-    
-    # Vérifier le secret si configuré
-    if settings.CRON_SECRET:
-        if not secret or secret != settings.CRON_SECRET:
-            logger.warning("Tentative d'accès à /process-automatic sans secret valide")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid secret. Provide ?secret=YOUR_CRON_SECRET"
-            )
-    else:
-        # En développement, log un avertissement si pas de secret configuré
-        logger.warning("CRON_SECRET non configuré - l'endpoint est accessible sans protection")
-    
-    try:
-        # Importer directement les fonctions du script (elles sont dans le même projet)
-        import sys
-        from pathlib import Path
-        
-        # Ajouter le répertoire backend au path si nécessaire
-        backend_dir = Path(__file__).parent.parent.parent
-        if str(backend_dir) not in sys.path:
-            sys.path.insert(0, str(backend_dir))
-        
-        # Importer depuis le script (le script gère déjà ses propres imports)
-        from scripts.send_automatic_followups import process_automatic_followups
-        
-        logger.info("🔄 Déclenchement du traitement des relances automatiques via API...")
-        
-        # Exécuter le traitement (le script gère sa propre session DB)
-        process_automatic_followups()
-        
-        return {
-            "success": True,
-            "message": "Traitement des relances automatiques terminé avec succès",
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except ImportError as e:
-        logger.error(f"❌ Erreur d'import lors du traitement des relances automatiques: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erreur d'import: {str(e)}. Vérifiez que le script send_automatic_followups.py existe."
-        )
-    except Exception as e:
-        logger.error(f"❌ Erreur lors du traitement des relances automatiques: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erreur lors du traitement: {str(e)}"
-        )
