@@ -227,6 +227,7 @@ export default function PricingPage() {
             );
           })}
             </div>
+          </div>
         </div>
 
         {/* FAQ ou informations supplémentaires */}
