@@ -22,6 +22,7 @@ from app.db.models.company_settings import CompanySettings
 from app.api.schemas.auth import Token, LoginRequest
 from app.api.schemas.user import UserCreate, UserRead
 from app.api.deps import get_current_active_user, get_current_user_for_restore
+from app.db.retry import execute_with_retry
 
 
 def generate_unique_company_code(db: Session) -> str:
@@ -402,7 +403,9 @@ def verify_email(
     """
     Vérifie l'email de l'utilisateur avec le token fourni.
     """
-    user = db.query(User).filter(User.email_verification_token == token).first()
+    def _get_user():
+        return db.query(User).filter(User.email_verification_token == token).first()
+    user = execute_with_retry(db, _get_user, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not user:
         raise HTTPException(
@@ -442,7 +445,9 @@ def resend_verification_email(
     Renvoie un email de vérification à l'utilisateur.
     Nécessite le mot de passe pour sécurité.
     """
-    user = db.query(User).filter(User.email == login_data.email).first()
+    def _get_user():
+        return db.query(User).filter(User.email == login_data.email).first()
+    user = execute_with_retry(db, _get_user, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not user:
         # Ne pas révéler si l'email existe ou non (sécurité)
@@ -504,7 +509,9 @@ def create_admin_endpoint(
     
     try:
         # Vérifier si l'utilisateur existe déjà
-        user = db.query(User).filter(User.email == email).first()
+        def _get_user():
+            return db.query(User).filter(User.email == email).first()
+        user = execute_with_retry(db, _get_user, max_retries=3, initial_delay=0.5, max_delay=2.0)
         
         if user:
             # Mettre à jour l'utilisateur existant
@@ -571,7 +578,9 @@ def resend_verification_email_no_password(
             detail="Email requis"
         )
     
-    user = db.query(User).filter(User.email == email.lower()).first()
+    def _get_user():
+        return db.query(User).filter(User.email == email.lower()).first()
+    user = execute_with_retry(db, _get_user, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not user:
         # Ne pas révéler si l'email existe ou non (sécurité)
@@ -836,7 +845,9 @@ def forgot_password(
             detail="Email requis"
         )
     
-    user = db.query(User).filter(User.email == email.lower()).first()
+    def _get_user():
+        return db.query(User).filter(User.email == email.lower()).first()
+    user = execute_with_retry(db, _get_user, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     # Ne pas révéler si l'email existe ou non (sécurité)
     if not user:
@@ -893,7 +904,9 @@ def reset_password(
             detail=error_message
         )
     
-    user = db.query(User).filter(User.password_reset_token == token).first()
+    def _get_user():
+        return db.query(User).filter(User.password_reset_token == token).first()
+    user = execute_with_retry(db, _get_user, max_retries=3, initial_delay=0.5, max_delay=2.0)
     
     if not user:
         raise HTTPException(

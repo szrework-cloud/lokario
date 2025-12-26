@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.session import get_db as get_db_session
 from app.db.models.user import User
 from app.api.schemas.auth import TokenData
+from app.db.retry import execute_with_retry
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
@@ -83,7 +84,11 @@ async def get_current_user(
     except (JWTError, ValueError, TypeError) as e:
         raise credentials_exception
     
-    user = db.query(User).filter(User.id == token_data.user_id).first()
+    # Utiliser execute_with_retry pour gérer les erreurs SSL
+    def _get_user():
+        return db.query(User).filter(User.id == token_data.user_id).first()
+    
+    user = execute_with_retry(db, _get_user, max_retries=3, initial_delay=0.5, max_delay=2.0)
     if user is None:
         raise credentials_exception
     return user
