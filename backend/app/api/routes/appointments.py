@@ -1031,12 +1031,14 @@ Votre rendez-vous a été confirmé avec succès.
         
         logger.info(f"[APPOINTMENT CONFIRM] 📧 Envoi de l'email de confirmation de {primary_integration.email_address} à {client.email}")
         send_email_smtp(
+            smtp_server=smtp_config["smtp_server"],
+            smtp_port=smtp_config["smtp_port"],
+            email_address=primary_integration.email_address,
+            password=email_password,
             to_email=client.email,
             subject=subject,
-            body=message_content,
-            smtp_config=smtp_config,
-            from_email=primary_integration.email_address,
-            from_password=email_password,
+            content=message_content,
+            use_tls=smtp_config["use_tls"],
             from_name=company.name or "Équipe"
         )
         logger.info(f"[APPOINTMENT CONFIRM] ✅ Email de confirmation envoyé avec succès à {client.email}")
