@@ -27,6 +27,7 @@ import { PageTransition } from "@/components/ui/PageTransition";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { useToast } from "@/components/ui/Toast";
 import { logger } from "@/lib/logger";
+import { cn } from "@/lib/utils";
 import {
   getConversations,
   getConversation,
@@ -735,115 +736,209 @@ export default function InboxPage() {
                   )}>
                     {/* Header conversation */}
                     <div className="bg-white border-b border-[#E5E7EB] p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          {/* Bouton retour sur mobile */}
+                      <div className="flex items-center justify-between gap-2">
+                        {/* Bouton retour sur mobile */}
+                        <button
+                          onClick={() => setSelectedId(undefined)}
+                          className="lg:hidden p-2 text-[#64748B] hover:text-[#0F172A] hover:bg-[#F9FAFB] rounded-lg transition-colors flex-shrink-0"
+                          aria-label="Retour à la liste"
+                        >
+                          ←
+                        </button>
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
                           <button
-                            onClick={() => setSelectedId(undefined)}
-                            className="lg:hidden p-2 text-[#64748B] hover:text-[#0F172A] hover:bg-[#F9FAFB] rounded-lg transition-colors flex-shrink-0"
-                            aria-label="Retour à la liste"
+                            onClick={() => setShowClientPanel(true)}
+                            className="text-left hover:underline flex-1 min-w-0"
                           >
-                            ←
+                            <h3 className="text-sm font-semibold text-[#0F172A] truncate">
+                              {selectedConversation.client}
+                            </h3>
+                            <p className="text-xs text-[#64748B] truncate">
+                              {selectedConversation.subject}
+                            </p>
                           </button>
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <button
-                              onClick={() => setShowClientPanel(true)}
-                              className="text-left hover:underline flex-1 min-w-0"
-                            >
-                              <h3 className="text-sm font-semibold text-[#0F172A] truncate">
-                                {selectedConversation.client}
-                              </h3>
-                              <p className="text-xs text-[#64748B] truncate">
-                                {selectedConversation.subject}
-                              </p>
-                            </button>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {/* Dossier */}
-                            <select
-                              value={selectedConversation.folderId || ""}
-                              onChange={(e) => handleFolderChange(e.target.value ? Number(e.target.value) : null)}
-                              className="rounded-lg border border-[#E5E7EB] px-3 py-1 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                            >
-                              <option value="">Aucun dossier</option>
-                              {folders.map((folder) => (
-                                <option key={folder.id} value={folder.id}>
-                                  {folder.name}
-                                </option>
-                              ))}
-                            </select>
-                            {/* Statut */}
-                            <select
-                              value={selectedConversation.status}
-                              onChange={(e) => handleStatusChange(e.target.value as InboxStatus)}
-                              className="rounded-lg border border-[#E5E7EB] px-3 py-1 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                            >
-                              <option value="À répondre">À répondre</option>
-                              <option value="En attente">En attente</option>
-                              <option value="Répondu">Répondu</option>
-                              <option value="Résolu">Résolu</option>
-                              <option value="Urgent">Urgent</option>
-                              <option value="Archivé">Archivé</option>
-                              <option value="Spam">Spam</option>
-                            </select>
-                            {/* Notes internes */}
-                            <button
-                              onClick={() => setShowNotesPanel(true)}
-                              className="p-2 rounded-lg border border-[#E5E7EB] hover:bg-[#F9FAFB]"
-                              title="Notes internes"
-                            >
-                              📝
-                            </button>
-                            {/* Bouton supprimer */}
-                            <button
-                              onClick={handleDeleteConversation}
-                              className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                              title="Supprimer la conversation"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                    </div>
-                  </div>
-
-                  {/* Historique chat */}
-                  <div
-                    className="flex-1 overflow-y-auto p-4 bg-[#F9FAFB]"
-                    onClick={(e) => {
-                      // Si on clique dans le vide (pas sur un message), minimiser la zone de réponse
-                      if (e.target === e.currentTarget) {
-                        setIsReplyMinimized(true);
-                      }
-                    }}
-                  >
-                    {groupedMessages.map((group, groupIndex) =>
-                      group.messages.map((message, msgIndex) => (
-                        <ChatMessage
-                          key={message.id}
-                          message={message}
-                          showDateSeparator={
-                            msgIndex === 0 && groupIndex > 0
-                          }
-                          dateLabel={msgIndex === 0 ? group.date : undefined}
-                        />
-                      ))
-                    )}
-                  </div>
-
-                  {/* Zone de réponse */}
-                  {isReplyMinimized ? (
-                    /* Barre minimisée de réponse */
-                    <div
-                      onClick={() => setIsReplyMinimized(false)}
-                      className="bg-white border-t border-[#E5E7EB] p-2 cursor-pointer hover:bg-[#F9FAFB] transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#64748B] bg-[#F9FAFB]">
-                          {replyText || "Tapez votre réponse..."}
                         </div>
-                        {replyText.trim() && (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {/* Dossier */}
+                          <select
+                            value={selectedConversation.folderId || ""}
+                            onChange={(e) => handleFolderChange(e.target.value ? Number(e.target.value) : null)}
+                            className="rounded-lg border border-[#E5E7EB] px-3 py-1 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                          >
+                            <option value="">Aucun dossier</option>
+                            {folders.map((folder) => (
+                              <option key={folder.id} value={folder.id}>
+                                {folder.name}
+                              </option>
+                            ))}
+                          </select>
+                          {/* Statut */}
+                          <select
+                            value={selectedConversation.status}
+                            onChange={(e) => handleStatusChange(e.target.value as InboxStatus)}
+                            className="rounded-lg border border-[#E5E7EB] px-3 py-1 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                          >
+                            <option value="À répondre">À répondre</option>
+                            <option value="En attente">En attente</option>
+                            <option value="Répondu">Répondu</option>
+                            <option value="Résolu">Résolu</option>
+                            <option value="Urgent">Urgent</option>
+                            <option value="Archivé">Archivé</option>
+                            <option value="Spam">Spam</option>
+                          </select>
+                          {/* Notes internes */}
                           <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
+                            onClick={() => setShowNotesPanel(true)}
+                            className="p-2 rounded-lg border border-[#E5E7EB] hover:bg-[#F9FAFB]"
+                            title="Notes internes"
+                          >
+                            📝
+                          </button>
+                          {/* Bouton supprimer */}
+                          <button
+                            onClick={handleDeleteConversation}
+                            className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                            title="Supprimer la conversation"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Historique chat */}
+                    <div
+                      className="flex-1 overflow-y-auto p-4 bg-[#F9FAFB]"
+                      onClick={(e) => {
+                        // Si on clique dans le vide (pas sur un message), minimiser la zone de réponse
+                        if (e.target === e.currentTarget) {
+                          setIsReplyMinimized(true);
+                        }
+                      }}
+                    >
+                      {groupedMessages.map((group, groupIndex) =>
+                        group.messages.map((message, msgIndex) => (
+                          <ChatMessage
+                            key={message.id}
+                            message={message}
+                            showDateSeparator={
+                              msgIndex === 0 && groupIndex > 0
+                            }
+                            dateLabel={msgIndex === 0 ? group.date : undefined}
+                          />
+                        ))
+                      )}
+                    </div>
+
+                    {/* Zone de réponse */}
+                    {isReplyMinimized ? (
+                      /* Barre minimisée de réponse */
+                      <div
+                        onClick={() => setIsReplyMinimized(false)}
+                        className="bg-white border-t border-[#E5E7EB] p-2 cursor-pointer hover:bg-[#F9FAFB] transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#64748B] bg-[#F9FAFB]">
+                            {replyText || "Tapez votre réponse..."}
+                          </div>
+                          {replyText.trim() && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!replyText.trim() || !selectedConversation || !token) return;
+                                try {
+                                  // Préparer les attachments pour l'envoi
+                                  const messageAttachments = attachments
+                                    .filter((att) => att.filePath)
+                                    .map((att) => ({
+                                      name: att.name,
+                                      file_path: att.filePath!,
+                                      file_type: att.type,
+                                      file_size: att.size,
+                                      mime_type: att.mimeType,
+                                    }));
+
+                                  const message = await addMessage(
+                                    selectedConversation.id,
+                                    {
+                                      fromName: user?.full_name || user?.email || "Vous",
+                                      content: replyText,
+                                      source: selectedConversation.source,
+                                      isFromClient: false,
+                                      attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
+                                    },
+                                    token
+                                  );
+                                  const updated = await getConversation(selectedConversation.id, token);
+                                  setSelectedConversation(updated);
+                                  setConversations((prev) =>
+                                    prev.map((c) => (c.id === selectedConversation.id ? updated : c))
+                                  );
+                                  setReplyText("");
+                                  setAttachments([]);
+                                } catch (err: any) {
+                                  console.error("Erreur lors de l'envoi du message:", err);
+                                  setError(err.message || "Erreur lors de l'envoi du message");
+                                }
+                              }}
+                              className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110"
+                            >
+                              Envoyer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Zone de réponse complète */
+                      <div className="bg-white border-t border-[#E5E7EB] p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-sm font-medium text-[#0F172A]">
+                            Réponse
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <AiActionsMenu
+                              onGenerateReply={handleGenerateReply}
+                              onSummarize={handleSummarize}
+                            />
+                          </div>
+                        </div>
+                        {/* Badge si réponse automatique en attente */}
+                        {selectedConversation?.autoReplyPending && selectedConversation?.autoReplyMode === "approval" && replyText && (
+                          <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p className="text-xs text-yellow-800">
+                              ⏳ Réponse automatique générée - Vous pouvez la modifier avant d'envoyer
+                            </p>
+                          </div>
+                        )}
+                        <textarea
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                          rows={4}
+                          placeholder="Tapez votre réponse..."
+                        />
+                        <div className="mt-2">
+                          <AttachmentUpload
+                            attachments={attachments}
+                            onAdd={handleAddAttachment}
+                            onRemove={handleRemoveAttachment}
+                          />
+                        </div>
+                        <div className="mt-3 flex items-center justify-between">
+                          {/* Bouton pour ignorer la réponse auto si elle est en attente */}
+                          {selectedConversation?.autoReplyPending && selectedConversation?.autoReplyMode === "approval" && replyText && (
+                            <button
+                              onClick={() => {
+                                // Ignorer la réponse = vider le texte
+                                setReplyText("");
+                              }}
+                              className="px-4 py-2 text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
+                            >
+                              Ignorer
+                            </button>
+                          )}
+                          <button
+                            onClick={async () => {
                               if (!replyText.trim() || !selectedConversation || !token) return;
                               try {
                                 // Préparer les attachments pour l'envoi
@@ -868,8 +963,10 @@ export default function InboxPage() {
                                   },
                                   token
                                 );
+                                // Recharger la conversation pour avoir le nouveau message
                                 const updated = await getConversation(selectedConversation.id, token);
                                 setSelectedConversation(updated);
+                                // Mettre à jour aussi dans la liste
                                 setConversations((prev) =>
                                   prev.map((c) => (c.id === selectedConversation.id ? updated : c))
                                 );
@@ -880,111 +977,15 @@ export default function InboxPage() {
                                 setError(err.message || "Erreur lors de l'envoi du message");
                               }
                             }}
-                            className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110"
+                            disabled={!replyText.trim()}
+                            className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
                           >
                             Envoyer
                           </button>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    /* Zone de réponse complète */
-                    <div className="bg-white border-t border-[#E5E7EB] p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-[#0F172A]">
-                          Réponse
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <AiActionsMenu
-                            onGenerateReply={handleGenerateReply}
-                            onSummarize={handleSummarize}
-                          />
                         </div>
                       </div>
-                      {/* Badge si réponse automatique en attente */}
-                      {selectedConversation?.autoReplyPending && selectedConversation?.autoReplyMode === "approval" && replyText && (
-                        <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <p className="text-xs text-yellow-800">
-                            ⏳ Réponse automatique générée - Vous pouvez la modifier avant d'envoyer
-                          </p>
-                        </div>
-                      )}
-                      <textarea
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
-                        rows={4}
-                        placeholder="Tapez votre réponse..."
-                      />
-                      <div className="mt-2">
-                        <AttachmentUpload
-                          attachments={attachments}
-                          onAdd={handleAddAttachment}
-                          onRemove={handleRemoveAttachment}
-                        />
-                      </div>
-                      <div className="mt-3 flex items-center justify-between">
-                        {/* Bouton pour ignorer la réponse auto si elle est en attente */}
-                        {selectedConversation?.autoReplyPending && selectedConversation?.autoReplyMode === "approval" && replyText && (
-                          <button
-                            onClick={() => {
-                              // Ignorer la réponse = vider le texte
-                              setReplyText("");
-                            }}
-                            className="px-4 py-2 text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
-                          >
-                            Ignorer
-                          </button>
-                        )}
-                        <button
-                          onClick={async () => {
-                            if (!replyText.trim() || !selectedConversation || !token) return;
-                            try {
-                              // Préparer les attachments pour l'envoi
-                              const messageAttachments = attachments
-                                .filter((att) => att.filePath)
-                                .map((att) => ({
-                                  name: att.name,
-                                  file_path: att.filePath!,
-                                  file_type: att.type,
-                                  file_size: att.size,
-                                  mime_type: att.mimeType,
-                                }));
-
-                              const message = await addMessage(
-                                selectedConversation.id,
-                                {
-                                  fromName: user?.full_name || user?.email || "Vous",
-                                  content: replyText,
-                                  source: selectedConversation.source,
-                                  isFromClient: false,
-                                  attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
-                                },
-                                token
-                              );
-                              // Recharger la conversation pour avoir le nouveau message
-                              const updated = await getConversation(selectedConversation.id, token);
-                              setSelectedConversation(updated);
-                              // Mettre à jour aussi dans la liste
-                              setConversations((prev) =>
-                                prev.map((c) => (c.id === selectedConversation.id ? updated : c))
-                              );
-                              setReplyText("");
-                              setAttachments([]);
-                            } catch (err: any) {
-                              console.error("Erreur lors de l'envoi du message:", err);
-                              setError(err.message || "Erreur lors de l'envoi du message");
-                            }
-                          }}
-                          disabled={!replyText.trim()}
-                          className="rounded-xl bg-gradient-to-r from-[#F97316] to-[#EA580C] px-4 py-2 text-sm font-medium text-white shadow-md hover:shadow-lg hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-2"
-                        >
-                          Envoyer
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
                 ) : (
                   /* Barre minimisée en bas */
                   <div
@@ -1046,7 +1047,6 @@ export default function InboxPage() {
             )}
           </div>
         </div>
-      </div>
 
       {/* Panneaux latéraux */}
       {showClientPanel && selectedConversation?.clientInfo && (
