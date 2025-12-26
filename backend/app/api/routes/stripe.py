@@ -610,6 +610,7 @@ async def create_checkout_session(
                     "plan": request.plan.value,
                 },
             },
+            "allow_promotion_codes": True,  # Activer le champ code promo sur la page Stripe Checkout
         }
         
         # Ajouter le code promo si fourni
