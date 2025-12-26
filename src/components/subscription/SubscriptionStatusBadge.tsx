@@ -34,8 +34,14 @@ export function SubscriptionStatusBadge() {
     if (subscription.status === "trialing" && subscription.trial_end) {
       const trialEnd = new Date(subscription.trial_end);
       const now = new Date();
-      const diffTime = trialEnd.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // Normaliser les dates à minuit pour calculer les jours calendaires
+      const trialEndMidnight = new Date(trialEnd.getFullYear(), trialEnd.getMonth(), trialEnd.getDate());
+      const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // Calculer la différence en jours calendaires
+      const diffTime = trialEndMidnight.getTime() - nowMidnight.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       daysRemaining = Math.max(0, diffDays); // Ne pas afficher de nombre négatif
     }
 
