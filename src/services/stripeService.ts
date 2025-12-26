@@ -11,6 +11,12 @@ export interface SubscriptionPlan {
   trial_days?: number; // Nombre de jours d'essai gratuit
   yearly_price?: number; // Prix total annuel (pour les plans annuels)
   monthly_equivalent?: number; // Prix mensuel équivalent (pour les plans annuels)
+  limits?: {
+    quotes_per_month: number; // -1 = illimité
+    invoices_per_month: number; // -1 = illimité
+    clients: number; // -1 = illimité
+    followups_per_month: number; // -1 = illimité
+  };
 }
 
 export interface Subscription {

@@ -94,11 +94,18 @@ async def get_plans(
             "interval": "month",
             "trial_days": 14,
             "features": [
-                "Devis & Factures illimités",
-                "Relances automatiques",
-                "Gestion des clients",
+                "20 devis par mois",
+                "20 factures par mois",
+                "50 clients",
+                "20 relances automatiques par mois",
             ],
             "stripe_price_id": settings.STRIPE_PRICE_STARTER_MONTHLY,
+            "limits": {
+                "quotes_per_month": 20,
+                "invoices_per_month": 20,
+                "clients": 50,
+                "followups_per_month": 20,
+            },
         })
     
     # Plan Essentiel - Annuel
@@ -120,13 +127,20 @@ async def get_plans(
             "interval": "year",
             "trial_days": 14,
             "features": [
-                "Devis & Factures illimités",
-                "Relances automatiques",
-                "Gestion des clients",
+                "20 devis par mois",
+                "20 factures par mois",
+                "50 clients",
+                "20 relances automatiques par mois",
             ],
             "stripe_price_id": settings.STRIPE_PRICE_STARTER_YEARLY,
             "yearly_price": yearly_price,  # Prix total annuel
             "monthly_equivalent": monthly_equivalent,  # Prix mensuel équivalent
+            "limits": {
+                "quotes_per_month": 20,
+                "invoices_per_month": 20,
+                "clients": 50,
+                "followups_per_month": 20,
+            },
         })
     
     # Plan Pro - Mensuel
@@ -154,6 +168,12 @@ async def get_plans(
                 "Support prioritaire",
             ],
             "stripe_price_id": settings.STRIPE_PRICE_PROFESSIONAL_MONTHLY,
+            "limits": {
+                "quotes_per_month": -1,  # Illimité
+                "invoices_per_month": -1,  # Illimité
+                "clients": -1,  # Illimité
+                "followups_per_month": -1,  # Illimité
+            },
         })
     
     # Plan Pro - Annuel
@@ -186,6 +206,12 @@ async def get_plans(
             "stripe_price_id": settings.STRIPE_PRICE_PROFESSIONAL_YEARLY,
             "yearly_price": yearly_price,  # Prix total annuel
             "monthly_equivalent": monthly_equivalent,  # Prix mensuel équivalent
+            "limits": {
+                "quotes_per_month": -1,  # Illimité
+                "invoices_per_month": -1,  # Illimité
+                "clients": -1,  # Illimité
+                "followups_per_month": -1,  # Illimité
+            },
         })
     
     # Logger tous les plans retournés pour debug

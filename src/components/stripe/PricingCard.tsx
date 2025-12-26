@@ -90,6 +90,31 @@ export function PricingCard({
             ))}
           </ul>
 
+          {/* Limites pour le plan Essentiel */}
+          {plan.limits && plan.limits.quotes_per_month !== -1 && (
+            <div className="pt-4 border-t border-[#E5E7EB]">
+              <p className="text-xs font-semibold text-[#0F172A] mb-2">Limites incluses :</p>
+              <ul className="space-y-1.5 text-xs text-[#64748B]">
+                <li className="flex items-center justify-between">
+                  <span>Devis par mois</span>
+                  <span className="font-medium text-[#0F172A]">{plan.limits.quotes_per_month}</span>
+                </li>
+                <li className="flex items-center justify-between">
+                  <span>Factures par mois</span>
+                  <span className="font-medium text-[#0F172A]">{plan.limits.invoices_per_month}</span>
+                </li>
+                <li className="flex items-center justify-between">
+                  <span>Clients</span>
+                  <span className="font-medium text-[#0F172A]">{plan.limits.clients}</span>
+                </li>
+                <li className="flex items-center justify-between">
+                  <span>Relances par mois</span>
+                  <span className="font-medium text-[#0F172A]">{plan.limits.followups_per_month}</span>
+                </li>
+              </ul>
+            </div>
+          )}
+
           {/* Bouton d'action */}
           <div className="pt-4">
             {isCurrentPlan ? (
