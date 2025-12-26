@@ -99,7 +99,8 @@ export async function createCheckoutSession(
   token: string | null,
   interval: "month" | "year" = "month",
   successUrl?: string,
-  cancelUrl?: string
+  cancelUrl?: string,
+  promoCode?: string
 ): Promise<CheckoutSessionResponse> {
   return apiPost<CheckoutSessionResponse>(
     "/stripe/create-checkout-session",
@@ -108,6 +109,7 @@ export async function createCheckoutSession(
       interval,
       success_url: successUrl,
       cancel_url: cancelUrl,
+      promo_code: promoCode || undefined,
     },
     token
   );

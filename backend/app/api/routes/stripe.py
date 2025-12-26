@@ -41,6 +41,7 @@ class CreateCheckoutSessionRequest(BaseModel):
     interval: str = "month"  # "month" ou "year" pour mensuel ou annuel
     success_url: Optional[str] = None
     cancel_url: Optional[str] = None
+    promo_code: Optional[str] = None  # Code promo (coupon Stripe)
 
 
 class UpdateSubscriptionRequest(BaseModel):
@@ -586,29 +587,70 @@ async def create_checkout_session(
         success_url = request.success_url or f"{settings.FRONTEND_URL}/app/settings?success=true"
         cancel_url = request.cancel_url or f"{settings.FRONTEND_URL}/app/settings?canceled=true"
         
-        checkout_session = stripe.checkout.Session.create(
-            customer=customer_id,
-            payment_method_types=["card"],
-            line_items=[
+        # Préparer les paramètres de la session
+        session_params = {
+            "customer": customer_id,
+            "payment_method_types": ["card"],
+            "line_items": [
                 {
                     "price": price_id,
                     "quantity": 1,
                 }
             ],
-            mode="subscription",
-            success_url=success_url,
-            cancel_url=cancel_url,
-            metadata={
+            "mode": "subscription",
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+            "metadata": {
                 "company_id": str(company.id),
                 "plan": request.plan.value,
             },
-            subscription_data={
+            "subscription_data": {
                 "metadata": {
                     "company_id": str(company.id),
                     "plan": request.plan.value,
                 },
             },
-        )
+        }
+        
+        # Ajouter le code promo si fourni
+        if request.promo_code:
+            try:
+                # Vérifier que le code promo existe dans Stripe
+                # Stripe accepte soit un coupon_id, soit un promotion_code
+                # On essaie d'abord comme promotion_code (code promo)
+                try:
+                    promo_codes = stripe.PromotionCode.list(
+                        code=request.promo_code,
+                        active=True,
+                        limit=1
+                    )
+                    if promo_codes.data and len(promo_codes.data) > 0:
+                        # Code promo trouvé, l'ajouter aux discounts
+                        session_params["discounts"] = [{
+                            "promotion_code": promo_codes.data[0].id
+                        }]
+                        logger.info(f"Code promo '{request.promo_code}' appliqué (promotion_code: {promo_codes.data[0].id})")
+                    else:
+                        # Essayer comme coupon_id direct
+                        try:
+                            coupon = stripe.Coupon.retrieve(request.promo_code)
+                            if coupon.valid:
+                                session_params["discounts"] = [{
+                                    "coupon": request.promo_code
+                                }]
+                                logger.info(f"Code promo '{request.promo_code}' appliqué (coupon_id)")
+                            else:
+                                logger.warning(f"Code promo '{request.promo_code}' invalide ou expiré")
+                        except stripe.error.InvalidRequestError:
+                            logger.warning(f"Code promo '{request.promo_code}' non trouvé dans Stripe")
+                except Exception as e:
+                    logger.warning(f"Erreur lors de la vérification du code promo '{request.promo_code}': {e}")
+                    # Continuer sans code promo plutôt que de faire échouer le checkout
+            except Exception as e:
+                logger.error(f"Erreur lors de l'application du code promo: {e}")
+                # Ne pas faire échouer le checkout si le code promo est invalide
+        
+        checkout_session = stripe.checkout.Session.create(**session_params)
         
         return {
             "checkout_url": checkout_session.url,

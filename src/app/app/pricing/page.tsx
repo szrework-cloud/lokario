@@ -21,6 +21,7 @@ export default function PricingPage() {
 
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedInterval, setSelectedInterval] = useState<"month" | "year">("month");
+  const [promoCode, setPromoCode] = useState<string>("");
 
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     setSelectedPlan(plan.id);
@@ -38,6 +39,7 @@ export default function PricingPage() {
       interval,
       successUrl,
       cancelUrl,
+      promoCode: promoCode.trim() || undefined,
     });
   };
 
@@ -166,6 +168,36 @@ export default function PricingPage() {
               -20%
             </span>
           )}
+        </div>
+
+        {/* Champ code promo */}
+        <div className="max-w-md mx-auto mb-8">
+          <Card>
+            <CardContent className="p-4">
+              <label htmlFor="promo-code" className="block text-sm font-medium text-[#0F172A] mb-2">
+                Code promo
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="promo-code"
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="Entrez votre code promo"
+                  className="flex-1 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm focus:border-[#F97316] focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:ring-offset-1"
+                />
+                {promoCode && (
+                  <button
+                    onClick={() => setPromoCode("")}
+                    className="px-3 py-2 text-sm text-[#64748B] hover:text-[#0F172A]"
+                    title="Effacer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Plans disponibles (filtrés par interval) */}

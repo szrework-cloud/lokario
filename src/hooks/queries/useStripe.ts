@@ -52,12 +52,14 @@ export function useCreateCheckoutSession() {
       interval = "month",
       successUrl,
       cancelUrl,
+      promoCode,
     }: {
       plan?: "starter" | "professional" | "enterprise";
       interval?: "month" | "year";
       successUrl?: string;
       cancelUrl?: string;
-    }) => createCheckoutSession(plan, token, interval, successUrl, cancelUrl),
+      promoCode?: string;
+    }) => createCheckoutSession(plan, token, interval, successUrl, cancelUrl, promoCode),
     onSuccess: (data) => {
       // Rediriger vers Stripe Checkout
       if (data.checkout_url) {
