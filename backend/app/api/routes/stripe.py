@@ -959,13 +959,10 @@ async def handle_checkout_session_completed(event, db: Session):
         if not plan_updated:
             logger.warning(f"[CHECKOUT] ⚠️ Le plan n'a pas pu être déterminé pour l'abonnement {subscription.id}")
     
-    # S'assurer que le statut est bien "active" si l'abonnement Stripe est actif
-    # Un abonnement payé doit être actif (même si Stripe dit "trialing", on le marque comme actif après paiement)
-    if stripe_subscription.status == "active":
-        subscription.status = SubscriptionStatus.ACTIVE
-    elif stripe_subscription.status == "trialing":
-        # Si on vient de payer, on passe à actif, sinon on garde trialing
-        subscription.status = SubscriptionStatus.ACTIVE
+    # Respecter le statut Stripe : si l'abonnement est en essai (trialing) même après paiement,
+    # on garde le statut trialing jusqu'à la fin de l'essai. Stripe passera automatiquement à "active"
+    # à la fin de l'essai via le webhook customer.subscription.updated
+    subscription.status = SubscriptionStatus(stripe_subscription.status)
     
     db.commit()
     logger.info(f"Abonnement mis à jour avec succès pour company_id: {company_id}, status: {subscription.status.value}")
