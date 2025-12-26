@@ -2,12 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import logging
 
 from app.db.session import get_db
 from app.db.models.appointment import Appointment, AppointmentType, AppointmentStatus
 from app.db.models.user import User
 from app.db.models.client import Client
+from app.db.models.company import Company
+from app.db.models.conversation import Conversation, InboxMessage
+from app.db.models.inbox_integration import InboxIntegration
+from app.core.smtp_service import send_email_smtp, get_smtp_config
+from app.core.encryption_service import get_encryption_service
 from app.api.schemas.appointment import (
     AppointmentTypeCreate,
     AppointmentTypeUpdate,
@@ -21,6 +27,8 @@ from app.api.schemas.appointment import (
 )
 from app.api.deps import get_current_active_user
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -329,6 +337,29 @@ def create_public_appointment(
         joinedload(Appointment.type),
         joinedload(Appointment.employee)
     ).filter(Appointment.id == appointment.id).first()
+    
+    # Envoyer l'email de confirmation (sans current_user, on utilise le nom de l'entreprise)
+    if client and company:
+        try:
+            # Créer un user temporaire pour la fonction (ou adapter la fonction)
+            from app.db.models.user import User
+            system_user = User(
+                id=0,  # ID fictif
+                company_id=company.id,
+                full_name=company.name or "Équipe",
+                email=company.email if hasattr(company, 'email') else None
+            )
+            _send_appointment_confirmation_via_inbox(db, appointment, client, company, system_user)
+        except Exception as e:
+            logger.error(f"Erreur lors de l'envoi de la confirmation pour le rendez-vous public {appointment.id}: {e}", exc_info=True)
+            # Ne pas faire échouer la création du rendez-vous si l'envoi échoue
+    
+    # Créer une relance automatique pour le rendez-vous (user_id=None pour les rendez-vous publics)
+    try:
+        create_automatic_followup_for_appointment(db, appointment, None)
+    except Exception as e:
+        logger.error(f"Erreur lors de la création de la relance automatique pour le rendez-vous public {appointment.id}: {e}", exc_info=True)
+        # Ne pas faire échouer la création du rendez-vous si la relance échoue
     
     return AppointmentRead.from_orm_with_relations(appointment)
 
@@ -859,6 +890,253 @@ def get_appointment(
     return AppointmentRead.from_orm_with_relations(appointment)
 
 
+def _send_appointment_confirmation_via_inbox(
+    db: Session,
+    appointment: Appointment,
+    client: Client,
+    company: Company,
+    current_user: User
+) -> None:
+    """
+    Envoie un email de confirmation de rendez-vous via l'inbox (email).
+    Cherche une conversation existante avec le client, sinon en crée une nouvelle.
+    """
+    logger.info(f"[APPOINTMENT CONFIRM] 🚀 Début de l'envoi de la confirmation pour le rendez-vous {appointment.id} pour le client {client.name} (ID: {client.id})")
+    
+    # Vérifier que le client a un email
+    if not client.email:
+        logger.warning(f"[APPOINTMENT CONFIRM] ❌ Impossible d'envoyer la confirmation: le client {client.name} n'a pas d'email")
+        return
+    
+    logger.info(f"[APPOINTMENT CONFIRM] ✅ Client a un email: {client.email}")
+    
+    # Chercher une conversation existante avec ce client
+    logger.info(f"[APPOINTMENT CONFIRM] 🔍 Recherche d'une conversation existante avec le client {client.id}...")
+    existing_conversation = db.query(Conversation).filter(
+        Conversation.company_id == company.id,
+        Conversation.client_id == client.id,
+        Conversation.source == "email"
+    ).order_by(Conversation.last_message_at.desc()).first()
+    
+    # Si pas de conversation existante, en créer une nouvelle
+    if not existing_conversation:
+        logger.info(f"[APPOINTMENT CONFIRM] 📝 Aucune conversation existante, création d'une nouvelle conversation...")
+        conversation = Conversation(
+            company_id=company.id,
+            client_id=client.id,
+            subject=f"Confirmation de rendez-vous - {appointment.type.name if appointment.type else 'Rendez-vous'}",
+            status="À répondre",
+            source="email",
+            unread_count=0,
+            last_message_at=datetime.now(timezone.utc),
+        )
+        db.add(conversation)
+        db.flush()
+    else:
+        conversation = existing_conversation
+        # Mettre à jour le sujet si nécessaire
+        if not conversation.subject or "Rendez-vous" not in conversation.subject:
+            conversation.subject = f"Confirmation de rendez-vous - {appointment.type.name if appointment.type else 'Rendez-vous'}"
+    
+    # Formater la date et l'heure
+    start_str = appointment.start_date_time.strftime('%d/%m/%Y à %H:%M')
+    end_str = appointment.end_date_time.strftime('%H:%M')
+    employee_name = appointment.employee.full_name if appointment.employee else "Non assigné"
+    
+    # Construire le message de confirmation
+    message_content = f"""Bonjour {client.name},
+
+Votre rendez-vous a été confirmé avec succès.
+
+📅 Date et heure : {start_str} - {end_str}
+👤 Type : {appointment.type.name if appointment.type else 'Rendez-vous'}
+👨‍💼 Employé : {employee_name}
+"""
+    
+    # Ajouter le lien de reprogrammation si configuré
+    from app.db.models.company_settings import CompanySettings
+    company_settings_obj = db.query(CompanySettings).filter(
+        CompanySettings.company_id == company.id
+    ).first()
+    
+    if company_settings_obj and company_settings_obj.settings:
+        appointment_settings = company_settings_obj.settings.get("appointments", {})
+        reschedule_base_url = appointment_settings.get("reschedule_base_url")
+        include_reschedule_link = appointment_settings.get("include_reschedule_link_in_reminder", True)
+        
+        if include_reschedule_link and reschedule_base_url:
+            # Générer un token pour la reprogrammation si nécessaire
+            # Pour l'instant, on utilise juste l'URL de base
+            message_content += f"\nPour reprogrammer votre rendez-vous, visitez : {reschedule_base_url}\n"
+    
+    if appointment.notes_internal:
+        message_content += f"\nNotes : {appointment.notes_internal}\n"
+    
+    message_content += "\nCordialement,\nL'équipe"
+    
+    # Créer le message dans la conversation
+    message = InboxMessage(
+        conversation_id=conversation.id,
+        from_name=current_user.full_name or company.name or "Équipe",
+        from_email=None,  # Sera rempli par l'intégration SMTP
+        from_phone=None,
+        content=message_content,
+        source="email",
+        is_from_client=False,
+        read=True,
+    )
+    db.add(message)
+    
+    # Mettre à jour la conversation
+    conversation.last_message_at = datetime.now(timezone.utc)
+    
+    # Lier le rendez-vous à la conversation si ce n'est pas déjà fait
+    if not appointment.conversation_id:
+        appointment.conversation_id = conversation.id
+    
+    db.commit()
+    db.refresh(conversation)
+    db.refresh(message)
+    
+    # Récupérer l'intégration inbox principale pour envoyer l'email
+    logger.info(f"[APPOINTMENT CONFIRM] 🔍 Recherche de l'intégration inbox principale...")
+    primary_integration = db.query(InboxIntegration).filter(
+        InboxIntegration.company_id == company.id,
+        InboxIntegration.is_primary == True,
+        InboxIntegration.is_active == True,
+        InboxIntegration.integration_type == "imap"
+    ).first()
+    
+    if not primary_integration:
+        logger.warning(f"[APPOINTMENT CONFIRM] ❌ Aucune intégration inbox principale trouvée")
+        return
+    
+    if not primary_integration.email_address:
+        logger.warning(f"[APPOINTMENT CONFIRM] ❌ L'intégration inbox n'a pas d'adresse email configurée")
+        return
+    
+    if not primary_integration.email_password:
+        logger.warning(f"[APPOINTMENT CONFIRM] ❌ L'intégration inbox n'a pas de mot de passe configuré")
+        return
+    
+    logger.info(f"[APPOINTMENT CONFIRM] ✅ Intégration inbox trouvée: {primary_integration.email_address}")
+    
+    # Envoyer l'email via SMTP
+    try:
+        smtp_config = get_smtp_config(primary_integration.email_address)
+        
+        # Décrypter le mot de passe
+        encryption_service = get_encryption_service()
+        email_password = encryption_service.decrypt(primary_integration.email_password) if primary_integration.email_password else None
+        
+        if not email_password:
+            logger.error(f"[APPOINTMENT CONFIRM] ❌ Impossible de décrypter le mot de passe email")
+            return
+        
+        subject = f"Confirmation de rendez-vous - {appointment.type.name if appointment.type else 'Rendez-vous'}"
+        
+        logger.info(f"[APPOINTMENT CONFIRM] 📧 Envoi de l'email de confirmation de {primary_integration.email_address} à {client.email}")
+        send_email_smtp(
+            to_email=client.email,
+            subject=subject,
+            body=message_content,
+            smtp_config=smtp_config,
+            from_email=primary_integration.email_address,
+            from_password=email_password,
+            from_name=company.name or "Équipe"
+        )
+        logger.info(f"[APPOINTMENT CONFIRM] ✅ Email de confirmation envoyé avec succès à {client.email}")
+    except Exception as e:
+        logger.error(f"[APPOINTMENT CONFIRM] ❌ Erreur lors de l'envoi de l'email: {e}", exc_info=True)
+
+
+def create_automatic_followup_for_appointment(db: Session, appointment: Appointment, user_id: Optional[int]):
+    """
+    Crée automatiquement une relance pour un rendez-vous.
+    Vérifie d'abord si les relances automatiques sont activées dans les settings.
+    Utilise FollowUpType.RAPPEL_RDV et ne sera pas affichée dans la liste des relances.
+    """
+    try:
+        # Vérifier si les relances automatiques sont activées
+        from app.db.models.company_settings import CompanySettings
+        company_settings = db.query(CompanySettings).filter(
+            CompanySettings.company_id == appointment.company_id
+        ).first()
+        
+        # Vérifier si les relances automatiques pour les rendez-vous sont activées
+        should_create = True
+        if company_settings and company_settings.settings:
+            appointment_settings = company_settings.settings.get("appointments", {})
+            auto_reminder_enabled = appointment_settings.get("auto_reminder_enabled", True)
+            if not auto_reminder_enabled:
+                should_create = False
+                logger.info(f"[FOLLOWUP AUTO APPOINTMENT] Relances automatiques désactivées pour les rendez-vous")
+        
+        if not should_create:
+            return
+        
+        # Vérifier si une relance existe déjà pour ce rendez-vous
+        from app.db.models.followup import FollowUp, FollowUpType, FollowUpStatus
+        existing_followup = db.query(FollowUp).filter(
+            FollowUp.source_type == "appointment",
+            FollowUp.source_id == appointment.id,
+            FollowUp.type == FollowUpType.RAPPEL_RDV
+        ).first()
+        
+        if existing_followup:
+            logger.info(f"[FOLLOWUP AUTO APPOINTMENT] Relance déjà existante pour le rendez-vous {appointment.id}")
+            return
+        
+        # Récupérer les paramètres de relance depuis les settings
+        reminder_relances = []
+        if company_settings and company_settings.settings:
+            appointment_settings = company_settings.settings.get("appointments", {})
+            reminder_relances = appointment_settings.get("reminder_relances", [])
+        
+        # Si pas de relances configurées, utiliser les valeurs par défaut
+        if not reminder_relances:
+            # Par défaut : 1 relance 24h avant
+            reminder_relances = [{"relance_number": 1, "hours_before": 24, "content": "Rappel : Vous avez un rendez-vous le {date} à {time}."}]
+        
+        # Calculer la date due pour la première relance (heures avant le rendez-vous)
+        first_reminder = reminder_relances[0] if reminder_relances else {"hours_before": 24}
+        hours_before = first_reminder.get("hours_before", 24)
+        due_date = appointment.start_date_time - timedelta(hours=hours_before)
+        
+        # Si la date est dans le passé, ne pas créer la relance
+        if due_date < datetime.now(timezone.utc):
+            logger.info(f"[FOLLOWUP AUTO APPOINTMENT] La date de relance est dans le passé, pas de relance créée")
+            return
+        
+        # Créer la relance automatique
+        followup = FollowUp(
+            company_id=appointment.company_id,
+            client_id=appointment.client_id,
+            type=FollowUpType.RAPPEL_RDV,
+            source_type="appointment",
+            source_id=appointment.id,
+            source_label=f"Rendez-vous {appointment.type.name if appointment.type else 'Rendez-vous'} - {appointment.start_date_time.strftime('%d/%m/%Y %H:%M')}",
+            due_date=due_date,
+            actual_date=due_date,
+            status=FollowUpStatus.A_FAIRE,
+            amount=None,  # Pas de montant pour les rendez-vous
+            auto_enabled=True,
+            auto_frequency_days=None,  # Sera géré par les heures avant le rendez-vous
+            auto_stop_on_response=True,
+            auto_stop_on_paid=False,  # Pas applicable pour les rendez-vous
+            auto_stop_on_refused=False,  # Pas applicable pour les rendez-vous
+            created_by_id=user_id
+        )
+        
+        db.add(followup)
+        db.commit()
+        logger.info(f"[FOLLOWUP AUTO APPOINTMENT] ✅ Relance automatique créée pour le rendez-vous {appointment.id} - Due: {due_date.strftime('%Y-%m-%d %H:%M')}")
+        
+    except Exception as e:
+        logger.error(f"[FOLLOWUP AUTO APPOINTMENT] ❌ Erreur lors de la création de la relance automatique pour le rendez-vous {appointment.id}: {e}", exc_info=True)
+        # Ne pas faire échouer la création du rendez-vous si la relance échoue
+
+
 @router.post("", response_model=AppointmentRead, status_code=status.HTTP_201_CREATED)
 def create_appointment(
     appointment_data: AppointmentCreate,
@@ -975,6 +1253,33 @@ def create_appointment(
     db.commit()
     db.refresh(appointment)
     
+    # Recharger avec les relations pour avoir accès au client et au type
+    appointment = db.query(Appointment).options(
+        joinedload(Appointment.client),
+        joinedload(Appointment.type),
+        joinedload(Appointment.employee),
+        joinedload(Appointment.conversation)
+    ).filter(Appointment.id == appointment.id).first()
+    
+    # Récupérer l'entreprise pour l'envoi de confirmation
+    from app.db.models.company import Company
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    
+    # Envoyer l'email de confirmation
+    if client and company:
+        try:
+            _send_appointment_confirmation_via_inbox(db, appointment, client, company, current_user)
+        except Exception as e:
+            logger.error(f"Erreur lors de l'envoi de la confirmation pour le rendez-vous {appointment.id}: {e}", exc_info=True)
+            # Ne pas faire échouer la création du rendez-vous si l'envoi échoue
+    
+    # Créer une relance automatique pour le rendez-vous
+    try:
+        create_automatic_followup_for_appointment(db, appointment, current_user.id)
+    except Exception as e:
+        logger.error(f"Erreur lors de la création de la relance automatique pour le rendez-vous {appointment.id}: {e}", exc_info=True)
+        # Ne pas faire échouer la création du rendez-vous si la relance échoue
+    
     # Créer une notification pour le nouveau rendez-vous
     try:
         from app.core.notifications import create_notification
@@ -997,21 +1302,9 @@ def create_appointment(
             source_id=appointment.id,
             user_id=appointment.employee_id,  # Notifier l'employé assigné si disponible
         )
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info(f"✅ Notification créée pour le nouveau rendez-vous {appointment.id}")
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.warning(f"Erreur lors de la création de la notification pour le rendez-vous {appointment.id}: {e}")
-    
-    # Recharger avec les relations
-    appointment = db.query(Appointment).options(
-        joinedload(Appointment.client),
-        joinedload(Appointment.type),
-        joinedload(Appointment.employee),
-        joinedload(Appointment.conversation)
-    ).filter(Appointment.id == appointment.id).first()
     
     return AppointmentRead.from_orm_with_relations(appointment)
 

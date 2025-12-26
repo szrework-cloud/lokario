@@ -161,58 +161,90 @@ def check_critical_tasks(db):
 
 
 def check_appointment_reminders(db):
-    """Vérifie les rendez-vous à venir et crée des rappels"""
-    now = datetime.now()
-    in_24h = now + timedelta(hours=24)
-    in_2h = now + timedelta(hours=2)
+    """Vérifie les relances automatiques de rendez-vous et les envoie si nécessaire"""
+    from app.db.models.followup import FollowUp, FollowUpType, FollowUpStatus
+    from app.db.models.appointment import Appointment
+    from datetime import timezone
     
-    # Trouver les rendez-vous dans les 24 prochaines heures
-    upcoming_appointments = db.query(Appointment).filter(
-        Appointment.status != AppointmentStatus.CANCELLED,
-        Appointment.start_date_time > now,
-        Appointment.start_date_time <= in_24h
+    now = datetime.now(timezone.utc)
+    
+    # Trouver toutes les relances de type RAPPEL_RDV qui sont actives et dont la due_date est atteinte
+    appointment_followups = db.query(FollowUp).filter(
+        FollowUp.type == FollowUpType.RAPPEL_RDV,
+        FollowUp.status == FollowUpStatus.A_FAIRE,
+        FollowUp.auto_enabled == True,
+        FollowUp.due_date <= now  # La date de relance est atteinte ou dépassée
     ).all()
     
-    frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
+    logger.info(f"📅 {len(appointment_followups)} relance(s) de rendez-vous à traiter")
     
-    for appointment in upcoming_appointments:
-        # Vérifier si un rappel a déjà été envoyé aujourd'hui
-        from app.db.models.notification import Notification
-        existing_notification = db.query(Notification).filter(
-            Notification.company_id == appointment.company_id,
-            Notification.source_type == "appointment",
-            Notification.source_id == appointment.id,
-            Notification.type == NotificationType.APPOINTMENT_REMINDER,
-            Notification.created_at >= datetime.combine(now.date(), datetime.min.time())
-        ).first()
-        
-        if not existing_notification:
-            # Vérifier si on doit envoyer le rappel (dans les 24h mais pas encore passé les 2h)
-            time_until = appointment.start_date_time - now
-            hours_until = time_until.total_seconds() / 3600
+    # Importer les fonctions nécessaires depuis send_automatic_followups
+    try:
+        from scripts.send_automatic_followups import should_send_followup, generate_followup_message, send_followup_via_inbox
+    except ImportError:
+        logger.error("❌ Impossible d'importer les fonctions de send_automatic_followups")
+        return
+    
+    sent_count = 0
+    for followup in appointment_followups:
+        try:
+            # Vérifier si le rendez-vous existe toujours et n'est pas annulé
+            appointment = db.query(Appointment).filter(
+                Appointment.id == followup.source_id,
+                Appointment.company_id == followup.company_id
+            ).first()
             
-            # Envoyer un rappel si c'est entre 2h et 24h avant
-            if 2 <= hours_until <= 24:
-                try:
-                    client_name = appointment.client.name if appointment.client else "Client"
-                    employee_name = appointment.employee.full_name if appointment.employee else "Non assigné"
-                    start_str = appointment.start_date_time.strftime('%d/%m/%Y à %H:%M')
-                    
-                    create_notification(
-                        db=db,
-                        company_id=appointment.company_id,
-                        notification_type=NotificationType.APPOINTMENT_REMINDER,
-                        title="Rappel de rendez-vous",
-                        message=f"Rappel: Rendez-vous avec {client_name} le {start_str} ({employee_name})",
-                        link_url=f"{frontend_url}/app/appointments",
-                        link_text="Voir les rendez-vous",
-                        source_type="appointment",
-                        source_id=appointment.id,
-                        user_id=appointment.employee_id,
-                    )
-                    logger.info(f"✅ Notification de rappel créée pour le rendez-vous {appointment.id}")
-                except Exception as e:
-                    logger.error(f"❌ Erreur lors de la création du rappel pour le rendez-vous {appointment.id}: {e}")
+            if not appointment:
+                logger.info(f"Relance {followup.id}: Rendez-vous {followup.source_id} introuvable, marquage comme FAIT")
+                followup.status = FollowUpStatus.FAIT
+                db.commit()
+                continue
+            
+            if appointment.status == AppointmentStatus.CANCELLED:
+                logger.info(f"Relance {followup.id}: Rendez-vous {appointment.id} annulé, marquage comme FAIT")
+                followup.status = FollowUpStatus.FAIT
+                db.commit()
+                continue
+            
+            # Vérifier si le rendez-vous est déjà passé
+            if appointment.start_date_time < now:
+                logger.info(f"Relance {followup.id}: Rendez-vous {appointment.id} déjà passé, marquage comme FAIT")
+                followup.status = FollowUpStatus.FAIT
+                db.commit()
+                continue
+            
+            # Vérifier si on doit envoyer la relance (pour les rendez-vous, on vérifie les heures avant)
+            # La due_date est calculée comme start_date_time - hours_before
+            time_until_appointment = appointment.start_date_time - now
+            hours_until = time_until_appointment.total_seconds() / 3600
+            
+            # Pour les rendez-vous, on envoie la relance si on est proche de la due_date (dans une fenêtre de 1h)
+            time_since_due = (now - followup.due_date).total_seconds() / 3600
+            if time_since_due < 0 or time_since_due > 1:
+                # Pas encore le moment ou trop tard
+                continue
+            
+            # Générer le message de relance
+            message = generate_followup_message(followup, db)
+            
+            if not message:
+                logger.warning(f"Relance {followup.id}: Impossible de générer le message")
+                continue
+            
+            # Envoyer la relance via inbox (email/SMS)
+            success, conversation_id = send_followup_via_inbox(followup, message, "email", db)
+            
+            if success:
+                sent_count += 1
+                logger.info(f"✅ Relance de rendez-vous {followup.id} envoyée avec succès")
+            else:
+                logger.warning(f"⚠️ Relance de rendez-vous {followup.id} non envoyée")
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur lors du traitement de la relance {followup.id}: {e}", exc_info=True)
+    
+    if sent_count > 0:
+        logger.info(f"✅ {sent_count} relance(s) de rendez-vous envoyée(s)")
 
 
 def main():

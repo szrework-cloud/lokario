@@ -108,6 +108,26 @@ export function AppointmentDetailModal({
             <div>
               <label className="text-xs font-medium text-[#64748B]">Client</label>
               <p className="text-sm font-medium text-[#0F172A] mt-1">{appointment.clientName}</p>
+              {appointment.clientEmail && (
+                <p className="text-xs text-[#64748B] mt-1">
+                  <a
+                    href={`mailto:${appointment.clientEmail}`}
+                    className="text-[#F97316] hover:underline"
+                  >
+                    📧 {appointment.clientEmail}
+                  </a>
+                </p>
+              )}
+              {appointment.clientPhone && (
+                <p className="text-xs text-[#64748B] mt-1">
+                  <a
+                    href={`tel:${appointment.clientPhone}`}
+                    className="text-[#F97316] hover:underline"
+                  >
+                    📞 {appointment.clientPhone}
+                  </a>
+                </p>
+              )}
             </div>
 
             <div>

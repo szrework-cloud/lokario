@@ -101,6 +101,8 @@ class AppointmentRead(BaseModel):
     company_id: int
     client_id: int
     client_name: Optional[str] = None
+    client_email: Optional[str] = None
+    client_phone: Optional[str] = None
     type_id: int
     type_name: Optional[str] = None
     employee_id: Optional[int] = None
@@ -125,6 +127,8 @@ class AppointmentRead(BaseModel):
             "company_id": appointment.company_id,
             "client_id": appointment.client_id,
             "client_name": appointment.client.name if appointment.client else None,
+            "client_email": appointment.client.email if appointment.client else None,
+            "client_phone": appointment.client.phone if appointment.client else None,
             "type_id": appointment.type_id,
             "type_name": appointment.type.name if appointment.type else None,
             "employee_id": appointment.employee_id,

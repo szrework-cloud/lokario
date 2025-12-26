@@ -21,6 +21,8 @@ export interface Appointment {
   id: number;
   clientId: number;
   clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
   clientConversationId?: number; // id de conversation Inbox pour générer les messages
   typeId: number;
   typeName: string;

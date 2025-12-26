@@ -227,6 +227,10 @@ def get_followups(
         
         query = db.query(FollowUp).filter(FollowUp.company_id == current_user.company_id)
         
+        # Exclure les relances de type RAPPEL_RDV (relances de rendez-vous) de la liste
+        # Elles sont gérées automatiquement et ne doivent pas apparaître dans la liste des relances
+        query = query.filter(FollowUp.type != FollowUpType.RAPPEL_RDV)
+        
         # Filtrer par statut
         if status_filter and status_filter != "all":
             try:
