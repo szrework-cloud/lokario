@@ -937,6 +937,7 @@ def _send_appointment_confirmation_via_inbox(
     employee_name = appointment.employee.full_name if appointment.employee else "Non assigné"
     
     # Construire le message de confirmation
+    company_name = company.name or "Notre entreprise"
     message_content = f"""Bonjour {client.name},
 
 Votre rendez-vous a été confirmé avec succès.
@@ -965,7 +966,7 @@ Votre rendez-vous a été confirmé avec succès.
     if appointment.notes_internal:
         message_content += f"\nNotes : {appointment.notes_internal}\n"
     
-    message_content += "\nCordialement,\nL'équipe"
+    message_content += f"\nCordialement,\nL'équipe {company_name}"
     
     # Créer le message dans la conversation
     from_name = (current_user.full_name if current_user else None) or company.name or "Équipe"
