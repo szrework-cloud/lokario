@@ -9,6 +9,35 @@ export interface TimeSlot {
 }
 
 /**
+ * Arrondit une date/heure au créneau de 30 minutes le plus proche (vers le haut)
+ * Exemples: 13h54 -> 14h00, 14h15 -> 14h30, 14h30 -> 14h30
+ */
+function roundToNearest30Minutes(date: Date): Date {
+  const rounded = new Date(date);
+  const minutes = rounded.getMinutes();
+  
+  if (minutes === 0 || minutes === 30) {
+    // Déjà arrondi
+    return rounded;
+  }
+  
+  if (minutes < 30) {
+    // Arrondir à :30
+    rounded.setMinutes(30);
+    rounded.setSeconds(0);
+    rounded.setMilliseconds(0);
+  } else {
+    // Arrondir à l'heure suivante :00
+    rounded.setHours(rounded.getHours() + 1);
+    rounded.setMinutes(0);
+    rounded.setSeconds(0);
+    rounded.setMilliseconds(0);
+  }
+  
+  return rounded;
+}
+
+/**
  * Calcule les créneaux disponibles pour un type de RDV donné
  */
 export function calculateAvailableSlots(
@@ -59,6 +88,9 @@ export function calculateAvailableSlots(
         currentTime.setMilliseconds(0);
       }
     }
+    
+    // Arrondir au créneau de 30 minutes le plus proche
+    currentTime = roundToNearest30Minutes(currentTime);
 
     while (currentTime.getTime() + totalDuration * 60 * 1000 <= endOfDay.getTime()) {
       const slotStart = new Date(currentTime);
@@ -66,8 +98,8 @@ export function calculateAvailableSlots(
 
       // Vérifier que le créneau n'est pas dans le passé
       if (slotStart < now) {
-        // Passer directement au créneau suivant (bout à bout, sans pause entre)
-        currentTime = new Date(slotEnd);
+        // Passer au créneau suivant (30 minutes plus tard pour garder les heures rondes)
+        currentTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
         continue;
       }
 
@@ -116,8 +148,8 @@ export function calculateAvailableSlots(
         });
       }
 
-      // Passer au créneau suivant (bout à bout, sans pause entre)
-      currentTime = new Date(slotEnd);
+      // Passer au créneau suivant (30 minutes plus tard pour garder les heures rondes)
+      currentTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
     }
   });
 
