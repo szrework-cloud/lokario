@@ -59,6 +59,17 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
       router.push("/app/pricing?required=true");
       return;
     }
+    
+    // Vérifier si l'essai gratuit est expiré (même si le statut est encore "trialing")
+    if (subscription.status === "trialing" && subscription.trial_end) {
+      const trialEnd = new Date(subscription.trial_end);
+      const now = new Date();
+      if (trialEnd < now) {
+        // L'essai est expiré - rediriger vers pricing
+        router.push("/app/pricing?required=true&trial_expired=true");
+        return;
+      }
+    }
   }, [subscriptionData, isLoading, pathname, router]);
 
   // Afficher un loader pendant la vérification
@@ -88,6 +99,16 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
   const validStatuses = ["active", "trialing"];
   if (!validStatuses.includes(subscription.status)) {
     return <SubscriptionRequiredScreen status={subscription.status} />;
+  }
+  
+  // Vérifier si l'essai gratuit est expiré (même si le statut est encore "trialing")
+  if (subscription.status === "trialing" && subscription.trial_end) {
+    const trialEnd = new Date(subscription.trial_end);
+    const now = new Date();
+    if (trialEnd < now) {
+      // L'essai est expiré - afficher l'écran d'abonnement requis
+      return <SubscriptionRequiredScreen status="incomplete_expired" />;
+    }
   }
 
   // Abonnement valide - autoriser l'accès

@@ -17,6 +17,7 @@ from app.db.models.appointment import Appointment, AppointmentStatus
 from app.core.notifications import create_notification
 from app.db.models.notification import NotificationType
 from app.core.config import settings
+from datetime import timezone
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -247,6 +248,37 @@ def check_appointment_reminders(db):
         logger.info(f"✅ {sent_count} relance(s) de rendez-vous envoyée(s)")
 
 
+def check_expired_trials(db):
+    """Vérifie les essais gratuits expirés et met à jour leur statut"""
+    from app.db.models.subscription import Subscription, SubscriptionStatus
+    
+    now = datetime.now(timezone.utc)
+    
+    # Trouver tous les abonnements en essai gratuit (trialing) sans Stripe dont l'essai est expiré
+    expired_trials = db.query(Subscription).filter(
+        Subscription.status == SubscriptionStatus.TRIALING,
+        Subscription.stripe_subscription_id.is_(None),  # Uniquement les essais sans Stripe
+        Subscription.trial_end.isnot(None),
+        Subscription.trial_end < now
+    ).all()
+    
+    logger.info(f"🔄 {len(expired_trials)} essai(s) gratuit(s) expiré(s) trouvé(s)")
+    
+    updated_count = 0
+    for subscription in expired_trials:
+        try:
+            # Mettre à jour le statut à INCOMPLETE_EXPIRED
+            subscription.status = SubscriptionStatus.INCOMPLETE_EXPIRED
+            updated_count += 1
+            logger.info(f"✅ Essai gratuit expiré pour l'entreprise {subscription.company_id} (abonnement {subscription.id})")
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de la mise à jour de l'abonnement {subscription.id}: {e}", exc_info=True)
+    
+    if updated_count > 0:
+        db.commit()
+        logger.info(f"✅ {updated_count} abonnement(s) mis à jour (essai expiré)")
+
+
 def main():
     """Fonction principale"""
     db = SessionLocal()
@@ -257,6 +289,7 @@ def main():
         check_overdue_tasks(db)
         check_critical_tasks(db)
         check_appointment_reminders(db)
+        check_expired_trials(db)
         
         logger.info("✅ Vérification terminée")
     except Exception as e:
