@@ -338,18 +338,10 @@ def create_public_appointment(
         joinedload(Appointment.employee)
     ).filter(Appointment.id == appointment.id).first()
     
-    # Envoyer l'email de confirmation (sans current_user, on utilise le nom de l'entreprise)
+    # Envoyer l'email de confirmation (sans current_user pour les rendez-vous publics)
     if client and company:
         try:
-            # Créer un user temporaire pour la fonction (ou adapter la fonction)
-            from app.db.models.user import User
-            system_user = User(
-                id=0,  # ID fictif
-                company_id=company.id,
-                full_name=company.name or "Équipe",
-                email=company.email if hasattr(company, 'email') else None
-            )
-            _send_appointment_confirmation_via_inbox(db, appointment, client, company, system_user)
+            _send_appointment_confirmation_via_inbox(db, appointment, client, company, None)
         except Exception as e:
             logger.error(f"Erreur lors de l'envoi de la confirmation pour le rendez-vous public {appointment.id}: {e}", exc_info=True)
             # Ne pas faire échouer la création du rendez-vous si l'envoi échoue
@@ -895,11 +887,12 @@ def _send_appointment_confirmation_via_inbox(
     appointment: Appointment,
     client: Client,
     company: Company,
-    current_user: User
+    current_user: Optional[User] = None
 ) -> None:
     """
     Envoie un email de confirmation de rendez-vous via l'inbox (email).
     Cherche une conversation existante avec le client, sinon en crée une nouvelle.
+    current_user est optionnel (None pour les rendez-vous publics).
     """
     logger.info(f"[APPOINTMENT CONFIRM] 🚀 Début de l'envoi de la confirmation pour le rendez-vous {appointment.id} pour le client {client.name} (ID: {client.id})")
     
@@ -975,9 +968,10 @@ Votre rendez-vous a été confirmé avec succès.
     message_content += "\nCordialement,\nL'équipe"
     
     # Créer le message dans la conversation
+    from_name = (current_user.full_name if current_user else None) or company.name or "Équipe"
     message = InboxMessage(
         conversation_id=conversation.id,
-        from_name=current_user.full_name or company.name or "Équipe",
+        from_name=from_name,
         from_email=None,  # Sera rempli par l'intégration SMTP
         from_phone=None,
         content=message_content,
