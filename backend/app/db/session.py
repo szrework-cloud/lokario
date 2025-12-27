@@ -63,7 +63,7 @@ else:
         max_overflow = 20  # Augmenté de 10 à 20 (total max: 30 connexions)
         pool_recycle = 90  # 90 secondes (réduit pour éviter les connexions SSL fermées par Supabase)
         pool_class = QueuePool
-            logger.info("🔧 Utilisation de QueuePool avec pooler Supabase (pool_size=10, max_overflow=20, pool_recycle=90s)")
+        logger.info("🔧 Utilisation de QueuePool avec pooler Supabase (pool_size=10, max_overflow=20, pool_recycle=90s)")
         
         engine = create_engine(
             settings.DATABASE_URL,  # Utiliser l'URL originale (pooler gère IPv4/IPv6)
