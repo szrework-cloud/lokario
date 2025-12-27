@@ -49,7 +49,9 @@ def check_overdue_invoices(db):
         
         if not existing_notification:
             try:
-                days_overdue = (today - invoice.due_date).days
+                # Convertir invoice.due_date (datetime) en date pour la soustraction
+                invoice_due_date = invoice.due_date.date() if isinstance(invoice.due_date, datetime) else invoice.due_date
+                days_overdue = (today - invoice_due_date).days
                 create_notification(
                     db=db,
                     company_id=invoice.company_id,
@@ -92,7 +94,9 @@ def check_overdue_tasks(db):
         
         if not existing_notification:
             try:
-                days_overdue = (today - task.due_date).days
+                # Convertir task.due_date (datetime) en date pour la soustraction
+                task_due_date = task.due_date.date() if isinstance(task.due_date, datetime) else task.due_date
+                days_overdue = (today - task_due_date).days
                 create_notification(
                     db=db,
                     company_id=task.company_id,
@@ -139,7 +143,9 @@ def check_critical_tasks(db):
         
         if not existing_notification:
             try:
-                days_until_due = (task.due_date - today).days
+                # Convertir task.due_date (datetime) en date pour la soustraction
+                task_due_date = task.due_date.date() if isinstance(task.due_date, datetime) else task.due_date
+                days_until_due = (task_due_date - today).days
                 due_str = task.due_date.strftime('%d/%m/%Y')
                 if task.due_time:
                     due_str += f" à {task.due_time.strftime('%H:%M')}"
