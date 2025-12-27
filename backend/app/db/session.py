@@ -37,7 +37,7 @@ else:
             # Le pooler gère automatiquement IPv4/IPv6, pas besoin de forcer IPv4
             connect_args = {
                 "sslmode": "require",
-                "connect_timeout": 3,  # Réduit de 5s à 3s pour détecter les problèmes plus rapidement
+                "connect_timeout": 5,  # 5 secondes pour laisser le temps à la connexion SSL de s'établir
                 "application_name": "lokario_backend",
                 "target_session_attrs": "read-write",
             }
@@ -46,7 +46,7 @@ else:
             # Configuration pour connexion directe (non recommandé avec Railway)
             connect_args = {
                 "sslmode": "require",
-                "connect_timeout": 3,  # Réduit de 5s à 3s pour détecter les problèmes plus rapidement
+                "connect_timeout": 5,  # 5 secondes pour laisser le temps à la connexion SSL de s'établir
                 "keepalives": 1,
                 "keepalives_idle": 30,
                 "keepalives_interval": 10,
@@ -61,9 +61,9 @@ else:
         # Augmenté pour éviter les timeouts lors de requêtes simultanées
         pool_size = 10  # Augmenté de 5 à 10
         max_overflow = 20  # Augmenté de 10 à 20 (total max: 30 connexions)
-        pool_recycle = 180  # 3 minutes (réduit pour éviter les connexions SSL fermées par Supabase)
+        pool_recycle = 90  # 90 secondes (réduit pour éviter les connexions SSL fermées par Supabase)
         pool_class = QueuePool
-        logger.info("🔧 Utilisation de QueuePool avec pooler Supabase (pool_size=10, max_overflow=20, pool_recycle=3min)")
+            logger.info("🔧 Utilisation de QueuePool avec pooler Supabase (pool_size=10, max_overflow=20, pool_recycle=90s)")
         
         engine = create_engine(
             settings.DATABASE_URL,  # Utiliser l'URL originale (pooler gère IPv4/IPv6)
@@ -77,11 +77,21 @@ else:
             echo=False,
             isolation_level="READ COMMITTED"
         )
+        
+        # Event listener pour gérer automatiquement les déconnexions SSL
+        @event.listens_for(engine, "invalidate")
+        def receive_invalidate(dbapi_conn, connection_record, exception):
+            """Event listener appelé lorsqu'une connexion est invalidée."""
+            error_str = str(exception).lower() if exception else ""
+            if any(msg in error_str for msg in ["ssl", "connection", "closed", "reset"]):
+                logger.warning(f"⚠️ Connexion SSL invalidée: {exception}")
+            else:
+                logger.debug(f"🔄 Connexion invalidée: {exception}")
     else:
         # Connexion directe : utiliser QueuePool normal
         pool_size = 10
         max_overflow = 20
-        pool_recycle = 180  # 3 minutes (réduit pour éviter les connexions SSL fermées)
+        pool_recycle = 90  # 90 secondes (réduit pour éviter les connexions SSL fermées)
         pool_class = QueuePool
         
         engine = create_engine(
@@ -97,6 +107,16 @@ else:
             isolation_level="READ COMMITTED"
         )
         logger.info(f"🔧 Utilisation de QueuePool (connexion directe) - pool_size={pool_size}, max_overflow={max_overflow}")
+        
+        # Event listener pour gérer automatiquement les déconnexions SSL
+        @event.listens_for(engine, "invalidate")
+        def receive_invalidate(dbapi_conn, connection_record, exception):
+            """Event listener appelé lorsqu'une connexion est invalidée."""
+            error_str = str(exception).lower() if exception else ""
+            if any(msg in error_str for msg in ["ssl", "connection", "closed", "reset"]):
+                logger.warning(f"⚠️ Connexion SSL invalidée: {exception}")
+            else:
+                logger.debug(f"🔄 Connexion invalidée: {exception}")
     
     logger.info(f"📊 Pool de connexions configuré: {'NullPool (pooler)' if is_pooler else f'QueuePool (pool_size={pool_size}, max_overflow={max_overflow})'}")
 

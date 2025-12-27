@@ -8,6 +8,14 @@ from sqlalchemy.orm import Session
 import logging
 import time
 
+# Import du circuit breaker (optionnel, ne plante pas si absent)
+try:
+    from app.db.circuit_breaker import db_circuit_breaker
+    CIRCUIT_BREAKER_AVAILABLE = True
+except ImportError:
+    CIRCUIT_BREAKER_AVAILABLE = False
+    db_circuit_breaker = None
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
@@ -129,9 +137,9 @@ def retry_db_operation(
 def execute_with_retry(
     db: Session,
     operation: Callable[[], T],
-    max_retries: int = 3,
+    max_retries: int = 4,  # Augmenté de 3 à 4 pour les erreurs SSL persistantes
     initial_delay: float = 0.5,
-    max_delay: float = 2.0,
+    max_delay: float = 3.0,  # Augmenté de 2.0 à 3.0 pour les erreurs SSL
     backoff_factor: float = 2.0
 ) -> T:
     """
@@ -157,8 +165,22 @@ def execute_with_retry(
     for attempt in range(max_retries + 1):
         try:
             logger.debug(f"🔄 Tentative {attempt + 1}/{max_retries + 1} d'exécution de l'opération...")
-            # Exécuter l'opération
-            result = operation()
+            
+            # Utiliser le circuit breaker si disponible
+            if CIRCUIT_BREAKER_AVAILABLE and db_circuit_breaker:
+                try:
+                    result = db_circuit_breaker.call(operation)
+                except Exception as cb_error:
+                    # Si le circuit breaker bloque la requête, propager l'erreur
+                    if "Circuit breaker is OPEN" in str(cb_error):
+                        logger.warning(f"🔴 Circuit breaker bloque la requête: {cb_error}")
+                        raise
+                    # Sinon, c'est une erreur normale, continuer le retry
+                    raise cb_error
+            else:
+                # Exécuter l'opération normalement
+                result = operation()
+            
             # Si on arrive ici, l'opération a réussi
             if attempt > 0:
                 logger.info(f"✅ Connexion réussie après {attempt} tentative(s) de retry")
@@ -183,21 +205,34 @@ def execute_with_retry(
             logger.warning(
                 f"⚠️ Erreur de connexion (tentative {attempt + 1}/{max_retries + 1}): {error_str[:150]}"
             )
-            logger.info(f"⏳ Attente de {delay:.2f}s avant la tentative {attempt + 2}...")
             
-            # Nettoyer la session avant de réessayer
+            # Pour les erreurs SSL, invalider le pool pour forcer de nouvelles connexions
+            is_ssl_error = any(msg in error_str.lower() for msg in ["ssl", "connection closed", "connection reset"])
+            
+            # Nettoyer la session et invalider le pool avant de réessayer
             try:
                 db.rollback()  # Rollback de la transaction en cours
                 db.expire_all()  # Expirer tous les objets de la session
-                # Avec NullPool, dispose() ne fait rien mais on l'appelle quand même
-                if hasattr(db, 'bind') and hasattr(db.bind, 'dispose'):
-                    db.bind.dispose()
+                
+                # Pour les erreurs SSL, invalider le pool pour forcer de nouvelles connexions
+                if is_ssl_error and hasattr(db, 'bind') and hasattr(db.bind, 'pool'):
+                    try:
+                        # Invalider toutes les connexions du pool
+                        db.bind.pool.invalidate()
+                        logger.warning(f"🔄 Pool invalidé après erreur SSL (tentative {attempt + 1})")
+                    except Exception as invalidate_error:
+                        logger.warning(f"⚠️ Erreur lors de l'invalidation du pool: {invalidate_error}")
+                
                 logger.debug(f"🔄 Session nettoyée après tentative {attempt + 1}")
             except Exception as cleanup_error:
                 logger.warning(f"⚠️ Erreur lors du nettoyage de la session: {cleanup_error}")
             
+            # Pour les erreurs SSL, attendre un peu plus longtemps
+            wait_time = delay * 2 if is_ssl_error else delay
+            logger.info(f"⏳ Attente de {wait_time:.2f}s avant la tentative {attempt + 2}...")
+            
             # Attendre avant de réessayer
-            time.sleep(delay)
+            time.sleep(wait_time)
             logger.debug(f"✅ Attente terminée, passage à la tentative {attempt + 2}")
             
             # Augmenter le délai pour la prochaine tentative (backoff exponentiel)

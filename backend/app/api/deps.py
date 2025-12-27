@@ -88,7 +88,7 @@ async def get_current_user(
     def _get_user():
         return db.query(User).filter(User.id == token_data.user_id).first()
     
-    user = execute_with_retry(db, _get_user, max_retries=3, initial_delay=0.5, max_delay=2.0)
+    user = execute_with_retry(db, _get_user, max_retries=4, initial_delay=0.5, max_delay=3.0)
     if user is None:
         raise credentials_exception
     return user
